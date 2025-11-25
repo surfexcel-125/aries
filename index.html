@@ -37,7 +37,7 @@
             
             <header id="main-header">
                 <div class="header-content">
-                    <div class="menu-icon" onclick="toggleSidebar()">☰</div> 
+                    <div class="menu-icon" id="sidebar-toggle">☰</div> 
                     <button class="project-indicator" onclick="toggleProjectPopup()">Projects</button>
                     <img src="https://via.placeholder.com/30/000000/ffffff?text=🐏" alt="Ram Logo" class="ram-logo">
                     <button onclick="handleLogout()" class="logout-btn">Logout</button>
@@ -45,6 +45,11 @@
             </header>
 
             <div id="sidebar-menu" class="sidebar">
+                <div class="menu-header" onclick="toggleSidebar()">
+                    <span class="menu-icon-back">←</span> 
+                    <span class="project-label">PROJECT</span>
+                </div>
+                
                 <button class="menu-link" onclick="navigateTo('home')">Home (Slide 1)</button>
                 <button class="menu-link" onclick="navigateTo('dashboard')">Projects (Slide 3)</button>
                 </div>
