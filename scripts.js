@@ -12,7 +12,7 @@ let startNodeId = null;
 
 // Styles based on your design (Slide 4)
 const LIGHT_STYLE = { fill: '#e0e0e0', stroke: 'black', cornerRadius: 5 };
-const DARK_STYLE = { fill: '#1c4e78', stroke: 'black', cornerRadius: 5 };
+const DARK_STYLE = { fill: '#1c4e78', stroke: 'white', cornerRadius: 5 }; 
 const LINE_COLOR = '#006699';
 
 
@@ -34,13 +34,8 @@ auth.onAuthStateChanged((user) => {
     }
 });
 
-document.getElementById('login-form').addEventListener('submit', handleLogin);
-// Attach signup listener directly to the button ID
-document.getElementById('signup-button').addEventListener('click', handleSignup);
-
-
 async function handleLogin(event) {
-    event.preventDefault(); // Prevents page reload
+    event.preventDefault(); 
     const email = document.getElementById('login-email').value;
     const password = document.getElementById('login-password').value;
 
@@ -74,7 +69,7 @@ function handleLogout() {
 
 
 // =================================================================
-// 2. ROUTING & UI NAVIGATION (6 Views)
+// 2. ROUTING & UI NAVIGATION
 // =================================================================
 
 function clientRouter() {
@@ -105,11 +100,14 @@ function navigateTo(hash) {
 }
 
 function toggleSidebar() {
-    document.getElementById('sidebar-menu').classList.toggle('visible');
+    const sidebar = document.getElementById('sidebar-menu');
+    const appShell = document.getElementById('main-app-shell');
+
+    sidebar.classList.toggle('visible');
+    appShell.classList.toggle('sidebar-open'); 
 }
 
 function toggleProjectPopup(event) {
-    // Only toggle if clicked on the button or the overlay background
     if (event && (event.target.id === 'project-selection-popup' || event.target.classList.contains('project-indicator'))) {
         document.getElementById('project-selection-popup').classList.toggle('visible');
     } else if (!event) {
@@ -118,11 +116,31 @@ function toggleProjectPopup(event) {
     loadProjectsDashboard();
 }
 
-window.addEventListener('hashchange', clientRouter);
+// =================================================================
+// 3. EVENT LISTENERS INITIALIZATION (Ensuring all buttons work)
+// =================================================================
+
+function initializeEventListeners() {
+    // 1. Auth Listeners
+    const loginForm = document.getElementById('login-form');
+    if (loginForm) loginForm.addEventListener('submit', handleLogin);
+    
+    const signupButton = document.getElementById('signup-button');
+    if (signupButton) signupButton.addEventListener('click', handleSignup);
+    
+    // 2. UI/Navigation Listeners (The Sidebar Fix)
+    const sidebarToggle = document.getElementById('sidebar-toggle');
+    if (sidebarToggle) sidebarToggle.addEventListener('click', toggleSidebar);
+
+    window.addEventListener('hashchange', clientRouter);
+}
+
+// Ensure all listeners are attached after the DOM is fully loaded
+document.addEventListener('DOMContentLoaded', initializeEventListeners);
 
 
 // =================================================================
-// 3. FIRESTORE CRUD (Dashboard Data)
+// 4. FIRESTORE CRUD (Dashboard Data)
 // =================================================================
 
 async function loadProjectsDashboard() {
@@ -155,7 +173,7 @@ async function addProject() {
             name: newName,
             status: 'To Do',
             mindmapNodes: [], 
-            mindmapConnections: [], // Added connections array
+            mindmapConnections: [], 
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         
@@ -206,17 +224,17 @@ function renderProjectPopupList(projects) {
 
 
 // =================================================================
-// 4. KONVA.JS MIND MAP EDITOR (Slide 4 Logic)
+// 5. KONVA.JS MIND MAP EDITOR
 // =================================================================
 
 function initMindMap() {
     const container = document.getElementById('mindmap-editor');
     container.querySelector('#mindmap-title').textContent = 'Mind Map Editor';
+    // Clear previous map instance
     container.querySelectorAll('canvas, .konvajs-content').forEach(e => e.remove());
 
     const editorHeight = window.innerHeight - document.getElementById('main-header').offsetHeight - 80;
 
-    // Initialize Konva Stage and Layer
     stage = new Konva.Stage({
         container: 'mindmap-editor',
         width: container.offsetWidth,
@@ -227,7 +245,6 @@ function initMindMap() {
     stage.add(layer);
 }
 
-// Helper to get center point of a group (node)
 function getCenter(node) {
     return {
         x: node.x() + node.width() / 2,
@@ -235,10 +252,8 @@ function getCenter(node) {
     };
 }
 
-// Function to update line position when a node moves
 function updateConnections(node) {
     const nodeId = node.id();
-    // Find all lines connected to this node
     const lines = layer.find('.connector').filter(line => 
         line.getAttr('startNode') === nodeId || line.getAttr('endNode') === nodeId
     );
@@ -257,13 +272,11 @@ function updateConnections(node) {
 }
 
 function drawConnection(startId, endId) {
-    // Prevent self-connection
     if (startId === endId) return;
 
     const startNode = layer.findOne(`#${startId}`);
     const endNode = layer.findOne(`#${endId}`);
 
-    // Check if connection already exists (simple check)
     const existingConnection = layer.find('.connector').find(line => 
         (line.getAttr('startNode') === startId && line.getAttr('endNode') === endId) ||
         (line.getAttr('startNode') === endId && line.getAttr('endNode') === startId)
@@ -275,21 +288,20 @@ function drawConnection(startId, endId) {
         const startCenter = getCenter(startNode);
         const endCenter = getCenter(endNode);
 
-        const line = new Konva.Arrow({ // Using Arrow for directional look
+        const line = new Konva.Arrow({ 
             points: [startCenter.x, startCenter.y, endCenter.x, endCenter.y],
             stroke: LINE_COLOR,
             strokeWidth: 3,
             fill: LINE_COLOR,
             lineCap: 'round',
             lineJoin: 'round',
-            // Custom attributes for easy identification and update
             name: 'connector', 
             startNode: startId,
             endNode: endId,
         });
 
         layer.add(line);
-        line.moveToBottom(); // Lines should be behind nodes
+        line.moveToBottom(); 
         layer.batchDraw();
     }
 }
@@ -328,17 +340,14 @@ function createNode(id, text, x, y, type = 'light-block') {
         verticalAlign: 'middle',
     });
     
-    // Node Dragging: Update connections when node moves
     group.on('dragmove', () => {
         updateConnections(group);
     });
 
-    // Node Click: Handle connection mode selection
     group.on('click', () => {
         if (isConnecting) {
             if (startNodeId && startNodeId !== group.id()) {
                 drawConnection(startNodeId, group.id());
-                // Reset mode after connection
                 isConnecting = false;
                 startNodeId = null;
                 alert('Nodes connected!');
@@ -350,7 +359,6 @@ function createNode(id, text, x, y, type = 'light-block') {
         }
     });
 
-    // Editing Functionality (Double-click)
     group.on('dblclick dbltap', () => {
         const textPosition = group.absolutePosition();
         
