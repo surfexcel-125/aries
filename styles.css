@@ -7,7 +7,7 @@
     --color-medium-gray: #ccc;
     --color-project-row: #f0f0f0;
     --header-height: 50px;
-    --sidebar-width: 200px;
+    --sidebar-width: 200px; 
 }
 
 * {
@@ -20,6 +20,7 @@
 body {
     background-color: var(--color-white);
     color: var(--color-black);
+    overflow-x: hidden; 
 }
 
 /* --- Utility Classes --- */
@@ -77,11 +78,11 @@ body {
 /* --- 2. MAIN APPLICATION SHELL (Header, Sidebar, Content) --- */
 
 #main-app-shell {
-    display: flex;
+    position: relative; 
     min-height: 100vh;
 }
 
-/* --- HEADER (Top Black Bar - Slide 2) --- */
+/* --- HEADER (Top Black Bar - Consistent) --- */
 #main-header {
     background-color: var(--color-black);
     color: var(--color-white);
@@ -91,6 +92,7 @@ body {
     top: 0;
     left: 0;
     z-index: 1000;
+    transition: margin-left 0.3s ease-in-out; 
 }
 
 .header-content {
@@ -107,7 +109,6 @@ body {
 }
 
 .project-indicator {
-    /* Style matches Slide 2/6 */
     background-color: var(--color-black);
     color: var(--color-white);
     border: 1px solid var(--color-white);
@@ -120,7 +121,7 @@ body {
 .ram-logo {
     width: 30px;
     height: 30px;
-    margin-left: auto; /* Pushes the logo to the far right */
+    margin-left: auto;
 }
 
 .logout-btn {
@@ -134,22 +135,50 @@ body {
     font-size: 12px;
 }
 
-/* --- SIDEBAR (Slide 2 - Left Menu) --- */
+/* --- SIDEBAR (Left Menu - Slide 2) --- */
 #sidebar-menu {
     position: fixed;
-    top: var(--header-height);
+    top: 0; 
     left: 0;
     width: var(--sidebar-width);
-    height: calc(100vh - var(--header-height));
+    height: 100vh; 
     background-color: var(--color-black);
-    padding-top: 20px;
-    z-index: 900;
-    transform: translateX(-100%); /* Initially hidden off-screen */
+    padding-top: var(--header-height); 
+    z-index: 1050; 
+    transform: translateX(-100%); 
     transition: transform 0.3s ease-in-out;
 }
 
 #sidebar-menu.visible {
     transform: translateX(0); /* Slides in */
+}
+
+/* --- Sidebar Header Content (The Back Arrow/PROJECT Text in Slide 2) --- */
+#sidebar-menu .menu-header {
+    display: flex;
+    align-items: center;
+    height: var(--header-height);
+    padding: 0 15px;
+    background-color: var(--color-black);
+    position: absolute; 
+    top: 0;
+    width: 100%;
+}
+
+#sidebar-menu .menu-header .menu-icon-back {
+    color: var(--color-white);
+    font-size: 24px;
+    cursor: pointer;
+    margin-right: 10px;
+}
+
+#sidebar-menu .menu-header .project-label {
+    background-color: var(--color-white);
+    color: var(--color-black);
+    padding: 5px 10px;
+    font-size: 14px;
+    font-weight: bold;
+    border-radius: 5px;
 }
 
 .menu-link {
@@ -168,12 +197,20 @@ body {
     background-color: #333;
 }
 
-/* --- CONTENT AREA --- */
+/* --- CONTENT AREA (Shifts when sidebar is visible) --- */
 #content-area {
     margin-top: var(--header-height);
-    flex-grow: 1;
-    width: 100%;
+    width: 100%; 
     padding: 20px;
+    min-height: calc(100vh - var(--header-height)); 
+    transition: margin-left 0.3s ease-in-out; 
+}
+
+/* This class shifts the main app content to the right, matching Slide 2 */
+#main-app-shell.sidebar-open #content-area,
+#main-app-shell.sidebar-open #main-header {
+    margin-left: var(--sidebar-width);
+    width: calc(100% - var(--sidebar-width)); 
 }
 
 
@@ -182,7 +219,7 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    height: calc(100vh - var(--header-height) - 40px); /* Adjust height */
+    height: calc(100vh - var(--header-height) - 40px);
     text-align: center;
 }
 
@@ -245,7 +282,6 @@ body {
 }
 
 .project-row {
-    /* The main container for each project, matching the light gray background */
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -264,13 +300,12 @@ body {
 }
 
 .project-name {
-    /* The name pill inside the gray row */
     font-size: 16px;
     font-weight: bold;
     padding: 10px 15px;
     background-color: var(--color-white);
     border: 1px solid var(--color-black);
-    border-radius: 20px; /* Rounded corners */
+    border-radius: 20px; 
 }
 
 .status-label {
@@ -281,7 +316,6 @@ body {
 }
 
 .status-dropdown {
-    /* The status pill on the right */
     padding: 8px 25px 8px 10px;
     border: 1px solid var(--color-black);
     border-radius: 20px; 
@@ -297,7 +331,6 @@ body {
 
 /* --- 5. MIND MAP EDITOR STYLING (Slide 4) --- */
 #mindmap-editor {
-    /* Min height to ensure the canvas is visible */
     min-height: calc(100vh - var(--header-height) - 40px);
     background-color: var(--color-white);
     border: 1px solid var(--color-medium-gray);
@@ -323,17 +356,14 @@ body {
     font-weight: bold;
 }
 
-/* Konva.js nodes are styled in scripts.js, but the container ensures sizing */
 #mindmap-editor .konvajs-content {
-    /* Konva container will take full remaining space */
     width: 100% !important;
     height: calc(100vh - var(--header-height) - 100px) !important;
 }
 
-/* Styling for temporary Konva input field */
 input[style*="position: absolute;"] {
     position: absolute;
-    z-index: 1001; /* Above canvas */
+    z-index: 1001; 
     box-sizing: border-box;
     font-family: Arial, sans-serif;
     font-size: 14px;
@@ -344,13 +374,12 @@ input[style*="position: absolute;"] {
 
 /* --- 6. PROJECT SELECTION POPUP (Slide 6 - Overlay) --- */
 #project-selection-popup {
-    /* Standard overlay setup */
     position: fixed;
     top: var(--header-height);
     left: 0;
     width: 100%;
     height: calc(100vh - var(--header-height));
-    background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent blackout */
+    background-color: rgba(0, 0, 0, 0.5);
     z-index: 999;
     display: none;
     transition: opacity 0.3s;
@@ -362,7 +391,6 @@ input[style*="position: absolute;"] {
 }
 
 #project-selection-popup .menu-list {
-    /* The actual black box with projects */
     background-color: var(--color-black);
     width: 200px;
     padding: 10px 0;
@@ -380,7 +408,6 @@ input[style*="position: absolute;"] {
 }
 
 #project-selection-popup .menu-item {
-    /* Project buttons inside the popup */
     display: block;
     width: 100%;
     padding: 10px 20px;
