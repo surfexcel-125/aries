@@ -103,6 +103,69 @@ button:focus { outline: 2px solid rgba(11,116,255,0.12); outline-offset:2px; }
 
 /* If header sits inside a transformed parent, force the header onto its own layer */
 .topbar { transform: translateZ(0); will-change: transform; }
+/* ---- High-contrast black header + visible right-side Project link ---- */
+.topbar {
+  background: #000 !important;           /* black header */
+  color: #fff !important;
+  position: sticky;                      /* keep sticky */
+  top: 0;
+  z-index: 1100;                         /* higher than inspector and board */
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  border-bottom: 0;                      /* remove pale border if present */
+}
+
+/* text/buttons in header */
+.topbar .header-title,
+.topbar .header-actions,
+.topbar .header-actions * {
+  color: #fff !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* style header buttons in inverted (dark) form */
+.topbar .btn,
+.topbar .tool-btn,
+.topbar .icon-btn {
+  background: rgba(255,255,255,0.06);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.14);
+  box-shadow: none;
+  padding: 6px 10px;
+  border-radius: 8px;
+}
+
+/* make Save / Export buttons crisp */
+#saveBoard, #exportBtn {
+  background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+  font-weight: 600;
+}
+
+/* move the back-to-projects link to the extreme right of the header */
+.topbar { position: relative; }
+#backToProjects {
+  position: absolute;
+  right: 12px;
+  top: 10px;            /* tweak if your header height differs */
+  color: #c8a2ff;       /* visible accent color */
+  background: transparent;
+  border: none;
+  text-decoration: none;
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+
+/* ensure header elements remain readable if any transform is active */
+.topbar, .header-title, .header-actions, #backToProjects {
+  transform: translateZ(0);
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+/* small responsive tweak so the back link doesn't overlap on narrow screens */
+@media (max-width:700px) {
+  #backToProjects { position: static; margin-left: 8px; display: inline-block; }
+}
 
 </style>
 </head>
