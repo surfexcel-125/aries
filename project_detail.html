@@ -1,322 +1,82 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Workspace — Aries</title>
-  <link rel="stylesheet" href="main.css" />
-  <style>
-    :root{
-      --accent:#0b74ff;
-      --muted:#6b7280;
-      --panel:#ffffffee;
-      --bg:#ffffff;
-      --grid-color:rgba(15,23,42,0.06);
-      --node-shadow:0 10px 28px rgba(15,23,42,0.08);
-    }
-    html,body{
-      height:100%;
-      margin:0;
-      font-family:Inter, system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial;
-      background:var(--bg);
-    }
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Workspace — Aries (with Connectors)</title>
+<link rel="stylesheet" href="main.css" />
+<style>
+  :root{
+    --accent:#0b74ff;
+    --muted:#6b7280;
+    --panel:#ffffffee;
+    --bg:#ffffff;
+    --grid-color:rgba(15,23,42,0.06);
+    --node-shadow:0 10px 28px rgba(15,23,42,0.08);
+    --link-color:#0f172a;
+    --link-selected:#ff7a59;
+  }
+  html,body{height:100%; margin:0; font-family:Inter, system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial; background:var(--bg);}
+  .site-header{display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid #f1f1f1; background:#fff; position:sticky; top:0; z-index:40;}
+  .icon-btn{background:transparent; border:0; font-size:18px; cursor:pointer; padding:6px; border-radius:999px;}
+  .icon-btn:hover{background:#f3f4f6;}
+  .header-title{font-weight:700; font-size:0.98rem;}
+  .btn{padding:8px 12px; border-radius:8px; border:0; cursor:pointer; font-weight:600; font-size:0.9rem;}
+  .btn.primary{ background:var(--accent); color:#fff; }
+  .btn.ghost{ background:transparent; color:var(--muted); border:1px solid #e5e7eb; }
 
-    /* HEADER ----------------------------------------------------------------- */
-    .site-header{
-      display:flex;
-      align-items:center;
-      gap:10px;
-      padding:10px 14px;
-      border-bottom:1px solid #f1f1f1;
-      background:#fff;
-      position:sticky;
-      top:0;
-      z-index:40;
-    }
-    .icon-btn{
-      background:transparent;
-      border:0;
-      font-size:18px;
-      cursor:pointer;
-      padding:6px;
-      border-radius:999px;
-    }
-    .icon-btn:hover{
-      background:#f3f4f6;
-    }
-    .header-title{
-      font-weight:700;
-      font-size:0.98rem;
-    }
-    .btn{
-      padding:8px 12px;
-      border-radius:8px;
-      border:0;
-      cursor:pointer;
-      font-weight:600;
-      font-size:0.9rem;
-    }
-    .btn.primary{ background:var(--accent); color:#fff; }
-    .btn.ghost{ background:transparent; color:var(--muted); border:1px solid #e5e7eb; }
+  .header-right{ margin-left:auto; display:flex; align-items:center; gap:8px; }
+  .zoom-ind{ padding:6px 8px; border-radius:8px; border:1px solid #e5e7eb; background:#fff; font-weight:600; font-size:0.85rem; }
 
-    .header-right{
-      margin-left:auto;
-      display:flex;
-      align-items:center;
-      gap:8px;
-    }
-    .zoom-ind{
-      padding:6px 8px;
-      border-radius:8px;
-      border:1px solid #e5e7eb;
-      background:#fff;
-      font-weight:600;
-      font-size:0.85rem;
-    }
+  .viewport{ position:relative; height:calc(100vh - 56px); overflow:hidden; background:var(--bg); }
+  .pan-layer{ position:absolute; inset:0; touch-action:none; }
+  .board{ position:absolute; left:50%; top:50%; transform-origin:0 0; will-change:transform; }
+  .canvas{ position:relative; width:1600px; height:1000px; border-radius:12px; background:#fff; box-shadow:0 18px 40px rgba(15,23,42,0.08); overflow:visible; }
 
-    /* VIEWPORT & BOARD ------------------------------------------------------- */
-    .viewport{
-      position:relative;
-      height:calc(100vh - 56px);
-      overflow:hidden;
-      background:var(--bg);
-    }
-    .pan-layer{
-      position:absolute;
-      inset:0;
-      touch-action:none;
-    }
-    .board{
-      position:absolute;
-      left:50%;
-      top:50%;
-      transform-origin:0 0;
-      will-change:transform;
-    }
-    .canvas{
-      position:relative;
-      width:1600px;
-      height:1000px;
-      border-radius:12px;
-      background:#fff;
-      box-shadow:0 18px 40px rgba(15,23,42,0.08);
-      overflow:visible;
-      /* grid uses background-image, controlled from JS */
-    }
+  .node{ position:absolute; min-width:170px; max-width:420px; padding:12px 14px; border-radius:10px; background:#fff; border:1px solid rgba(0,0,0,0.06); box-shadow:var(--node-shadow); cursor:grab; user-select:none; z-index:5; }
+  .node:active{ cursor:grabbing; }
+  .node .title{ margin:0 0 6px; font-weight:700; font-size:0.98rem; }
+  .node .body{ margin:0; font-size:0.9rem; color:var(--muted); white-space:pre-wrap; }
+  .node .mini{ position:absolute; right:8px; top:8px; display:flex; gap:4px; }
+  .node-shape-soft{ border-radius:16px; }
+  .node-shape-pill{ border-radius:999px; }
+  .node-shape-outline{ background:transparent; border-style:dashed; }
 
-    /* NODES ------------------------------------------------------------------ */
-    .node{
-      position:absolute;
-      min-width:170px;
-      max-width:420px;
-      padding:12px 14px;
-      border-radius:10px;
-      background:#fff;
-      border:1px solid rgba(0,0,0,0.06);
-      box-shadow:var(--node-shadow);
-      cursor:grab;
-      user-select:none;
-      z-index:5;
-    }
-    .node:active{ cursor:grabbing; }
-    .node .title{
-      margin:0 0 6px;
-      font-weight:700;
-      font-size:0.98rem;
-    }
-    .node .body{
-      margin:0;
-      font-size:0.9rem;
-      color:var(--muted);
-      white-space:pre-wrap;
-    }
-    .node .mini{
-      position:absolute;
-      right:8px;
-      top:8px;
-      display:flex;
-      gap:4px;
-    }
-    .node-shape-soft{ border-radius:16px; }
-    .node-shape-pill{ border-radius:999px; }
-    .node-shape-outline{
-      background:transparent;
-      border-style:dashed;
-    }
+  .floating-tools{ position:fixed; left:14px; top:62px; width:240px; padding:10px; background:var(--panel); border-radius:12px; box-shadow:0 16px 40px rgba(15,23,42,0.18); backdrop-filter:blur(10px); z-index:50; opacity:0; pointer-events:none; transform:translateY(-8px); transition:opacity 0.16s ease, transform 0.16s ease; }
+  .floating-tools.open{ opacity:1; pointer-events:auto; transform:translateY(0); }
+  .floating-tools h4{ margin:0 0 8px; font-size:0.9rem; }
+  .tool-row{ display:flex; flex-wrap:wrap; gap:6px; }
+  .tool-btn{ padding:6px 8px; border-radius:8px; background:#f3f4f6; border:0; font-size:0.8rem; cursor:pointer; }
 
-    /* FLOATING TOOL PANEL ---------------------------------------------------- */
-    .floating-tools{
-      position:fixed;
-      left:14px;
-      top:62px;
-      width:220px;
-      padding:10px;
-      background:var(--panel);
-      border-radius:12px;
-      box-shadow:0 16px 40px rgba(15,23,42,0.18);
-      backdrop-filter:blur(12px);
-      z-index:50;
-      opacity:0;
-      pointer-events:none;
-      transform:translateY(-8px);
-      transition:opacity 0.16s ease, transform 0.16s ease;
-    }
-    .floating-tools.open{
-      opacity:1;
-      pointer-events:auto;
-      transform:translateY(0);
-    }
-    .floating-tools h4{
-      margin:0 0 8px;
-      font-size:0.9rem;
-    }
-    .floating-tools .tool-row{
-      display:flex;
-      flex-wrap:wrap;
-      gap:6px;
-    }
-    .floating-tools .tool-btn{
-      padding:6px 8px;
-      border-radius:8px;
-      background:#f3f4f6;
-      border:0;
-      font-size:0.8rem;
-      cursor:pointer;
-    }
+  .bottom-zoom{ position:fixed; left:16px; bottom:16px; z-index:45; display:flex; gap:6px; }
+  .zoom-btn{ width:34px; height:34px; border-radius:999px; border:1px solid #e5e7eb; background:#ffffff; font-size:18px; cursor:pointer; box-shadow:0 10px 30px rgba(15,23,42,0.16); }
 
-    /* BOTTOM ZOOM BUTTONS ---------------------------------------------------- */
-    .bottom-zoom{
-      position:fixed;
-      left:16px;
-      bottom:16px;
-      z-index:45;
-      display:flex;
-      gap:6px;
-    }
-    .zoom-btn{
-      width:34px;
-      height:34px;
-      border-radius:999px;
-      border:1px solid #e5e7eb;
-      background:#ffffff;
-      font-size:18px;
-      cursor:pointer;
-      box-shadow:0 10px 30px rgba(15,23,42,0.16);
-    }
+  .grid-panel{ position:fixed; right:16px; bottom:16px; z-index:45; padding:8px 10px; border-radius:12px; background:#fff; box-shadow:0 10px 30px rgba(15,23,42,0.12); font-size:0.83rem; color:var(--muted); display:flex; gap:8px; align-items:center; }
+  .grid-panel input[type="number"]{ width:60px; padding:4px 6px; border-radius:8px; border:1px solid #e5e7eb; font-size:0.8rem; }
 
-    /* GRID TOGGLE PANEL ------------------------------------------------------ */
-    .grid-panel{
-      position:fixed;
-      right:16px;
-      bottom:16px;
-      z-index:45;
-      padding:8px 10px;
-      border-radius:12px;
-      background:#fff;
-      box-shadow:0 10px 30px rgba(15,23,42,0.12);
-      font-size:0.83rem;
-      color:var(--muted);
-      display:flex;
-      gap:8px;
-      align-items:center;
-    }
-    .grid-panel input[type="number"]{
-      width:60px;
-      padding:4px 6px;
-      border-radius:8px;
-      border:1px solid #e5e7eb;
-      font-size:0.8rem;
-    }
+  .modal-backdrop{ position:fixed; inset:0; display:none; justify-content:center; align-items:center; background:rgba(0,0,0,0.38); z-index:1200; }
+  .modal{ width:360px; max-width:94vw; background:var(--panel); border-radius:12px; padding:16px; box-shadow:0 18px 40px rgba(15,23,42,0.3); }
+  .field{ margin:8px 0; display:flex; flex-direction:column; gap:4px; }
+  .field input[type="text"], .field textarea, .field select, .field input[type="color"]{ padding:8px; border-radius:8px; border:1px solid #e5e7eb; font-size:0.9rem; }
 
-    /* MODAL ------------------------------------------------------------------ */
-    .modal-backdrop{
-      position:fixed;
-      inset:0;
-      display:none;
-      justify-content:center;
-      align-items:center;
-      background:rgba(0,0,0,0.38);
-      z-index:1200;
-    }
-    .modal{
-      width:360px;
-      max-width:94vw;
-      background:var(--panel);
-      border-radius:12px;
-      padding:16px;
-      box-shadow:0 18px 40px rgba(15,23,42,0.3);
-    }
-    .modal h3{ margin:0 0 10px; }
-    .field{ margin:8px 0; display:flex; flex-direction:column; gap:4px; }
-    .field label{ font-size:0.8rem; color:var(--muted); }
-    .field input[type="text"],
-    .field textarea,
-    .field select,
-    .field input[type="color"]{
-      padding:8px;
-      border-radius:8px;
-      border:1px solid #e5e7eb;
-      font-size:0.9rem;
-    }
-    .modal-actions{
-      margin-top:12px;
-      display:flex;
-      justify-content:space-between;
-      gap:8px;
-    }
+  .tutorial-backdrop{ position:fixed; inset:0; background:linear-gradient(180deg,rgba(15,23,42,0.7),rgba(15,23,42,0.7)); color:#fff; z-index:1300; display:none; }
+  .tutorial-card{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); max-width:900px; padding:24px; }
+  .tutorial-step{ background:rgba(15,23,42,0.4); border-radius:14px; padding:16px; border:1px solid rgba(255,255,255,0.12); }
+  .tutorial-footer{ margin-top:10px; display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:0.85rem; }
+  .tutorial-btn{ padding:8px 12px; border-radius:8px; border:0; cursor:pointer; font-size:0.9rem; }
 
-    /* TUTORIAL OVERLAY ------------------------------------------------------- */
-    .tutorial-backdrop{
-      position:fixed;
-      inset:0;
-      background:linear-gradient(180deg,rgba(15,23,42,0.7),rgba(15,23,42,0.7));
-      color:#fff;
-      z-index:1300;
-      display:none;
-    }
-    .tutorial-card{
-      position:absolute;
-      left:50%;
-      top:50%;
-      transform:translate(-50%,-50%);
-      max-width:900px;
-      padding:24px;
-    }
-    .tutorial-step{
-      background:rgba(15,23,42,0.4);
-      border-radius:14px;
-      padding:16px;
-      border:1px solid rgba(255,255,255,0.12);
-    }
-    .tutorial-footer{
-      margin-top:10px;
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      gap:8px;
-      font-size:0.85rem;
-    }
-    .tutorial-btn{
-      padding:8px 12px;
-      border-radius:8px;
-      border:0;
-      cursor:pointer;
-      font-size:0.9rem;
-    }
+  svg.link-line{ position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none; z-index:3; }
+  svg.link-line line{ stroke:var(--link-color); stroke-width:2; stroke-linecap:round; }
+  svg.link-line line.selected{ stroke:var(--link-selected); stroke-width:3; }
 
-    @media (max-width:900px){
-      .canvas{ width:1200px; height:800px; }
-      .floating-tools{ width:190px; }
-    }
-  </style>
+  @media (max-width:900px){ .canvas{ width:1200px; height:800px; } .floating-tools{ width:190px; } }
+</style>
 </head>
 <body>
-  <!-- HEADER -->
   <header class="site-header">
     <button id="menuIcon" class="icon-btn" aria-label="Tools menu">☰</button>
     <button id="backToProjects" class="btn ghost">Projects</button>
     <div class="header-title">Workspace</div>
-
     <div class="header-right">
       <div id="zoomIndicator" class="zoom-ind">100%</div>
       <button id="saveBoard" class="btn primary">Save</button>
@@ -326,63 +86,49 @@
     </div>
   </header>
 
-  <!-- FLOATING TOOL PANEL -->
   <aside id="floatingTools" class="floating-tools" aria-hidden="true">
     <h4>Tools</h4>
     <div class="tool-row">
       <button id="toolAddNode" class="tool-btn">+ Node</button>
-      <button class="tool-btn" disabled>Connector (soon)</button>
-      <button class="tool-btn" disabled>Template (soon)</button>
+      <button id="toolConnector" class="tool-btn">Connector</button>
+      <button id="toolDeleteLink" class="tool-btn" disabled>Delete Link</button>
+      <button class="tool-btn" disabled>Template</button>
     </div>
+    <div style="margin-top:10px; font-size:0.9rem; color:var(--muted);">Selected link: <span id="selectedLinkLabel">none</span></div>
   </aside>
 
-  <!-- MAIN WHITEBOARD -->
   <main class="viewport" id="viewport">
     <div class="pan-layer" id="panLayer" tabindex="0">
       <div id="board" class="board">
         <div id="canvas" class="canvas"></div>
+        <svg id="svgLayer" class="link-line" xmlns="http://www.w3.org/2000/svg"></svg>
       </div>
     </div>
   </main>
 
-  <!-- BOTTOM LEFT ZOOM BUTTONS -->
   <div class="bottom-zoom">
     <button id="zoomOutCorner" class="zoom-btn" aria-label="Zoom out">−</button>
     <button id="zoomInCorner" class="zoom-btn" aria-label="Zoom in">+</button>
   </div>
 
-  <!-- GRID PANEL -->
   <div class="grid-panel">
     <label><input id="showGrid" type="checkbox" checked> Grid</label>
     <label>Size <input id="gridSize" type="number" value="20" min="5" max="200"></label>
     <button id="centerBtn" class="tutorial-btn" style="background:#f3f4f6;">Center</button>
   </div>
 
-  <!-- NODE SETTINGS MODAL -->
   <div id="modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true">
     <div class="modal">
       <h3>Block settings</h3>
-      <div class="field">
-        <label for="modalTitle">Title</label>
-        <input id="modalTitle" type="text">
-      </div>
-      <div class="field">
-        <label for="modalBody">Body</label>
-        <textarea id="modalBody" rows="4"></textarea>
-      </div>
-      <div class="field">
-        <label for="modalColor">Background color</label>
-        <input id="modalColor" type="color" value="#ffffff">
-      </div>
-      <div class="field">
-        <label for="modalShape">Shape</label>
-        <select id="modalShape">
-          <option value="card">Card (default)</option>
-          <option value="soft">Soft rounded</option>
-          <option value="pill">Pill</option>
-          <option value="outline">Outline</option>
-        </select>
-      </div>
+      <div class="field"><label for="modalTitle">Title</label><input id="modalTitle" type="text"></div>
+      <div class="field"><label for="modalBody">Body</label><textarea id="modalBody" rows="4"></textarea></div>
+      <div class="field"><label for="modalColor">Background color</label><input id="modalColor" type="color" value="#ffffff"></div>
+      <div class="field"><label for="modalShape">Shape</label><select id="modalShape">
+        <option value="card">Card (default)</option>
+        <option value="soft">Soft rounded</option>
+        <option value="pill">Pill</option>
+        <option value="outline">Outline</option>
+      </select></div>
       <div class="modal-actions">
         <button id="deleteBlock" class="btn ghost">Delete</button>
         <div style="display:flex; gap:8px;">
@@ -393,7 +139,6 @@
     </div>
   </div>
 
-  <!-- TUTORIAL OVERLAY -->
   <div id="tutorial" class="tutorial-backdrop" aria-hidden="true">
     <div class="tutorial-card">
       <div id="tutorialStep" class="tutorial-step"></div>
@@ -408,525 +153,515 @@
     </div>
   </div>
 
-  <footer style="display:none;"></footer>
+<script src="app.js" defer></script>
+<script>
+(function(){
+  /* Elements */
+  const canvas = document.getElementById('canvas');
+  const board = document.getElementById('board');
+  const panLayer = document.getElementById('panLayer');
+  const svgLayer = document.getElementById('svgLayer');
 
-  <!-- your global app.js -->
-  <script src="app.js" defer></script>
+  const menuIcon = document.getElementById('menuIcon');
+  const floatingTools = document.getElementById('floatingTools');
+  const toolAddNode = document.getElementById('toolAddNode');
+  const toolConnector = document.getElementById('toolConnector');
+  const toolDeleteLink = document.getElementById('toolDeleteLink');
+  const selectedLinkLabel = document.getElementById('selectedLinkLabel');
 
-  <!-- WORKSPACE LOGIC -->
-  <script>
-  (function(){
-    const canvas = document.getElementById('canvas');
-    const board = document.getElementById('board');
-    const panLayer = document.getElementById('panLayer');
+  const backToProjects = document.getElementById('backToProjects');
+  const saveBoardBtn = document.getElementById('saveBoard');
+  const exportBtn = document.getElementById('exportBtn');
+  const importFile = document.getElementById('importFile');
+  const zoomIndicator = document.getElementById('zoomIndicator');
+  const zoomInCorner = document.getElementById('zoomInCorner');
+  const zoomOutCorner = document.getElementById('zoomOutCorner');
 
-    const menuIcon = document.getElementById('menuIcon');
-    const floatingTools = document.getElementById('floatingTools');
-    const toolAddNode = document.getElementById('toolAddNode');
-    const backToProjects = document.getElementById('backToProjects');
+  const showGridInput = document.getElementById('showGrid');
+  const gridSizeInput = document.getElementById('gridSize');
+  const centerBtn = document.getElementById('centerBtn');
 
-    const zoomIndicator = document.getElementById('zoomIndicator');
-    const zoomInCorner = document.getElementById('zoomInCorner');
-    const zoomOutCorner = document.getElementById('zoomOutCorner');
-    const saveBoardBtn = document.getElementById('saveBoard');
-    const exportBtn = document.getElementById('exportBtn');
-    const importFile = document.getElementById('importFile');
+  const modal = document.getElementById('modal');
+  const modalTitle = document.getElementById('modalTitle');
+  const modalBody = document.getElementById('modalBody');
+  const modalColor = document.getElementById('modalColor');
+  const modalShape = document.getElementById('modalShape');
+  const saveModalBtn = document.getElementById('saveModal');
+  const cancelModalBtn = document.getElementById('cancelModal');
+  const deleteBlockBtn = document.getElementById('deleteBlock');
 
-    const showGridInput = document.getElementById('showGrid');
-    const gridSizeInput = document.getElementById('gridSize');
-    const centerBtn = document.getElementById('centerBtn');
+  const tutorial = document.getElementById('tutorial');
+  const tutorialStep = document.getElementById('tutorialStep');
+  const tutorialProgress = document.getElementById('tutorialProgress');
+  const tutorialPrev = document.getElementById('tutorialPrev');
+  const tutorialNext = document.getElementById('tutorialNext');
+  const tutorialClose = document.getElementById('tutorialClose');
 
-    const modal = document.getElementById('modal');
-    const modalTitle = document.getElementById('modalTitle');
-    const modalBody = document.getElementById('modalBody');
-    const modalColor = document.getElementById('modalColor');
-    const modalShape = document.getElementById('modalShape');
-    const saveModalBtn = document.getElementById('saveModal');
-    const cancelModalBtn = document.getElementById('cancelModal');
-    const deleteBlockBtn = document.getElementById('deleteBlock');
+  function getQueryParam(k){ return new URLSearchParams(location.search).get(k); }
+  const projectId = getQueryParam('id') || 'demo';
+  const storageKey = 'aries_workspace_links_' + projectId;
+  const tutorialKey = 'aries_tutorial_' + projectId;
 
-    const tutorial = document.getElementById('tutorial');
-    const tutorialStep = document.getElementById('tutorialStep');
-    const tutorialProgress = document.getElementById('tutorialProgress');
-    const tutorialPrev = document.getElementById('tutorialPrev');
-    const tutorialNext = document.getElementById('tutorialNext');
-    const tutorialClose = document.getElementById('tutorialClose');
+  /* Model */
+  let model = { nodes: [], links: [] }; // link: {id, from, to}
+  let selectedNodeId = null;
+  let selectedLinkId = null;
 
-    function getQueryParam(k){ return new URLSearchParams(location.search).get(k); }
-    const projectId = getQueryParam('id') || 'demo';
-    const storageKey = 'aries_workspace_v1_' + projectId;
-    const tutorialKey = 'aries_tutorial_' + projectId;
+  /* Transform state */
+  let scale = 1;
+  let pan = { x: 0, y: 0 };
+  const MIN_SCALE = 0.4, MAX_SCALE = 2.5, SCALE_STEP = 0.12;
 
-    // model: nodes only for now
-    let model = { nodes: [] };
-    let selectedNodeId = null;
+  /* Dragging */
+  let draggingId = null;
+  let dragOffset = { x:0, y:0 };
 
-    // transform
-    let scale = 1;
-    let pan = { x: 0, y: 0 };
-    const MIN_SCALE = 0.4, MAX_SCALE = 2.5, SCALE_STEP = 0.12;
+  /* Panning */
+  let isPanning = false;
+  let panStart = { x:0, y:0 };
 
-    // drag state
-    let draggingId = null;
-    let dragOffset = { x:0, y:0 };
+  /* Pinch */
+  const pointerMap = new Map();
+  let pinchState = null;
 
-    // pan state
-    let isPanning = false;
-    let panStart = { x:0, y:0 };
+  /* Connect mode */
+  let connectMode = false;
+  let connectFrom = null;
 
-    // pinch state
-    const pointerMap = new Map();
-    let pinchState = null;
+  /* Snap/grid */
+  let snapOn = true;
+  let gridSize = Number(gridSizeInput.value) || 20;
 
-    // snap/grid
-    let snapOn = true;
-    let gridSize = Number(gridSizeInput.value) || 20;
+  /* ---------- Helpers ---------- */
+  function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+  function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+  function pageToModel(x,y){
+    const rect = canvas.getBoundingClientRect();
+    return { x: (x - rect.left) / scale, y: (y - rect.top) / scale };
+  }
+  function flash(msg){
+    const el = document.createElement('div');
+    el.textContent = msg;
+    Object.assign(el.style,{position:'fixed',right:'20px',bottom:'24px',background:'#0b74ff',color:'#fff',padding:'8px 12px',borderRadius:'8px',zIndex:1500});
+    document.body.appendChild(el); setTimeout(()=>el.remove(),1200);
+  }
+  function escapeHtml(s){ if(!s) return ''; return s.replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 
-    /* ------------ persistence ------------- */
-    function loadModel(){
-      try{
-        const raw = localStorage.getItem(storageKey);
-        model = raw ? JSON.parse(raw) : { nodes: [] };
-      }catch(e){
-        model = { nodes: [] };
-      }
-    }
-    function saveModel(){
-      try{ localStorage.setItem(storageKey, JSON.stringify(model)); }catch(e){}
-      flash('Saved');
-    }
+  /* ---------- Persistence ---------- */
+  function loadModel(){
+    try{ const raw = localStorage.getItem(storageKey); model = raw ? JSON.parse(raw) : { nodes: [], links: [] }; }catch(e){ model = { nodes: [], links: [] }; }
+  }
+  function saveModel(){ try{ localStorage.setItem(storageKey, JSON.stringify(model)); }catch(e){} flash('Saved'); }
 
-    /* ------------ helpers ------------- */
-    function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
-    function clamp(v,a,b){ return Math.max(a, Math.min(b,v)); }
-    function flash(msg){
-      const el = document.createElement('div');
-      el.textContent = msg;
-      Object.assign(el.style,{
-        position:'fixed',right:'20px',bottom:'24px',
-        background:'#0b74ff',color:'#fff',
-        padding:'8px 12px',borderRadius:'8px',
-        boxShadow:'0 10px 30px rgba(15,23,42,0.35)',
-        zIndex:1500,fontSize:'0.85rem'
-      });
-      document.body.appendChild(el);
-      setTimeout(()=>el.remove(),1200);
-    }
-    function pageToModel(x,y){
-      const rect = canvas.getBoundingClientRect();
-      return {
-        x: (x - rect.left) / scale,
-        y: (y - rect.top) / scale
-      };
-    }
-    function escapeHtml(s){
-      if(!s) return '';
-      return s.replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-    }
+  /* ---------- Grid ---------- */
+  function updateGrid(){
+    if(!showGridInput.checked){ canvas.style.backgroundImage = 'none'; return; }
+    const size = gridSize;
+    canvas.style.backgroundImage = `linear-gradient(to right, var(--grid-color) 1px, transparent 1px), linear-gradient(to bottom, var(--grid-color) 1px, transparent 1px)`;
+    canvas.style.backgroundSize = size + 'px ' + size + 'px';
+    canvas.style.backgroundPosition = '0 0';
+  }
 
-    /* ------------ grid rendering ------------- */
-    function updateGrid(){
-      if(!showGridInput.checked){
-        canvas.style.backgroundImage = 'none';
-        return;
-      }
-      const size = gridSize;
-      canvas.style.backgroundImage =
-        `linear-gradient(to right, var(--grid-color) 1px, transparent 1px),
-         linear-gradient(to bottom, var(--grid-color) 1px, transparent 1px)`;
-      canvas.style.backgroundSize = size + 'px ' + size + 'px';
-      canvas.style.backgroundPosition = '0 0';
-    }
-
-    /* ------------ transform (zoom/pan) ------------- */
-    function applyTransform(){
-      const rect = canvas.getBoundingClientRect();
-      const tx = -rect.width/2 + pan.x;
-      const ty = -rect.height/2 + pan.y;
-      board.style.transform = `translate(${tx}px,${ty}px) scale(${scale})`;
-      zoomIndicator.textContent = Math.round(scale*100) + '%';
-    }
-    function zoomAt(newScale, clientX, clientY){
-      const before = pageToModel(clientX, clientY);
-      scale = clamp(newScale, MIN_SCALE, MAX_SCALE);
-      applyTransform();
-      const after = pageToModel(clientX, clientY);
-      // adjust pan so the point under cursor stays under cursor
-      pan.x += (after.x - before.x) * scale;
-      pan.y += (after.y - before.y) * scale;
-      applyTransform();
-    }
-
-    /* ------------ nodes ------------- */
-    function renderNodes(){
-      updateGrid();
-      const ids = new Set(model.nodes.map(n=>n.id));
-      // remove deleted
-      Array.from(canvas.querySelectorAll('.node')).forEach(el=>{
-        if(!ids.has(el.dataset.id)) el.remove();
-      });
-      // add/update
-      model.nodes.forEach(n=>{
-        let el = canvas.querySelector('.node[data-id="'+n.id+'"]');
-        if(!el){
-          el = document.createElement('div');
-          el.className = 'node';
-          el.dataset.id = n.id;
-          el.innerHTML = `
-            <div class="mini">
-              <button class="mini-edit" style="background:transparent;border:0;font-size:14px;cursor:pointer;">✎</button>
-            </div>
-            <h4 class="title"></h4>
-            <p class="body"></p>
-          `;
-          el.addEventListener('pointerdown', onNodePointerDown);
-          el.addEventListener('dblclick', ()=>openModal(n.id));
-          el.querySelector('.mini-edit').addEventListener('click', ev=>{
-            ev.stopPropagation();
-            openModal(n.id);
-          });
-          canvas.appendChild(el);
-        }
-        el.style.left = (n.x || 80) + 'px';
-        el.style.top = (n.y || 80) + 'px';
-        el.style.width = (n.w || 230) + 'px';
-        el.style.background = n.color || '#ffffff';
-        el.classList.remove('node-shape-soft','node-shape-pill','node-shape-outline');
-        if(n.shape === 'soft') el.classList.add('node-shape-soft');
-        if(n.shape === 'pill') el.classList.add('node-shape-pill');
-        if(n.shape === 'outline') el.classList.add('node-shape-outline');
-        el.querySelector('.title').textContent = n.title || 'Untitled block';
-        el.querySelector('.body').textContent = n.body || '';
-      });
-    }
-
-    function addNodeAt(x,y){
-      const id = uid();
-      const node = {
-        id,
-        x: Math.max(40, x),
-        y: Math.max(40, y),
-        w:230,
-        h:120,
-        title:'New block',
-        body:'Double-click or click ✎ to edit',
-        color:'#fffdf5',
-        shape:'card'
-      };
-      model.nodes.push(node);
-      saveModel();
-      renderNodes();
-      openModal(id);
-    }
-
-    /* ------------ node dragging ------------- */
-    function onNodePointerDown(e){
-      e.stopPropagation();
-      const el = e.currentTarget;
-      const id = el.dataset.id;
-      draggingId = id;
-      const node = model.nodes.find(n=>n.id===id);
-      const pos = pageToModel(e.clientX, e.clientY);
-      dragOffset.x = pos.x - (node.x || 0);
-      dragOffset.y = pos.y - (node.y || 0);
-      el.setPointerCapture(e.pointerId);
-      el.addEventListener('pointermove', onNodePointerMove);
-      el.addEventListener('pointerup', onNodePointerUp);
-    }
-    function onNodePointerMove(e){
-      if(!draggingId) return;
-      const pos = pageToModel(e.clientX, e.clientY);
-      let x = pos.x - dragOffset.x;
-      let y = pos.y - dragOffset.y;
-      if(snapOn){
-        const gs = gridSize;
-        const snapX = Math.round(x/gs)*gs;
-        const snapY = Math.round(y/gs)*gs;
-        x = x + (snapX - x)*0.35;
-        y = y + (snapY - y)*0.35;
-      }
-      const node = model.nodes.find(n=>n.id===draggingId);
-      if(!node) return;
-      node.x = Math.max(0, Math.round(x));
-      node.y = Math.max(0, Math.round(y));
-      renderNodes();
-    }
-    function onNodePointerUp(e){
-      const id = e.currentTarget.dataset.id;
-      const node = model.nodes.find(n=>n.id===id);
-      if(node && snapOn){
-        const gs = gridSize;
-        node.x = Math.round(node.x/gs)*gs;
-        node.y = Math.round(node.y/gs)*gs;
-      }
-      draggingId = null;
-      try{
-        e.currentTarget.removeEventListener('pointermove', onNodePointerMove);
-        e.currentTarget.removeEventListener('pointerup', onNodePointerUp);
-      }catch(err){}
-      saveModel();
-      renderNodes();
-    }
-
-    /* ------------ pan + scroll-zoom ------------- */
-    panLayer.addEventListener('pointerdown', e=>{
-      if(e.target.closest('.node')) return; // let nodes handle their own drag
-      panLayer.setPointerCapture(e.pointerId);
-      isPanning = true;
-      panStart.x = e.clientX - pan.x;
-      panStart.y = e.clientY - pan.y;
-      panLayer.addEventListener('pointermove', onPanMove);
-      panLayer.addEventListener('pointerup', onPanEnd);
-    });
-    function onPanMove(e){
-      if(!isPanning) return;
-      pan.x = e.clientX - panStart.x;
-      pan.y = e.clientY - panStart.y;
-      applyTransform();
-    }
-    function onPanEnd(e){
-      isPanning = false;
-      panLayer.removeEventListener('pointermove', onPanMove);
-      panLayer.removeEventListener('pointerup', onPanEnd);
-      saveModel();
-    }
-
-    // scroll wheel zoom (no Ctrl)
-    panLayer.addEventListener('wheel', e=>{
-      e.preventDefault();
-      const delta = e.deltaY > 0 ? -SCALE_STEP : SCALE_STEP;
-      const newScale = scale + delta;
-      zoomAt(newScale, e.clientX, e.clientY);
-    }, { passive:false });
-
-    /* ------------ pinch-to-zoom ------------- */
-    panLayer.addEventListener('pointerdown', e=>{
-      pointerMap.set(e.pointerId, e);
-      if(pointerMap.size === 2){
-        const arr = Array.from(pointerMap.values());
-        pinchState = {
-          dist: Math.hypot(arr[0].clientX - arr[1].clientX, arr[0].clientY - arr[1].clientY),
-          scale: scale,
-          center:{ x:(arr[0].clientX+arr[1].clientX)/2, y:(arr[0].clientY+arr[1].clientY)/2 }
-        };
-      }
-    });
-    panLayer.addEventListener('pointermove', e=>{
-      if(!pointerMap.has(e.pointerId)) return;
-      pointerMap.set(e.pointerId, e);
-      if(pinchState && pointerMap.size === 2){
-        const arr = Array.from(pointerMap.values());
-        const dist = Math.hypot(arr[0].clientX - arr[1].clientX, arr[0].clientY - arr[1].clientY);
-        const factor = dist / pinchState.dist;
-        const newScale = clamp(pinchState.scale * factor, MIN_SCALE, MAX_SCALE);
-        zoomAt(newScale, pinchState.center.x, pinchState.center.y);
-      }
-    });
-    ['pointerup','pointercancel'].forEach(type=>{
-      panLayer.addEventListener(type, e=>{
-        pointerMap.delete(e.pointerId);
-        if(pointerMap.size < 2) pinchState = null;
-      });
-    });
-
-    /* ------------ modal ------------ */
-    function openModal(id){
-      selectedNodeId = id;
-      const node = model.nodes.find(n=>n.id===id);
-      if(!node) return;
-      modalTitle.value = node.title || '';
-      modalBody.value = node.body || '';
-      modalColor.value = node.color || '#ffffff';
-      modalShape.value = node.shape || 'card';
-      modal.style.display = 'flex';
-      modal.setAttribute('aria-hidden','false');
-      modalTitle.focus();
-    }
-    function closeModal(){
-      modal.style.display = 'none';
-      modal.setAttribute('aria-hidden','true');
-      selectedNodeId = null;
-    }
-    saveModalBtn.addEventListener('click', ()=>{
-      if(!selectedNodeId) return closeModal();
-      const node = model.nodes.find(n=>n.id===selectedNodeId);
-      if(!node) return closeModal();
-      node.title = modalTitle.value.trim();
-      node.body = modalBody.value.trim();
-      node.color = modalColor.value;
-      node.shape = modalShape.value;
-      saveModel();
-      renderNodes();
-      closeModal();
-    });
-    cancelModalBtn.addEventListener('click', closeModal);
-    deleteBlockBtn.addEventListener('click', ()=>{
-      if(!selectedNodeId) return closeModal();
-      if(!confirm('Delete this block?')) return;
-      model.nodes = model.nodes.filter(n=>n.id!==selectedNodeId);
-      saveModel();
-      renderNodes();
-      closeModal();
-    });
-    modal.addEventListener('click', e=>{
-      if(e.target === modal) closeModal();
-    });
-
-    /* ------------ toolbar and buttons ------------ */
-    function handleAddNode(){
-      const rect = canvas.getBoundingClientRect();
-      const cx = rect.left + rect.width/2;
-      const cy = rect.top + rect.height/2;
-      const pos = pageToModel(cx, cy);
-      addNodeAt(pos.x - 100, pos.y - 40);
-    }
-
-    document.getElementById('addNode')?.addEventListener('click', handleAddNode);
-    toolAddNode.addEventListener('click', handleAddNode);
-
-    zoomInCorner.addEventListener('click', ()=>{
-      const newScale = scale + SCALE_STEP;
-      zoomAt(newScale, window.innerWidth/2, window.innerHeight/2);
-    });
-    zoomOutCorner.addEventListener('click', ()=>{
-      const newScale = scale - SCALE_STEP;
-      zoomAt(newScale, window.innerWidth/2, window.innerHeight/2);
-    });
-
-    saveBoardBtn.addEventListener('click', ()=> saveModel());
-    exportBtn.addEventListener('click', ()=>{
-      const data = JSON.stringify(model,null,2);
-      const blob = new Blob([data],{type:'application/json'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = (projectId||'board') + '.board.json';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    });
-    importFile.addEventListener('change', e=>{
-      const f = e.target.files[0];
-      if(!f) return;
-      const reader = new FileReader();
-      reader.onload = function(){
-        try{
-          const parsed = JSON.parse(reader.result);
-          if(parsed && parsed.nodes){
-            model = parsed;
-            saveModel();
-            renderNodes();
-            flash('Imported');
-          }else{
-            alert('Invalid file');
-          }
-        }catch(err){
-          alert('Invalid JSON');
-        }
-      };
-      reader.readAsText(f);
-    });
-
-    // grid + center
-    gridSizeInput.addEventListener('change', ()=>{
-      gridSize = clamp(Number(gridSizeInput.value)||20,5,200);
-      updateGrid();
-    });
-    showGridInput.addEventListener('change', ()=> updateGrid());
-    centerBtn.addEventListener('click', ()=>{
-      pan = {x:0,y:0};
-      scale = 1;
-      applyTransform();
-    });
-
-    // menu icon toggles floating tools
-    menuIcon.addEventListener('click', ()=>{
-      const isOpen = floatingTools.classList.toggle('open');
-      floatingTools.setAttribute('aria-hidden', isOpen ? 'false':'true');
-    });
-
-    // save + go back to projects
-    backToProjects.addEventListener('click', ()=>{
-      saveModel();
-      window.location.href = 'projects.html';
-    });
-
-    // keyboard
-    window.addEventListener('keydown', e=>{
-      if((e.ctrlKey || e.metaKey) && e.key.toLowerCase()==='s'){
-        e.preventDefault();
-        saveModel();
-      }
-      if(e.key === 'Escape') closeModal();
-    });
-
-    /* ------------ tutorial ------------ */
-    const tutorialSteps = [
-      {
-        title:'Welcome to your workspace',
-        text:'Add a block with the + Node button or the Tools menu. Drag blocks to rearrange your flow.'
-      },
-      {
-        title:'Zoom and pan',
-        text:'Use your mouse wheel or trackpad scroll to zoom in and out. Drag empty white space to pan around the board.'
-      },
-      {
-        title:'Grid & snapping',
-        text:'Toggle the grid and change its size from the bottom-right panel. Blocks gently snap to the grid when you drop them.'
-      },
-      {
-        title:'Edit blocks',
-        text:'Double-click a block or click ✎ to open settings. You can change title, body, color, and shape (card, soft, pill, outline).'
-      }
-    ];
-    let tutorialIndex = 0;
-
-    function showTutorial(i){
-      tutorialIndex = clamp(i,0,tutorialSteps.length-1);
-      const step = tutorialSteps[tutorialIndex];
-      tutorialStep.innerHTML = '<h2 style="margin:0 0 6px;">'+step.title+'</h2><p style="margin:0;opacity:0.95;">'+step.text+'</p>';
-      tutorialProgress.textContent = 'Step ' + (tutorialIndex+1) + ' / ' + tutorialSteps.length;
-      tutorialPrev.style.visibility = tutorialIndex===0 ? 'hidden' : 'visible';
-      tutorialNext.textContent = tutorialIndex === tutorialSteps.length-1 ? 'Finish' : 'Next';
-      tutorial.style.display = 'block';
-      tutorial.setAttribute('aria-hidden','false');
-    }
-    function closeTutorial(){
-      tutorial.style.display = 'none';
-      tutorial.setAttribute('aria-hidden','true');
-      localStorage.setItem(tutorialKey,'seen');
-    }
-    tutorialNext.addEventListener('click', ()=>{
-      if(tutorialIndex === tutorialSteps.length-1) closeTutorial();
-      else showTutorial(tutorialIndex+1);
-    });
-    tutorialPrev.addEventListener('click', ()=> showTutorial(tutorialIndex-1));
-    tutorialClose.addEventListener('click', closeTutorial);
-
-    /* ------------ bootstrap ------------ */
-    loadModel();
-    if(!model.nodes.length){
-      model.nodes.push({
-        id: uid(),
-        x:120, y:120, w:260, h:120,
-        title:'Start here',
-        body:'Scroll to zoom, drag to pan.\nAdd more blocks and design your workflow.',
-        color:'#fef9c3',
-        shape:'soft'
-      });
-      saveModel();
-    }
-    updateGrid();
-    renderNodes();
+  /* ---------- Transform / Zoom ---------- */
+  function applyTransform(){
+    const rect = canvas.getBoundingClientRect();
+    const tx = -rect.width/2 + pan.x;
+    const ty = -rect.height/2 + pan.y;
+    board.style.transform = `translate(${tx}px,${ty}px) scale(${scale})`;
+    zoomIndicator.textContent = Math.round(scale*100) + '%';
+    renderLinks();
+  }
+  function zoomAt(newScale, clientX, clientY){
+    const before = pageToModel(clientX, clientY);
+    scale = clamp(newScale, MIN_SCALE, MAX_SCALE);
     applyTransform();
+    const after = pageToModel(clientX, clientY);
+    pan.x += (after.x - before.x) * scale;
+    pan.y += (after.y - before.y) * scale;
+    applyTransform();
+  }
 
-    if(!localStorage.getItem(tutorialKey)){
-      showTutorial(0);
+  /* ---------- Nodes ---------- */
+  function createNodeDOM(n){
+    const el = document.createElement('div');
+    el.className = 'node';
+    el.dataset.id = n.id;
+    el.style.left = n.x + 'px';
+    el.style.top = n.y + 'px';
+    el.style.width = (n.w || 230) + 'px';
+    el.style.background = n.color || '#fff';
+    el.innerHTML = `<div class="mini"><button class="mini-edit" style="background:transparent;border:0;font-size:14px;cursor:pointer;">✎</button></div><div class="title"></div><div class="body"></div>`;
+    el.addEventListener('pointerdown', onNodePointerDown);
+    el.addEventListener('dblclick', ()=> openModal(n.id));
+    el.querySelector('.mini-edit').addEventListener('click', ev=>{ ev.stopPropagation(); openModal(n.id); });
+    return el;
+  }
+
+  function renderNodes(){
+    updateGrid();
+    const ids = new Set(model.nodes.map(n=>n.id));
+    Array.from(canvas.querySelectorAll('.node')).forEach(el => { if(!ids.has(el.dataset.id)) el.remove(); });
+    model.nodes.forEach(n=>{
+      let el = canvas.querySelector(`.node[data-id="${n.id}"]`);
+      if(!el){ el = createNodeDOM(n); canvas.appendChild(el); }
+      el.style.left = n.x + 'px';
+      el.style.top = n.y + 'px';
+      el.style.width = (n.w||230) + 'px';
+      el.style.background = n.color || '#fff';
+      el.classList.remove('node-shape-soft','node-shape-pill','node-shape-outline');
+      if(n.shape === 'soft') el.classList.add('node-shape-soft');
+      if(n.shape === 'pill') el.classList.add('node-shape-pill');
+      if(n.shape === 'outline'){ el.classList.add('node-shape-outline'); el.style.background = 'transparent'; }
+      el.querySelector('.title').textContent = n.title || 'Untitled';
+      el.querySelector('.body').textContent = n.body || '';
+    });
+    renderLinks();
+  }
+
+  function addNodeAt(x,y){
+    const id = uid();
+    const node = { id, x: Math.max(40, x), y: Math.max(40, y), w:230, h:120, title:'New block', body:'Double-click to edit', color:'#fffdf5', shape:'card' };
+    model.nodes.push(node);
+    saveModel(); renderNodes(); openModal(id);
+  }
+
+  /* ---------- Node dragging ---------- */
+  function onNodePointerDown(e){
+    e.stopPropagation();
+    const el = e.currentTarget;
+    const id = el.dataset.id;
+    draggingId = id;
+    const node = model.nodes.find(n=>n.id===id);
+    const pos = pageToModel(e.clientX, e.clientY);
+    dragOffset.x = pos.x - (node.x || 0);
+    dragOffset.y = pos.y - (node.y || 0);
+    el.setPointerCapture(e.pointerId);
+    el.addEventListener('pointermove', onNodePointerMove);
+    el.addEventListener('pointerup', onNodePointerUp);
+  }
+  function onNodePointerMove(e){
+    if(!draggingId) return;
+    const pos = pageToModel(e.clientX, e.clientY);
+    let x = pos.x - dragOffset.x;
+    let y = pos.y - dragOffset.y;
+    if(snapOn){
+      const gs = gridSize;
+      const snapX = Math.round(x/gs)*gs;
+      const snapY = Math.round(y/gs)*gs;
+      x = x + (snapX - x)*0.35;
+      y = y + (snapY - y)*0.35;
     }
+    const node = model.nodes.find(n=>n.id===draggingId);
+    if(!node) return;
+    node.x = Math.max(0, Math.round(x));
+    node.y = Math.max(0, Math.round(y));
+    renderNodes();
+  }
+  function onNodePointerUp(e){
+    const id = e.currentTarget.dataset.id;
+    const node = model.nodes.find(n=>n.id===id);
+    if(node && snapOn){
+      const gs = gridSize;
+      node.x = Math.round(node.x/gs)*gs;
+      node.y = Math.round(node.y/gs)*gs;
+    }
+    draggingId = null;
+    try{ e.currentTarget.removeEventListener('pointermove', onNodePointerMove); e.currentTarget.removeEventListener('pointerup', onNodePointerUp); }catch(err){}
+    saveModel();
+    renderNodes();
+  }
 
-    window.__ariesWorkspace = { model, saveModel };
-  })();
-  </script>
+  /* ---------- Pan & Scroll zoom ---------- */
+  panLayer.addEventListener('pointerdown', e=>{
+    if(e.target.closest('.node')) return;
+    panLayer.setPointerCapture(e.pointerId);
+    isPanning = true;
+    panStart.x = e.clientX - pan.x;
+    panStart.y = e.clientY - pan.y;
+    panLayer.addEventListener('pointermove', onPanMove);
+    panLayer.addEventListener('pointerup', onPanEnd);
+  });
+  function onPanMove(e){ if(!isPanning) return; pan.x = e.clientX - panStart.x; pan.y = e.clientY - panStart.y; applyTransform(); }
+  function onPanEnd(e){ isPanning = false; panLayer.removeEventListener('pointermove', onPanMove); panLayer.removeEventListener('pointerup', onPanEnd); saveModel(); }
+
+  panLayer.addEventListener('wheel', e=>{
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -SCALE_STEP : SCALE_STEP;
+    const newScale = scale + delta;
+    zoomAt(newScale, e.clientX, e.clientY);
+  }, { passive:false });
+
+  /* ---------- Pinch-to-zoom ---------- */
+  panLayer.addEventListener('pointerdown', e=>{
+    pointerMap.set(e.pointerId, e);
+    if(pointerMap.size === 2){
+      const arr = Array.from(pointerMap.values());
+      pinchState = { dist: Math.hypot(arr[0].clientX - arr[1].clientX, arr[0].clientY - arr[1].clientY), scale: scale, center:{ x:(arr[0].clientX+arr[1].clientX)/2, y:(arr[0].clientY+arr[1].clientY)/2 } };
+    }
+    e.target.setPointerCapture(e.pointerId);
+  });
+  panLayer.addEventListener('pointermove', e=>{
+    if(!pointerMap.has(e.pointerId)) return;
+    pointerMap.set(e.pointerId, e);
+    if(pinchState && pointerMap.size === 2){
+      const arr = Array.from(pointerMap.values());
+      const dist = Math.hypot(arr[0].clientX - arr[1].clientX, arr[0].clientY - arr[1].clientY);
+      const factor = dist / pinchState.dist;
+      const newScale = clamp(pinchState.scale * factor, MIN_SCALE, MAX_SCALE);
+      zoomAt(newScale, pinchState.center.x, pinchState.center.y);
+    }
+  });
+  ['pointerup','pointercancel'].forEach(type => {
+    panLayer.addEventListener(type, e=>{ pointerMap.delete(e.pointerId); if(pointerMap.size < 2) pinchState = null; });
+  });
+
+  /* ---------- Connectors ---------- */
+  function setConnectMode(on){
+    connectMode = !!on;
+    connectFrom = null;
+    toolConnector.classList.toggle('active', connectMode);
+    toolConnector.style.background = connectMode ? '#fdecea' : ''; // visual hint
+    if(connectMode) flash('Connector: click source node, then target node.');
+  }
+  toolConnector.addEventListener('click', ()=> { setConnectMode(!connectMode); });
+
+  // when clicking a node while connect mode: set from or create link
+  function nodeClickForConnect(id){
+    if(!connectMode) return;
+    if(!connectFrom){ connectFrom = id; flash('Source selected — click target node'); highlightNode(connectFrom, true); return; }
+    if(connectFrom === id){ // cancel if same node
+      highlightNode(connectFrom, false);
+      connectFrom = null; return;
+    }
+    // create link (prevent duplicates)
+    const exists = model.links.some(l => l.from === connectFrom && l.to === id);
+    if(!exists){
+      const link = { id: uid(), from: connectFrom, to: id };
+      model.links.push(link);
+      saveModel();
+      renderLinks();
+    } else {
+      flash('Link already exists');
+    }
+    // cleanup
+    highlightNode(connectFrom, false);
+    connectFrom = null;
+    setConnectMode(false);
+  }
+
+  function highlightNode(id, on){
+    const el = canvas.querySelector(`.node[data-id="${id}"]`);
+    if(!el) return;
+    el.style.outline = on ? '3px solid rgba(11,116,255,0.12)' : 'none';
+  }
+
+  /* ---------- Link rendering & interaction ---------- */
+  function renderLinks(){
+    // clear svg
+    while(svgLayer.firstChild) svgLayer.removeChild(svgLayer.firstChild);
+    // compute svg size to cover scaled canvas (we will use board transform, but coordinates are in model space multiplied by scale)
+    const rect = canvas.getBoundingClientRect();
+    svgLayer.setAttribute('width', rect.width * scale);
+    svgLayer.setAttribute('height', rect.height * scale);
+    svgLayer.style.left = board.offsetLeft + 'px';
+    svgLayer.style.top = board.offsetTop + 'px';
+    // draw defs arrowhead once
+    const defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
+    defs.innerHTML = `<marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="${getComputedStyle(document.documentElement).getPropertyValue('--link-color') || '#0f172a'}"></path>
+    </marker>`;
+    svgLayer.appendChild(defs);
+
+    model.links.forEach(link => {
+      const from = model.nodes.find(n => n.id === link.from);
+      const to = model.nodes.find(n => n.id === link.to);
+      if(!from || !to) return;
+      const fx = (from.x + (from.w || 230)/2) * scale;
+      const fy = (from.y + 20) * scale;
+      const tx = (to.x + (to.w || 230)/2) * scale;
+      const ty = (to.y + 20) * scale;
+      const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+      line.setAttribute('x1', fx); line.setAttribute('y1', fy);
+      line.setAttribute('x2', tx); line.setAttribute('y2', ty);
+      line.setAttribute('stroke', getComputedStyle(document.documentElement).getPropertyValue('--link-color') || '#0f172a');
+      line.setAttribute('stroke-width', Math.max(2, 2 * scale));
+      line.setAttribute('marker-end', 'url(#arrow)');
+      line.dataset.id = link.id;
+      line.style.cursor = 'pointer';
+      // allow click selection on unscaled coordinates: set pointer-events visible by attaching event via overlay rect
+      line.addEventListener('click', (e)=> {
+        e.stopPropagation();
+        selectLink(link.id);
+      }, false);
+      svgLayer.appendChild(line);
+      if(link.id === selectedLinkId){
+        line.classList.add('selected');
+        line.setAttribute('stroke', getComputedStyle(document.documentElement).getPropertyValue('--link-selected') || '#ff7a59');
+      }
+    });
+  }
+
+  function selectLink(id){
+    selectedLinkId = id;
+    selectedLinkLabel.textContent = id || 'none';
+    toolDeleteLink.disabled = false;
+    renderLinks();
+  }
+
+  toolDeleteLink.addEventListener('click', ()=>{
+    if(!selectedLinkId) return;
+    if(!confirm('Delete selected link?')) return;
+    model.links = model.links.filter(l => l.id !== selectedLinkId);
+    selectedLinkId = null;
+    selectedLinkLabel.textContent = 'none';
+    toolDeleteLink.disabled = true;
+    saveModel();
+    renderLinks();
+  });
+
+  /* ---------- Modal (node settings) ---------- */
+  function openModal(id){
+    selectedNodeId = id;
+    const node = model.nodes.find(n => n.id === id);
+    if(!node) return;
+    modalTitle.value = node.title || '';
+    modalBody.value = node.body || '';
+    modalColor.value = node.color || '#ffffff';
+    modalShape.value = node.shape || 'card';
+    modal.style.display = 'flex'; modal.setAttribute('aria-hidden','false'); modalTitle.focus();
+  }
+  function closeModal(){ modal.style.display = 'none'; modal.setAttribute('aria-hidden','true'); selectedNodeId = null; }
+  saveModalBtn.addEventListener('click', ()=>{
+    if(!selectedNodeId) return closeModal();
+    const node = model.nodes.find(n => n.id === selectedNodeId);
+    if(!node) return closeModal();
+    node.title = modalTitle.value.trim();
+    node.body = modalBody.value.trim();
+    node.color = modalColor.value;
+    node.shape = modalShape.value;
+    saveModel(); renderNodes(); closeModal();
+  });
+  cancelModalBtn.addEventListener('click', closeModal);
+  deleteBlockBtn.addEventListener('click', ()=>{
+    if(!selectedNodeId) return closeModal();
+    if(!confirm('Delete this block?')) return;
+    // remove node and related links
+    model.links = model.links.filter(l => l.from !== selectedNodeId && l.to !== selectedNodeId);
+    model.nodes = model.nodes.filter(n => n.id !== selectedNodeId);
+    saveModel(); renderNodes(); closeModal();
+  });
+
+  /* ---------- Buttons & UI ---------- */
+  function handleAddNode(){
+    const rect = canvas.getBoundingClientRect();
+    const cx = rect.left + rect.width/2;
+    const cy = rect.top + rect.height/2;
+    const pos = pageToModel(cx, cy);
+    addNodeAt(pos.x - 100, pos.y - 40);
+  }
+  document.getElementById('addNode')?.addEventListener('click', handleAddNode);
+  toolAddNode.addEventListener('click', handleAddNode);
+
+  zoomInCorner.addEventListener('click', ()=> { zoomAt(scale + SCALE_STEP, window.innerWidth/2, window.innerHeight/2); });
+  zoomOutCorner.addEventListener('click', ()=> { zoomAt(scale - SCALE_STEP, window.innerWidth/2, window.innerHeight/2); });
+
+  saveBoardBtn.addEventListener('click', ()=> saveModel());
+  backToProjects.addEventListener('click', ()=> { saveModel(); window.location.href = 'projects.html'; });
+
+  exportBtn.addEventListener('click', ()=>{
+    const data = JSON.stringify(model, null, 2);
+    const blob = new Blob([data], { type:'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = (projectId||'board') + '.board.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  });
+  importFile.addEventListener('change', e=>{
+    const f = e.target.files[0]; if(!f) return;
+    const r = new FileReader();
+    r.onload = function(){
+      try{ const parsed = JSON.parse(r.result); if(parsed && parsed.nodes){ model = parsed; saveModel(); renderNodes(); flash('Imported'); } else alert('Invalid file'); } catch(err){ alert('Invalid JSON'); }
+    };
+    r.readAsText(f);
+  });
+
+  gridSizeInput.addEventListener('change', ()=> { gridSize = clamp(Number(gridSizeInput.value)||20, 5, 200); updateGrid(); });
+  showGridInput.addEventListener('change', ()=> updateGrid());
+  centerBtn.addEventListener('click', ()=> { pan = {x:0,y:0}; scale = 1; applyTransform(); });
+
+  menuIcon.addEventListener('click', ()=> { const isOpen = floatingTools.classList.toggle('open'); floatingTools.setAttribute('aria-hidden', isOpen ? 'false' : 'true'); });
+  toolConnector.addEventListener('click', ()=> { setConnectMode(!connectMode); });
+
+  function setConnectMode(on){
+    connectMode = !!on; connectFrom = null;
+    toolConnector.style.background = connectMode ? '#fdecea' : '';
+    toolConnector.textContent = connectMode ? 'Connector (active)' : 'Connector';
+    if(!connectMode) highlightAllNodes(false);
+  }
+
+  function highlightAllNodes(on){
+    document.querySelectorAll('.node').forEach(el => el.style.outline = on ? '3px solid rgba(11,116,255,0.10)' : 'none');
+  }
+
+  /* ---------- Click handling for connecting via nodes ---------- */
+  // intercept clicks on nodes to support connect mode
+  canvas.addEventListener('click', (e)=>{
+    // if clicked node element
+    const nodeEl = e.target.closest('.node');
+    if(nodeEl){
+      const id = nodeEl.dataset.id;
+      if(connectMode){ nodeClickForConnect(id); }
+    } else {
+      // clicked empty canvas: deselect link if any
+      if(selectedLinkId){ selectedLinkId = null; selectedLinkLabel.textContent = 'none'; toolDeleteLink.disabled = true; renderLinks(); }
+    }
+  });
+
+  function nodeClickForConnect(id){
+    if(!connectMode) return;
+    if(!connectFrom){ connectFrom = id; highlightNode(connectFrom, true); flash('Source selected — click target node'); return; }
+    if(connectFrom === id){ highlightNode(connectFrom, false); connectFrom = null; return; }
+    const exists = model.links.some(l => l.from === connectFrom && l.to === id);
+    if(!exists){
+      model.links.push({ id: uid(), from: connectFrom, to: id });
+      saveModel(); renderLinks();
+    } else flash('Link already exists');
+    highlightNode(connectFrom, false); connectFrom = null; setConnectMode(false);
+  }
+
+  /* ---------- Helper: highlight node ---------- */
+  function highlightNode(id, on){
+    const el = canvas.querySelector(`.node[data-id="${id}"]`);
+    if(!el) return; el.style.outline = on ? '3px solid rgba(11,116,255,0.12)' : 'none';
+  }
+
+  /* ---------- Render links on transform & on load ---------- */
+  function renderLinksInternal(){
+    // alias to avoid name clash earlier
+    renderLinks();
+  }
+
+  /* ---------- Tutorial ---------- */
+  const tutorialSteps = [
+    { title:'Welcome', text:'Add a block with + Node. Drag to move. Use Connector to link blocks.' },
+    { title:'Zoom & Pan', text:'Scroll to zoom (no Ctrl required). Drag empty space to pan.' },
+    { title:'Edit', text:'Double-click a block or click ✎ to edit title, body, color and shape.' }
+  ];
+  let tutorialIndex = 0;
+  function showTutorial(i){ tutorial.style.display = 'block'; tutorial.setAttribute('aria-hidden','false'); tutorialIndex = clamp(i,0,tutorialSteps.length-1); const s = tutorialSteps[tutorialIndex]; tutorialStep.innerHTML = `<h2 style="margin:0 0 6px;">${s.title}</h2><p style="margin:0">${s.text}</p>`; tutorialProgress.textContent = `Step ${tutorialIndex+1} / ${tutorialSteps.length}`; tutorialPrev.style.visibility = tutorialIndex===0 ? 'hidden':'visible'; tutorialNext.textContent = tutorialIndex === tutorialSteps.length-1 ? 'Finish' : 'Next'; }
+  tutorialNext.addEventListener('click', ()=> { if(tutorialIndex === tutorialSteps.length-1){ closeTutorial(); } else showTutorial(tutorialIndex+1); });
+  tutorialPrev.addEventListener('click', ()=> showTutorial(tutorialIndex-1));
+  tutorialClose.addEventListener('click', closeTutorial);
+  function closeTutorial(){ tutorial.style.display = 'none'; tutorial.setAttribute('aria-hidden','true'); localStorage.setItem(tutorialKey,'seen'); }
+
+  /* ---------- Bootstrap ---------- */
+  loadModel();
+  if(!model.nodes.length){ model.nodes.push({ id: uid(), x:120, y:120, w:260, h:120, title:'Start here', body:'Use + Node and Connector to build flow.', color:'#fef9c3', shape:'soft' }); saveModel(); }
+  updateGrid(); renderNodes(); applyTransform();
+  if(!localStorage.getItem(tutorialKey)) showTutorial(0);
+
+  /* ---------- selection & API ---------- */
+  window.__ariesWorkspace = { model, saveModel, addNodeAt: (x,y)=>addNodeAt(x,y) };
+
+})();
+</script>
 </body>
 </html>
