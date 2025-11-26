@@ -3,72 +3,199 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Projects — Aries</title>
-  <link rel="stylesheet" href="main.css" />
+  <title>Projects — Project Manager</title>
+
   <style>
-    /* Small page-specific layout improvements */
-    .projects-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; padding: 24px; }
-    .project-card { display:flex; gap:12px; background:var(--card-bg, #fff); border-radius:10px; box-shadow:var(--card-shadow, 0 6px 18px rgba(0,0,0,0.08)); padding:12px; align-items:flex-start; }
-    .project-thumb { width:96px; height:96px; object-fit:cover; border-radius:8px; flex-shrink:0; }
-    .project-title { margin:0 0 6px 0; font-size:1.05rem; }
-    .project-desc { margin:0 0 8px 0; color:var(--muted,#666); font-size:0.92rem; }
-    .project-actions { display:flex; gap:8px; }
-    .btn { padding:8px 12px; border-radius:8px; text-decoration:none; display:inline-block; background:#1f2937; color:#fff; font-weight:600; }
-    .btn.ghost { background:transparent; border:1px solid #ddd; color:inherit; }
-    .projects-header { display:flex; justify-content:space-between; align-items:center; padding:16px 24px; gap:12px; }
-    .projects-header h1 { margin:0; font-size:1.25rem; }
-    .new-project-btn { padding:8px 12px; border-radius:8px; background:#0b74ff; color:#fff; text-decoration:none; }
-    .empty-note { padding:24px; text-align:center; color:var(--muted,#666); }
+    :root{
+      --page-bg: #ffffff;
+      --accent: #0b2830; /* dark teal for outlines */
+      --muted: #cfcfcf;
+      --card-bg: #dfdfdf; /* inner grey */
+      --black: #000;
+      --header-black: #070707;
+      --container-border: #0b2830;
+      --pill-bg: #f6f6f6;
+    }
+
+    /* Reset & base */
+    *{box-sizing:border-box}
+    html,body{height:100%; margin:0; font-family: "Helvetica Neue", Arial, sans-serif; background:var(--page-bg); color:#111}
+    a{color:inherit; text-decoration:none}
+
+    /* Top header (black) */
+    .topbar{
+      background:var(--header-black);
+      color:#fff;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding:12px 20px;
+      border-bottom:3px solid rgba(255,255,255,0.05);
+      position:sticky; top:0;
+      z-index:40;
+    }
+    .top-left{display:flex; align-items:center; gap:14px;}
+    .hamburger{
+      width:34px; height:28px; display:inline-flex; align-items:center; justify-content:center;
+      background:transparent; border:0; color:#fff; font-size:20px; cursor:pointer;
+    }
+    .brand{
+      font-weight:700; letter-spacing:2px; font-size:20px; text-align:center; min-width:200px;
+    }
+    .logo{
+      width:36px; height:36px; object-fit:contain; margin-left:8px;
+    }
+
+    /* Page center container */
+    .page-wrap{
+      display:flex;
+      justify-content:center;
+      padding:28px 12px 64px;
+    }
+    .container{
+      width:100%;
+      max-width:980px; /* match screenshot width */
+      border:3px solid var(--container-border);
+      background:#fff;
+      box-shadow: 0 4px 0 rgba(0,0,0,0.02);
+    }
+
+    /* Projects header bar */
+    .projects-bar{
+      display:flex; align-items:center; justify-content:space-between;
+      background:var(--header-black); color:#fff; padding:14px 18px;
+      border-bottom:2px solid var(--container-border);
+    }
+    .projects-bar h2{ margin:0; font-size:22px; font-weight:800; letter-spacing:1px; }
+    .new-project {
+      background: linear-gradient(#e6e6e6,#cfcfcf);
+      color: #111;
+      border:2px solid #666;
+      padding:8px 14px;
+      border-radius:8px;
+      font-weight:600;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.4);
+      cursor:pointer;
+    }
+
+    /* Projects list area */
+    .projects-list{
+      padding:22px;
+      display:flex; flex-direction:column; gap:22px;
+    }
+
+    /* Single project row style (outer rounded box with thick outline like screenshot) */
+    .project-row{
+      border-radius:14px;
+      border:3px solid var(--accent);
+      padding:16px;
+      background:transparent;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:18px;
+    }
+
+    /* Inner grey area */
+    .project-row .inner{
+      background:var(--card-bg);
+      border-radius:12px;
+      width:100%;
+      padding:18px 18px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:18px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.25);
+    }
+
+    /* Left: project name pill */
+    .project-name-pill{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      background:var(--pill-bg);
+      border-radius:999px;
+      padding:14px 26px;
+      min-width:320px;
+      max-width:60%;
+      border:2px solid #4a6468;
+      font-size:20px;
+      font-weight:600;
+    }
+    .project-thumb{
+      width:56px; height:56px; object-fit:cover; border-radius:8px; flex-shrink:0;
+      border:1px solid rgba(0,0,0,0.06);
+    }
+
+    /* Right: status block */
+    .project-right{
+      display:flex; flex-direction:column; align-items:flex-end; gap:8px; min-width:180px;
+    }
+    .status-label{ font-size:13px; font-weight:800; letter-spacing:1px; color:var(--accent); }
+    .status-pill{
+      display:inline-flex; align-items:center; justify-content:center;
+      padding:10px 18px; border-radius:999px; border:2px solid #355a61; background:#fff; font-weight:700;
+      box-shadow: 0 2px 0 rgba(0,0,0,0.05); cursor:pointer;
+    }
+
+    /* Action buttons row for smaller screens */
+    .row-actions{
+      display:flex; gap:10px; margin-left:14px;
+    }
+    .btn-ghost{
+      border:1px solid #9a9a9a; background:transparent; padding:8px 12px; border-radius:8px; cursor:pointer;
+    }
+
+    /* Responsive tweaks */
+    @media (max-width:880px){
+      .project-name-pill{ min-width:180px; max-width:55%; padding:12px 18px; font-size:16px; }
+      .project-right{ min-width:140px; }
+      .container{ margin:0 12px; }
+    }
+    @media (max-width:560px){
+      .inner{ flex-direction:column; align-items:flex-start; gap:12px; }
+      .project-row{ padding:12px; }
+      .project-right{ align-self:stretch; width:100%; flex-direction:row; justify-content:space-between; }
+    }
+
+    /* footer */
+    .page-footer{ padding:10px 18px; font-size:12px; color:#444; text-align:center; }
   </style>
 </head>
 <body>
-  <header class="site-header">
-    <button id="menuIcon" class="icon-btn" aria-label="Open menu">☰</button>
-    <h1 class="site-title">Aries — Projects</h1>
 
-    <div class="project-switcher" style="position:relative;">
-      <button id="projectDropdownToggle" class="project-toggle" aria-haspopup="true" aria-expanded="false">Select Project ▾</button>
-      <nav id="projectDropdownMenu" class="project-dropdown-menu" role="menu" aria-label="Projects menu">
-        <!-- Filled by app.js if desired; kept static as fallback -->
-        <a class="dropdown-project-button" role="menuitem" href="project_detail.html?id=1">Project 1 — Alpha</a>
-      </nav>
+  <header class="topbar" role="banner">
+    <div class="top-left">
+      <button class="hamburger" aria-label="open menu">☰</button>
+      <div style="width:6px"></div>
+      <div class="brand">PROJECT MANAGER</div>
     </div>
+
+    <!-- right logo -->
+    <img src="images/goat.png" alt="" class="logo" style="opacity:0.95">
   </header>
 
-  <aside id="sidebar" class="sidebar" aria-hidden="true">
-    <button id="closeIcon" class="icon-btn" aria-label="Close menu">✕</button>
-    <nav class="side-nav" aria-label="Main navigation">
-      <a href="index.html">Home</a>
-      <a href="projects.html" class="active">Projects</a>
-      <a href="#">About</a>
-      <a href="#">Contact</a>
-    </nav>
-  </aside>
+  <div class="page-wrap">
+    <div class="container" role="main" aria-label="Projects container">
 
-  <main class="main-content" id="main" role="main">
-    <section class="projects-header">
-      <h1>Projects</h1>
-      <div style="display:flex; gap:8px; align-items:center;">
-        <a id="createProject" class="new-project-btn" href="#">+ New Project</a>
+      <div class="projects-bar">
+        <h2>PROJECTS</h2>
+        <button id="createProject" class="new-project">New Project</button>
       </div>
-    </section>
 
-    <section id="projectsList" class="projects-grid" aria-label="Project list">
-      <!-- JS will render project cards here -->
-    </section>
+      <div id="projectsList" class="projects-list" aria-live="polite">
+        <!-- Rendered project rows -->
+      </div>
 
-    <div id="noProjects" class="empty-note" style="display:none;">
-      No projects yet. Click <strong>+ New Project</strong> to create one.
+      <div id="noProjects" style="display:none; padding:28px 22px; color:#333; text-align:center;">
+        No projects yet. Click <strong>New Project</strong> to create one.
+      </div>
+
+      <div class="page-footer">© Project Manager</div>
     </div>
-  </main>
+  </div>
 
-  <footer class="site-footer" style="padding:12px 24px;">
-    <small>© Aries</small>
-  </footer>
-
-  <script src="app.js" defer></script>
-
-  <!-- Page-specific script: projects manager -->
   <script>
     (function(){
       const projectsKey = 'aries_projects_v1';
@@ -92,12 +219,19 @@
       }
 
       function openWorkspace(id) {
+        // navigate to project detail page (if exists)
         window.location.href = `project_detail.html?id=${encodeURIComponent(id)}`;
+      }
+
+      function escapeHtml(s) {
+        if (s === undefined || s === null) return '';
+        return String(s).replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
       }
 
       function render() {
         const projects = loadProjects();
         projectsList.innerHTML = '';
+
         if (!projects.length) {
           noProjects.style.display = 'block';
           return;
@@ -106,47 +240,71 @@
         }
 
         projects.forEach(p => {
-          const card = document.createElement('article');
-          card.className = 'project-card';
-          card.innerHTML = `
-            <img class="project-thumb" src="images/goat.png" alt="Project thumbnail">
-            <div style="flex:1;">
-              <h3 class="project-title">${escapeHtml(p.name)}</h3>
-              <p class="project-desc">${escapeHtml(p.description || 'No description')}</p>
-              <div class="project-actions">
-                <a class="btn" href="#" data-open="${p.id}">Open</a>
-                <a class="btn ghost" href="#" data-edit="${p.id}">Edit</a>
-                <a class="btn ghost" href="#" data-delete="${p.id}">Delete</a>
+          const row = document.createElement('div');
+          row.className = 'project-row';
+          row.innerHTML = `
+            <div class="inner" role="article" aria-labelledby="proj-${p.id}">
+              <div style="display:flex;align-items:center;gap:12px;">
+                <img class="project-thumb" src="${escapeHtml(p.thumb || 'images/goat.png')}" alt="thumb">
+                <div class="project-name-pill" id="proj-${p.id}">
+                  ${escapeHtml(p.name)}
+                </div>
+              </div>
+
+              <div class="project-right" aria-hidden="false">
+                <div class="status-label">STATUS</div>
+                <div style="display:flex; gap:8px; align-items:center;">
+                  <button class="status-pill" data-id="${p.id}" aria-haspopup="true"> 
+                    ${escapeHtml(p.status || 'DROPDOWN')}
+                  </button>
+                </div>
               </div>
             </div>
           `;
-          // click handlers
-          card.querySelector('[data-open]').addEventListener('click', (e) => {
-            e.preventDefault(); openWorkspace(p.id);
-          });
-          card.querySelector('[data-edit]').addEventListener('click', (e) => {
+
+          // attach actions: clicking name pill opens project
+          row.querySelector('.project-name-pill').style.cursor = 'pointer';
+          row.querySelector('.project-name-pill').addEventListener('click', () => openWorkspace(p.id));
+
+          // status pill click opens a small menu (simple prompt for demo)
+          row.querySelector('.status-pill').addEventListener('click', (e) => {
             e.preventDefault();
-            const newName = prompt('Edit project name:', p.name);
-            if (newName !== null) {
-              p.name = newName.trim() || p.name;
-              saveProjects(projects);
-              render();
+            const newStatus = prompt('Set status (e.g., Active, Paused, Done)', p.status || 'Active');
+            if (newStatus !== null) {
+              p.status = newStatus.trim() || p.status;
+              const all = loadProjects();
+              const idx = all.findIndex(x => x.id === p.id);
+              if (idx > -1) { all[idx] = p; saveProjects(all); render(); }
             }
           });
-          card.querySelector('[data-delete]').addEventListener('click', (e) => {
-            e.preventDefault();
-            if (!confirm('Delete this project? This cannot be undone.')) return;
-            const idx = projects.findIndex(x => x.id === p.id);
-            if (idx > -1) { projects.splice(idx,1); saveProjects(projects); render(); }
+
+          // context actions (edit / delete) accessible via right-click menu (fallback buttons on small screens)
+          row.addEventListener('contextmenu', (ev) => {
+            ev.preventDefault();
+            const choice = prompt('Type "edit" to rename, "delete" to remove, or "open" to open project', 'open');
+            if (!choice) return;
+            const action = choice.toLowerCase().trim();
+            if (action === 'open') return openWorkspace(p.id);
+            if (action === 'edit') {
+              const newName = prompt('Edit project name:', p.name);
+              if (newName !== null) {
+                p.name = newName.trim() || p.name;
+                const all = loadProjects();
+                const idx = all.findIndex(x => x.id === p.id);
+                if (idx > -1) { all[idx] = p; saveProjects(all); render(); }
+              }
+            }
+            if (action === 'delete') {
+              if (confirm('Delete this project? This cannot be undone.')) {
+                const all = loadProjects();
+                const idx = all.findIndex(x => x.id === p.id);
+                if (idx > -1) { all.splice(idx,1); saveProjects(all); render(); }
+              }
+            }
           });
 
-          projectsList.appendChild(card);
+          projectsList.appendChild(row);
         });
-      }
-
-      function escapeHtml(s) {
-        if (!s) return '';
-        return s.replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
       }
 
       createBtn.addEventListener('click', (e) => {
@@ -159,7 +317,9 @@
           id,
           name: name.trim(),
           description: 'New workspace',
-          createdAt: Date.now()
+          createdAt: Date.now(),
+          status: 'DROPDOWN',
+          thumb: 'images/goat.png'
         };
         projects.unshift(newProject);
         saveProjects(projects);
@@ -168,13 +328,15 @@
         openWorkspace(id);
       });
 
-      // bootstrap with sample data if empty (optional)
+      // bootstrap with sample data if empty
       (function seedIfEmpty(){
         const p = loadProjects();
         if (!p.length) {
           const sample = [
-            { id:'1', name:'Alpha — Product Plan', description:'Product & roadmap board', createdAt: Date.now()-86400000 },
-            { id:'2', name:'Beta — Growth Ideas', description:'Marketing experiments & funnels', createdAt: Date.now()-3600000 }
+            { id:'1', name:'Project Name 1', description:'Task board', createdAt: Date.now()-86400000, status:'DROPDOWN', thumb:'images/goat.png' },
+            { id:'2', name:'Project Name 2', description:'Roadmap', createdAt: Date.now()-3600000, status:'DROPDOWN', thumb:'images/goat.png' },
+            { id:'3', name:'Project Name 3', description:'Design & assets', createdAt: Date.now()-7200000, status:'DROPDOWN', thumb:'images/goat.png' },
+            { id:'4', name:'Project Name 4', description:'Marketing', createdAt: Date.now()-12000000, status:'DROPDOWN', thumb:'images/goat.png' }
           ];
           saveProjects(sample);
         }
@@ -183,5 +345,6 @@
       render();
     })();
   </script>
+
 </body>
 </html>
