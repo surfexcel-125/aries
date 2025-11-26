@@ -2,10 +2,10 @@
 body {
     margin: 0;
     padding: 0;
-    font-family: Arial, sans-serif; /* Default font */
+    font-family: Arial, sans-serif;
     background-color: white; /* Plain white screen */
     display: flex;
-    flex-direction: column; /* Allows header, main, footer to stack vertically */
+    flex-direction: column; 
     min-height: 100vh; /* Ensures the body takes full viewport height */
 }
 
@@ -14,11 +14,11 @@ header {
     background-color: black;
     color: white;
     padding: 15px 20px;
-    height: 50px; /* Fixed height for the header */
+    height: 50px; 
     display: flex;
-    align-items: center; /* Vertically center items */
-    justify-content: flex-start; /* Aligns content to the start (left) */
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2); /* Subtle shadow below header */
+    align-items: center; 
+    justify-content: flex-start; 
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
 }
 
 /* --- Menu Icon Styles: The Left Icon --- */
@@ -26,62 +26,64 @@ header {
     font-size: 28px;
     cursor: pointer;
     user-select: none;
-    line-height: 1; /* Ensures vertical alignment in header */
+    line-height: 1; 
 }
 
 /* --- Main Content Layout --- */
 main {
-    flex-grow: 1; /* Allows main content to take up available space */
-    display: flex; /* Use flexbox for horizontal layout of text and image */
-    justify-content: center; /* Center the entire content block horizontally */
+    flex-grow: 1; 
+    display: flex; 
+    justify-content: center; /* Center the content block horizontally */
     align-items: center; /* Vertically center the text and image */
-    padding: 20px; /* Some padding around the content */
-    gap: 50px; /* Space between the left and right content sections */
+    padding: 20px; 
+    gap: 50px; /* Space between the Aries text and the image */
 }
 
 .content-left {
-    text-align: right; /* Align "Aries King" to the right within its container */
-    padding-right: 20px; /* Space from the goat image */
+    text-align: right; 
+    padding-right: 20px; 
 }
 
 .content-right {
-    display: flex; /* Helps in aligning the image if there were other elements */
+    display: flex; 
     align-items: center;
     justify-content: center;
-    padding-left: 20px; /* Space from the Aries text */
+    padding-left: 20px; 
 }
 
 /* --- Text Styling (Aries King) --- */
 .aries-title {
-    font-family: 'Crete Round', serif; /* Using Google Font for style */
-    font-size: 80px; /* Large font size */
-    margin: 0; /* Remove default margins */
-    line-height: 0.8; /* Adjust line height for closer spacing */
+    /* Substitute for Snap ITC */
+    font-family: 'Luckiest Guy', cursive; 
+    font-size: 80px; 
+    margin: 0; 
+    line-height: 0.8; 
     color: black;
 }
 
 .aries-subtitle {
-    font-family: Arial, sans-serif; /* Standard font for "King" */
+    /* Substitute for Amasis MT Pro Black */
+    font-family: 'Roboto Slab', serif; 
+    font-weight: 900; /* Black weight */
     font-size: 24px;
-    margin: 0; /* Remove default margins */
-    color: #333; /* Slightly lighter black */
-    font-weight: normal;
+    margin: 0;
+    color: #333;
 }
 
 /* --- Goat Image Styling --- */
 .goat-image {
-    max-width: 350px; /* Adjust size as needed, up to 350px */
-    height: auto; /* Maintain aspect ratio */
+    max-width: 350px; 
+    height: auto; 
 }
 
-/* --- Optional: Responsive adjustments --- */
+/* --- Optional: Responsive adjustments for phones/tablets --- */
 @media (max-width: 768px) {
     main {
-        flex-direction: column; /* Stack text and image vertically on smaller screens */
+        flex-direction: column; /* Stack text and image vertically on small screens */
         gap: 20px;
     }
     .content-left, .content-right {
-        text-align: center; /* Center text on smaller screens */
+        text-align: center; /* Center text on small screens */
         padding: 0;
     }
     .aries-title {
