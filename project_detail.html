@@ -61,6 +61,49 @@ html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe 
 
 /* small responsive */
 @media (max-width:1100px){ .inspector{ display:none } }
+  /* ---- Text smoothing & compositing fixes ---- */
+*,
+html, body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Target header and toolbar text to avoid ghosting */
+.topbar, .topbar * , .header-title, .header-actions, #floatingTools, .controls-panel {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  will-change: transform;
+  transform: translateZ(0);
+}
+
+/* Remove filters / shadows that may cause double-rendering */
+.header-title, .btn, .tool-btn, .icon-btn {
+  text-shadow: none !important;
+  filter: none !important;
+  mix-blend-mode: normal !important;
+}
+
+/* Tame default browser button styles so they look consistent */
+button.btn, .tool-btn, .icon-btn, #saveBoard, #exportBtn {
+  -webkit-appearance: none;
+  appearance: none;
+  border-radius: 6px;
+  border: 1px solid #bdbdbd;
+  background: #fff;
+  padding: 6px 10px;
+  font-weight:600;
+  box-shadow: none;
+}
+
+/* Subtle focus style */
+button:focus { outline: 2px solid rgba(11,116,255,0.12); outline-offset:2px; }
+
+/* If header sits inside a transformed parent, force the header onto its own layer */
+.topbar { transform: translateZ(0); will-change: transform; }
+
 </style>
 </head>
 <body>
