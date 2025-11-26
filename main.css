@@ -89,36 +89,6 @@ body {
     width: 36px; height: 36px; object-fit: contain;
 }
 
-/* NEW: Style for the header status indicator */
-.online-indicator {
-    position: absolute; 
-    right: 70px; /* Moves it left of the logo */
-    font-size: 12px;
-    font-weight: bold;
-    color: #4CAF50; /* Green default for Online */
-    text-transform: uppercase;
-    display: flex;
-    align-items: center;
-    gap: 5px;
-}
-.online-indicator::before {
-    content: '';
-    display: block;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background-color: #4CAF50;
-    box-shadow: 0 0 5px #4CAF50;
-}
-.online-indicator.offline {
-    color: #f44336; /* Red for Offline */
-}
-.online-indicator.offline::before {
-    background-color: #f44336;
-    box-shadow: none;
-}
-
-
 /* --- Dashboard (Index) Specifics --- */
 .dashboard-main {
     flex-grow: 1; display: flex; 
