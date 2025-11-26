@@ -1,10 +1,11 @@
-/* workspace.js — full replacement (prevent accidental delete while typing)
-   - Avoids deleting nodes/links when user is editing inspector inputs.
-   - Anchor coords from model w/h (board coords)
-   - Parallel link displacement to avoid overlaps
-   - In-page modal supported for labels (window.requestTransitionLabel)
-   - Inspector click-ignore fix so inspector interactions don't clear selection
-   - Repaint helper to avoid header ghosting after zoom/pan
+/* workspace.js — full replacement
+   Fix: anchors computed from DOM offsets (offsetLeft/offsetTop/offsetWidth/offsetHeight)
+   Includes:
+   - anchor coordinates from DOM offsets (robust under CSS transforms)
+   - parallel link displacement to avoid overlaps
+   - in-page modal for labels (requires project_detail.html helper requestTransitionLabel)
+   - inspector click-ignore fix so inspector interactions don't clear selection
+   - typing protection to avoid deleting while editing inputs
 */
 (function(){
   function ready() {
@@ -80,7 +81,6 @@
         const tag = (ae.tagName || '').toUpperCase();
         if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
         if (ae.isContentEditable) return true;
-        // If focus is inside the inspector, treat as typing (covers clicks into inspector controls)
         if (ae.closest && ae.closest('#inspector')) return true;
         return false;
       } catch (e) {
@@ -88,8 +88,23 @@
       }
     }
 
-    // --- anchor calculation (board coords) ---
+    // --- anchor calculation using DOM offsets (robust) ---
     function getAnchor(node, isTarget=false) {
+      // Prefer DOM element measurements (offsetLeft/Top/Width/Height)
+      const el = document.getElementById(`node-${node.id}`);
+      if (el) {
+        // offsetLeft/offsetTop are relative to offsetParent (board) and unaffected by CSS transform.
+        const left = el.offsetLeft;
+        const top = el.offsetTop;
+        const w = el.offsetWidth;
+        const h = el.offsetHeight;
+        if (!isTarget) {
+          return { x: left + w, y: top + (h / 2) };
+        } else {
+          return { x: left, y: top + (h / 2) };
+        }
+      }
+      // fallback to model coordinates if DOM not present
       const w = (node.w !== undefined) ? node.w : 220;
       const h = (node.h !== undefined) ? node.h : 100;
       if (!isTarget) {
@@ -129,7 +144,7 @@
       updateInspector();
     }
 
-    // escape HTML
+    // escape HTML helper
     function escapeHtml(str) {
       if (str == null) return '';
       return String(str).replace(/[&<>"']/g, function(m){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])});
@@ -532,7 +547,6 @@
 
     // keyboard (with typing protection)
     function onKey(e) {
-      // if user is typing in an input/textarea/select/contentEditable or inspector, don't trigger delete actions
       if (isTyping()) return;
 
       if ((e.key === 'Delete' || e.key === 'Backspace')) {
