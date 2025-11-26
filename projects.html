@@ -1,98 +1,106 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Project Manager</title>
-    <link rel="stylesheet" href="main.css">
-    
-    <link href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&family=Roboto+Slab:wght@900&display=swap" rel="stylesheet">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Projects — Aries</title>
+  <link rel="stylesheet" href="main.css" />
 </head>
 <body>
-    
-    <div id="sidebar" class="sidebar">
-        <div class="sidebar-header">
-            <span id="closeIcon" class="close-icon">&#10094;</span> 
+  <!-- Header -->
+  <header class="site-header">
+    <button id="menuIcon" class="icon-btn" aria-label="Open menu">☰</button>
+    <h1 class="site-title">Aries — Projects</h1>
+
+    <!-- Project dropdown trigger (app.js will wire this) -->
+    <div class="project-switcher" style="position:relative;">
+      <button id="projectDropdownToggle" class="project-toggle" aria-haspopup="true" aria-expanded="false">
+        Select Project ▾
+      </button>
+
+      <nav id="projectDropdownMenu" class="project-dropdown-menu" role="menu" aria-label="Projects menu">
+        <a class="dropdown-project-button" role="menuitem" href="project_detail.html?id=1">Project 1 — Alpha</a>
+        <a class="dropdown-project-button" role="menuitem" href="project_detail.html?id=2">Project 2 — Beta</a>
+        <a class="dropdown-project-button" role="menuitem" href="project_detail.html?id=3">Project 3 — Gamma</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Sidebar -->
+  <aside id="sidebar" class="sidebar" aria-hidden="true">
+    <button id="closeIcon" class="icon-btn" aria-label="Close menu">✕</button>
+    <nav class="side-nav" aria-label="Main navigation">
+      <a href="index.html">Home</a>
+      <a href="projects.html" class="active">Projects</a>
+      <a href="#">About</a>
+      <a href="#">Contact</a>
+    </nav>
+  </aside>
+
+  <!-- Main content -->
+  <main id="main" class="main-content" role="main">
+    <section class="projects-grid" aria-label="Project list">
+      <!-- Project card 1 -->
+      <article class="project-card">
+        <img src="images/goat.png" alt="Project 1 thumbnail" class="project-thumb" />
+        <div class="project-body">
+          <h2 class="project-title">Project 1 — Alpha</h2>
+          <p class="project-desc">Short description: A demo project to show layout, routing and details page.</p>
+          <div class="project-actions">
+            <a class="btn" href="project_detail.html?id=1">Open</a>
+            <a class="btn ghost" href="project_detail.html?id=1">Details</a>
+          </div>
         </div>
-        
-        <a href="index.html" class="sidebar-button">DASHBOARD</a>
-        <a href="projects.html" class="sidebar-button">PROJECT</a>
-        <a href="#" class="sidebar-button">ABOUT</a>
-        <a href="#" class="sidebar-button">SETTINGS</a>
-    </div>
+      </article>
 
-    <div id="pageWrapper" class="page-wrapper">
+      <!-- Project card 2 -->
+      <article class="project-card">
+        <img src="images/goat.png" alt="Project 2 thumbnail" class="project-thumb" />
+        <div class="project-body">
+          <h2 class="project-title">Project 2 — Beta</h2>
+          <p class="project-desc">Short description for project two — editable content and demo data.</p>
+          <div class="project-actions">
+            <a class="btn" href="project_detail.html?id=2">Open</a>
+            <a class="btn ghost" href="project_detail.html?id=2">Details</a>
+          </div>
+        </div>
+      </article>
 
-        <header class="project-header">
-            <span id="menuIcon" class="menu-icon">&#9776;</span>
-            <h1 class="header-title">PROJECT MANAGER</h1>
-            <div class="ram-icon"></div>
-        </header>
+      <!-- Project card 3 -->
+      <article class="project-card">
+        <img src="images/goat.png" alt="Project 3 thumbnail" class="project-thumb" />
+        <div class="project-body">
+          <h2 class="project-title">Project 3 — Gamma</h2>
+          <p class="project-desc">Short description for project three — a place for notes and tasks.</p>
+          <div class="project-actions">
+            <a class="btn" href="project_detail.html?id=3">Open</a>
+            <a class="btn ghost" href="project_detail.html?id=3">Details</a>
+          </div>
+        </div>
+      </article>
+    </section>
+  </main>
 
-        <main class="project-manager-main">
-            <div class="projects-container">
-                
-                <div class="projects-header-row">
-                    <h2 class="projects-heading">PROJECTS</h2>
-                    <button class="add-project-button">Add Project <span class="plus-icon">+</span></button>
-                </div>
+  <!-- Footer -->
+  <footer class="site-footer">
+    <small>© Aries</small>
+  </footer>
 
-                <div class="project-list-container">
+  <!-- Load app script (non-module) -->
+  <script src="app.js" defer></script>
 
-                    <a href="project_detail.html" class="project-card-link">
-                        <div class="project-card">
-                            <div class="project-name-box">
-                                <span class="project-name-text">Project Name 1</span>
-                            </div>
-                            <div class="project-status-box">
-                                <span class="status-label">STATUS</span>
-                                <div class="dropdown-box">DROPDOWN</div>
-                            </div>
-                        </div>
-                    </a>
-
-                    <a href="project_detail.html" class="project-card-link">
-                        <div class="project-card">
-                            <div class="project-name-box">
-                                <span class="project-name-text">Project Name 2</span>
-                            </div>
-                            <div class="project-status-box">
-                                <span class="status-label">STATUS</span>
-                                <div class="dropdown-box">DROPDOWN</div>
-                            </div>
-                        </div>
-                    </a>
-                    
-                    <a href="project_detail.html" class="project-card-link">
-                        <div class="project-card">
-                            <div class="project-name-box">
-                                <span class="project-name-text">Project Name 3</span>
-                            </div>
-                            <div class="project-status-box">
-                                <span class="status-label">STATUS</span>
-                                <div class="dropdown-box">DROPDOWN</div>
-                            </div>
-                        </div>
-                    </a>
-
-                    <a href="project_detail.html" class="project-card-link">
-                        <div class="project-card">
-                            <div class="project-name-box">
-                                <span class="project-name-text">Project Name 4</span>
-                            </div>
-                            <div class="project-status-box">
-                                <span class="status-label">STATUS</span>
-                                <div class="dropdown-box">DROPDOWN</div>
-                            </div>
-                        </div>
-                    </a>
-
-                </div>
-            </div>
-        </main>
-    </div>
-
-    <script src="app.js"></script>
-    
+  <!-- Small page-specific script: update aria-expanded on toggle -->
+  <script>
+    (function(){
+      const toggle = document.getElementById('projectDropdownToggle');
+      const menu = document.getElementById('projectDropdownMenu');
+      if (!toggle || !menu) return;
+      toggle.addEventListener('click', () => {
+        const open = menu.classList.toggle('visible');
+        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        // let app.js handle repositioning/keyboard closing
+      });
+    })();
+  </script>
 </body>
 </html>
