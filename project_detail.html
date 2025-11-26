@@ -1,55 +1,154 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Project 1 Workspace</title>
-    <link rel="stylesheet" href="main.css">
-    
-    <link href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&family=Roboto+Slab:wght@900&display=swap" rel="stylesheet">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Project Detail — Aries</title>
+  <link rel="stylesheet" href="main.css" />
 </head>
 <body>
-    
-    <div id="sidebar" class="sidebar">
-        <div class="sidebar-header">
-            <span id="closeIcon" class="close-icon">&#10094;</span> 
-        </div>
-        
-        <a href="index.html" class="sidebar-button">DASHBOARD</a>
-        <a href="projects.html" class="sidebar-button">PROJECT</a>
-        <a href="#" class="sidebar-button">ABOUT</a>
-        <a href="#" class="sidebar-button">SETTINGS</a>
+  <!-- Header -->
+  <header class="site-header">
+    <button id="menuIcon" class="icon-btn" aria-label="Open menu">☰</button>
+    <h1 class="site-title" id="projectName">Project Detail</h1>
+
+    <div class="project-switcher" style="position:relative;">
+      <button id="projectDropdownToggle" class="project-toggle" aria-haspopup="true" aria-expanded="false">
+        Projects ▾
+      </button>
+      <nav id="projectDropdownMenu" class="project-dropdown-menu" role="menu" aria-label="Projects menu">
+        <a class="dropdown-project-button" role="menuitem" href="project_detail.html?id=1">Project 1 — Alpha</a>
+        <a class="dropdown-project-button" role="menuitem" href="project_detail.html?id=2">Project 2 — Beta</a>
+        <a class="dropdown-project-button" role="menuitem" href="project_detail.html?id=3">Project 3 — Gamma</a>
+      </nav>
     </div>
+  </header>
 
-    <div id="pageWrapper" class="page-wrapper">
+  <!-- Sidebar -->
+  <aside id="sidebar" class="sidebar" aria-hidden="true">
+    <button id="closeIcon" class="icon-btn" aria-label="Close menu">✕</button>
+    <nav class="side-nav" aria-label="Main navigation">
+      <a href="index.html">Home</a>
+      <a href="projects.html">Projects</a>
+      <a href="#">About</a>
+      <a href="#">Contact</a>
+    </nav>
+  </aside>
 
-        <header class="project-detail-header">
-            
-            <div id="projectDropdownToggle" class="project-title-dropdown">
-                Project 1 <span class="dropdown-arrow">&#9660;</span>
-            </div>
-            
-            <h1 class="header-title">PROJECT MANAGER</h1>
-            <div class="ram-icon"></div>
-        </header>
-        
-        <div id="projectDropdownMenu" class="project-dropdown-menu">
-            <a href="?project=1" class="dropdown-project-button active">Project 1</a>
-            <a href="?project=2" class="dropdown-project-button">Project 2</a>
-            <a href="?project=3" class="dropdown-project-button">Project 3</a>
-            <a href="?project=4" class="dropdown-project-button">Project 4</a>
-            <a href="?project=5" class="dropdown-project-button">Project 5</a>
+  <!-- Main content -->
+  <main class="main-content" role="main">
+    <article class="project-detail" aria-labelledby="projectName">
+      <header class="detail-header">
+        <img src="images/goat.png" alt="Project thumbnail" class="project-detail-thumb" />
+        <div>
+          <h2 id="projectTitle">Project</h2>
+          <p id="projectSubtitle" class="muted">Project subtitle and short summary</p>
         </div>
+      </header>
 
-        <main class="project-workspace">
-            <p>Welcome to the workspace for **Project 1**.</p>
-            <div style="border: 1px dashed #ccc; padding: 50px; text-align: center; margin-top: 50px;">
-                Your Project Tools & Content Go Here
-            </div>
-        </main>
-    </div>
+      <section id="projectOverview" class="detail-section">
+        <h3>Overview</h3>
+        <p id="overviewText">Project overview will appear here.</p>
+      </section>
 
-    <script src="app.js"></script>
-    
+      <section id="projectNotes" class="detail-section">
+        <h3>Notes / Tasks</h3>
+        <ul id="notesList">
+          <li>No notes yet. Use this area to add tasks.</li>
+        </ul>
+      </section>
+
+      <div class="detail-actions">
+        <a class="btn" href="projects.html">Back to Projects</a>
+        <a id="openProjectBtn" class="btn ghost" href="#">Open Project</a>
+      </div>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <small>© Aries</small>
+  </footer>
+
+  <!-- Load app script (non-module) -->
+  <script src="app.js" defer></script>
+
+  <!-- Page-specific script: populate details from query param -->
+  <script>
+    (function () {
+      // Simple project data (replace with dynamic source if you have one)
+      const PROJECT_DATA = {
+        '1': {
+          name: 'Project 1 — Alpha',
+          subtitle: 'Alpha demo project',
+          overview: 'This is a sample overview for Project 1. Use this area to present details, links and status.',
+          notes: ['Onboard design', 'Setup repo', 'Initial deploy'],
+          openUrl: '#'
+        },
+        '2': {
+          name: 'Project 2 — Beta',
+          subtitle: 'Beta testing project',
+          overview: 'Overview for Project 2. Replace with real content.',
+          notes: ['User testing', 'Bug fixes'],
+          openUrl: '#'
+        },
+        '3': {
+          name: 'Project 3 — Gamma',
+          subtitle: 'Gamma experimental project',
+          overview: 'Overview for Project 3. Replace with real content.',
+          notes: ['Prototype', 'Feedback loop'],
+          openUrl: '#'
+        }
+      };
+
+      function getQueryParam(key) {
+        const params = new URLSearchParams(window.location.search);
+        return params.get(key);
+      }
+
+      function renderProject(id) {
+        const data = PROJECT_DATA[id] || null;
+        const projectName = document.getElementById('projectName');
+        const projectTitle = document.getElementById('projectTitle');
+        const projectSubtitle = document.getElementById('projectSubtitle');
+        const overviewText = document.getElementById('overviewText');
+        const notesList = document.getElementById('notesList');
+        const openBtn = document.getElementById('openProjectBtn');
+
+        if (!data) {
+          projectName.textContent = 'Project not found';
+          projectTitle.textContent = 'Project not found';
+          overviewText.textContent = 'No data available for this project.';
+          notesList.innerHTML = '<li>Project ID not recognized.</li>';
+          openBtn.setAttribute('href', 'projects.html');
+          return;
+        }
+
+        projectName.textContent = data.name;
+        projectTitle.textContent = data.name;
+        projectSubtitle.textContent = data.subtitle;
+        overviewText.textContent = data.overview;
+        notesList.innerHTML = '';
+        data.notes.forEach(n => {
+          const li = document.createElement('li');
+          li.textContent = n;
+          notesList.appendChild(li);
+        });
+        openBtn.setAttribute('href', data.openUrl);
+      }
+
+      const id = getQueryParam('id') || '1';
+      renderProject(id);
+
+      // Accessibility: ensure dropdown toggle toggles aria-expanded (mirrors projects page)
+      const toggle = document.getElementById('projectDropdownToggle');
+      const menu = document.getElementById('projectDropdownMenu');
+      if (toggle && menu) {
+        toggle.addEventListener('click', () => {
+          const open = menu.classList.toggle('visible');
+          toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        });
+      }
+    })();
+  </script>
 </body>
 </html>
