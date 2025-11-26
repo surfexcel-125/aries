@@ -6,7 +6,6 @@
 <title>Workspace — Aries Workflow Mapper</title>
 <link rel="stylesheet" href="main.css" />
 <style>
-/* trimmed/concise styles mostly same as before but ensure canvas fills */
 :root{
   --accent:#0b74ff; --muted:#6b7280; --panel:#ffffffee; --bg:#ffffff;
   --canvas-bg: #f5f5f5;
@@ -16,35 +15,34 @@
   --link-selected:#ff7a59;
 }
 html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial;background:var(--bg);color:#0f172a}
-
-/* header */
-.topbar { display:flex; align-items:center; gap:15px; padding:10px 14px; border-bottom:1px solid #f1f1f1; background:#fff; position:sticky; top:0; z-index:100; }
+.topbar { display:flex; align-items:center; gap:12px; padding:10px 14px; border-bottom:1px solid #f1f1f1; background:#fff; position:sticky; top:0; z-index:100; }
 .header-title{ font-weight:700; font-size:0.98rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
 .header-actions{ margin-left:auto; display:flex; gap:10px; align-items:center }
 
-/* canvas */
-.canvas-wrap{ flex-grow:1; height: calc(100vh - 52px); position:relative; display:block; background:var(--canvas-bg); overflow:hidden; }
+/* layout: canvas + inspector */
+.app-shell{ display:flex; height: calc(100vh - 52px); }
+.canvas-wrap{ flex:1; position:relative; overflow:hidden; background:var(--canvas-bg); }
 #canvas{ width:100%; height:100%; position:relative; touch-action:none; user-select:none; }
-#board{ position:absolute; left:0; top:0; transform-origin:top left; width:2000px; height:1600px; } /* large board */
+#board{ position:absolute; left:0; top:0; transform-origin:top left; width:2200px; height:1600px; }
 #svg{ position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none; z-index:10 }
 
-/* node */
-.node{
-  position:absolute; padding:14px 18px; min-width:160px; min-height:70px;
-  box-shadow:var(--node-shadow); border-radius:12px; background:var(--panel);
-  cursor:grab; transition:box-shadow .08s, border-color .08s; border:2px solid transparent; z-index:15;
-}
+/* inspector */
+.inspector { width:340px; background:#fff; border-left:1px solid #eee; box-shadow:-6px 0 18px rgba(12,15,20,0.03); padding:12px; display:flex; flex-direction:column; gap:12px; z-index:300; }
+.inspector h4{ margin:4px 0 8px 0 }
+.field { display:flex; flex-direction:column; gap:6px; }
+.field input, .field textarea, .field select { padding:8px; border-radius:6px; border:1px solid #e6e6e6; font-size:0.95rem }
+.inspector .meta { font-size:0.85rem; color:var(--muted) }
+
+.node{ position:absolute; padding:14px 18px; min-width:160px; min-height:70px; box-shadow:var(--node-shadow); border-radius:12px; background:var(--panel); cursor:grab; transition:box-shadow .08s, border-color .08s; border:2px solid transparent; z-index:15; }
 .node:active{ cursor:grabbing }
 .node.selected{ border-color:var(--accent); box-shadow:0 8px 26px rgba(11,116,255,0.12) }
 .node-title{ font-weight:700; margin-bottom:6px; font-size:1.05rem }
 .node-body{ font-size:0.9rem; color:#374151; white-space:normal; word-break:break-word }
 
-/* types */
+/* node types */
 .node-type-page { background:#e6f0ff; border-color:#0b74ff }
 .node-type-action { background:#fff8f0; border-color:#ffb84d }
-.node-type-decision {
-  background:#f0fff0; border-color:#00a854; width:150px; height:150px; border-radius:6px; transform:rotate(45deg); display:flex; align-items:center; justify-content:center; padding:0;
-}
+.node-type-decision { background:#f0fff0; border-color:#00a854; width:150px; height:150px; border-radius:6px; transform:rotate(45deg); display:flex; align-items:center; justify-content:center; padding:0; }
 .node-type-decision > * { transform:rotate(-45deg); text-align:center; max-width:90% }
 
 /* anchor */
@@ -52,8 +50,8 @@ html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe 
 .node:hover .anchor{ opacity:1 }
 .output-anchor{ top:50%; right:-6px; transform:translateY(-50%); cursor:crosshair }
 
-/* controls */
-#floatingTools{ position:fixed; bottom:20px; right:20px; display:flex; gap:10px; background:var(--panel); padding:10px; border-radius:12px; box-shadow:0 10px 20px rgba(0,0,0,0.08); z-index:200 }
+/* toolbar */
+#floatingTools{ position:fixed; bottom:20px; right:20px; display:flex; gap:8px; background:var(--panel); padding:10px; border-radius:12px; box-shadow:0 10px 20px rgba(0,0,0,0.08); z-index:200 }
 .controls-panel{ position:fixed; bottom:20px; left:20px; padding:12px; background:var(--panel); border-radius:8px; box-shadow:0 5px 15px rgba(0,0,0,0.08); z-index:200; display:flex; gap:12px; align-items:center }
 
 /* context menu + modal */
@@ -61,12 +59,8 @@ html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe 
 .context-menu-item{ padding:8px 14px; cursor:pointer }
 .context-menu-item:hover{ background:#f7f7f7 }
 
-/* modal backdrop */
-.modal-backdrop{ position:fixed; inset:0; display:none; justify-content:center; align-items:center; background:rgba(0,0,0,0.45); z-index:600 }
-.modal{ background:#fff; padding:18px; border-radius:12px; width:420px; max-width:94% }
-
 /* small responsive */
-@media (max-width:700px){ .controls-panel{ display:none } }
+@media (max-width:1100px){ .inspector{ display:none } }
 </style>
 </head>
 <body>
@@ -76,68 +70,100 @@ html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe 
   <div class="header-title" id="headerTitle">Loading project…</div>
   <div class="header-actions">
     <button id="saveBoard" class="btn primary">Save Board</button>
+    <button id="exportBtn" class="btn">Export JSON</button>
+    <label class="btn" style="margin:0"><input id="importFile" type="file" accept="application/json" style="display:none">Import JSON</label>
     <a href="projects.html" id="backToProjects" class="btn ghost">← Projects</a>
   </div>
 </header>
 
-<div class="canvas-wrap">
-  <div id="canvas" tabindex="0" aria-label="Workflow Canvas">
-    <div id="board" role="application" aria-describedby="headerTitle">
-      <svg id="svg" viewBox="0 0 2000 1600" preserveAspectRatio="xMidYMid meet">
-        <defs>
-          <marker id="arrowhead" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="strokeWidth" markerWidth="6" markerHeight="6" orient="auto">
-            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--link-color)" />
-          </marker>
-          <marker id="arrowhead-selected" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="strokeWidth" markerHeight="6" orient="auto">
-            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--link-selected)" />
-          </marker>
-        </defs>
-      </svg>
-    </div>
-  </div>
-</div>
-
-<div id="floatingTools" role="toolbar" aria-label="Workflow Tools">
-  <button id="toolAddPage" class="tool-btn" title="Add Page">📄 Page</button>
-  <button id="toolAddAction" class="tool-btn" title="Add Action">🛠️ Action</button>
-  <button id="toolAddDecision" class="tool-btn" title="Add Decision">❓ Decision</button>
-  <div style="width:1px;height:30px;background:#e5e7eb;margin:inline 6px"></div>
-  <button id="toolDeleteNode" class="tool-btn" disabled>🗑️ Delete Node</button>
-  <button id="toolDeleteLink" class="tool-btn" disabled>✂️ Delete Link</button>
-</div>
-
-<div class="controls-panel">
-  <div>
-    <button id="zoomOutCorner" class="icon-btn">-</button>
-    <span id="zoomIndicator" style="width:60px; display:inline-block; text-align:center; font-weight:600">100%</span>
-    <button id="zoomInCorner" class="icon-btn">+</button>
-  </div>
-  <div>
-    <label><input id="showGrid" type="checkbox" checked> Grid</label>
-    <label style="margin-left:8px">Size <input id="gridSize" type="number" value="25" min="5" max="200" style="width:70px"></label>
-    <button id="centerBtn" style="margin-left:8px">Center</button>
-  </div>
-</div>
-
-<div id="contextMenu">
-  <div class="context-menu-item" id="contextEdit">Edit Node</div>
-  <div class="context-menu-item" id="contextDelete">Delete Node</div>
-</div>
-
-<div id="modal" class="modal-backdrop" aria-hidden="true">
-  <div class="modal" role="dialog" aria-modal="true">
-    <h3>Node Settings</h3>
-    <p>ID: <span id="modalProjectId" style="font-family:monospace"></span></p>
-    <div class="field"><label>Title</label><input id="modalTitle" type="text" style="width:100%"></div>
-    <div class="field"><label>Notes</label><textarea id="modalBody" rows="5" style="width:100%"></textarea></div>
-    <div style="display:flex; justify-content:space-between; margin-top:12px">
-      <button id="deleteBlock" class="btn ghost">Delete Node</button>
-      <div style="display:flex; gap:8px">
-        <button id="cancelModal" class="btn ghost">Cancel</button>
-        <button id="saveModal" class="btn primary">Save</button>
+<div class="app-shell">
+  <div class="canvas-wrap">
+    <div id="canvas" tabindex="0" aria-label="Workflow Canvas">
+      <div id="board" role="application" aria-describedby="headerTitle">
+        <svg id="svg" viewBox="0 0 2200 1600" preserveAspectRatio="xMinYMin meet">
+          <defs>
+            <marker id="arrowhead" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="strokeWidth" markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--link-color)" />
+            </marker>
+            <marker id="arrowhead-selected" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="strokeWidth" markerHeight="6" orient="auto">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--link-selected)" />
+            </marker>
+          </defs>
+        </svg>
       </div>
     </div>
+    <div class="controls-panel">
+      <div>
+        <button id="zoomOutCorner" class="icon-btn">-</button>
+        <span id="zoomIndicator" style="width:60px; display:inline-block; text-align:center; font-weight:600">100%</span>
+        <button id="zoomInCorner" class="icon-btn">+</button>
+      </div>
+      <div>
+        <label><input id="showGrid" type="checkbox" checked> Grid</label>
+        <label style="margin-left:8px">Size <input id="gridSize" type="number" value="25" min="5" max="200" style="width:70px"></label>
+        <button id="centerBtn" style="margin-left:8px">Center</button>
+        <button id="zoomFitBtn" style="margin-left:8px">Zoom to fit</button>
+      </div>
+    </div>
+    <div id="floatingTools" role="toolbar" aria-label="Workflow Tools">
+      <button id="toolAddPage" class="tool-btn" title="Add Page">📄 Page</button>
+      <button id="toolAddAction" class="tool-btn" title="Add Action">🛠️ Action</button>
+      <button id="toolAddDecision" class="tool-btn" title="Add Decision">❓ Decision</button>
+      <div style="width:1px;height:30px;background:#e5e7eb;margin:inline 6px"></div>
+      <button id="toolDeleteNode" class="tool-btn" disabled>🗑️ Delete Node</button>
+      <button id="toolDeleteLink" class="tool-btn" disabled>✂️ Delete Link</button>
+    </div>
+    <div id="contextMenu">
+      <div class="context-menu-item" id="contextEdit">Edit Node</div>
+      <div class="context-menu-item" id="contextDelete">Delete Node</div>
+    </div>
   </div>
+
+  <aside class="inspector" id="inspector" aria-label="Node inspector">
+    <h4>Inspector</h4>
+    <div class="meta">Selected: <span id="selectedCount">0</span></div>
+
+    <div id="inspectorMulti" style="display:none">
+      <div class="field"><label>Group action</label>
+        <button id="alignLeft">Align Left</button>
+        <button id="alignTop">Align Top</button>
+      </div>
+    </div>
+
+    <div id="inspectorSingle" style="display:none">
+      <div class="field"><label>Node ID</label><div class="meta" id="inspectorId"></div></div>
+      <div class="field"><label>Type</label>
+        <select id="inspectorType">
+          <option value="page">Page</option><option value="action">Action</option><option value="decision">Decision</option>
+        </select>
+      </div>
+      <div class="field"><label>Title</label><input id="inspectorTitle" /></div>
+      <div class="field"><label>Body</label><textarea id="inspectorBody" rows="5"></textarea></div>
+      <div class="field" style="display:flex;gap:8px"><div style="flex:1"><label>Width</label><input id="inspectorW" type="number"></div><div style="flex:1"><label>Height</label><input id="inspectorH" type="number"></div></div>
+      <div style="display:flex; gap:8px; margin-top:6px">
+        <button id="inspectorSave" class="btn primary">Save</button>
+        <button id="inspectorDelete" class="btn">Delete</button>
+      </div>
+    </div>
+
+    <hr/>
+    <div class="field"><label>Board</label>
+      <button id="autosizeBtn">Auto-resize board</button>
+      <button id="clearAllBtn">Clear board</button>
+    </div>
+    <div class="field">
+      <label>Import / Export</label>
+      <div style="display:flex; gap:8px">
+        <button id="exportJson">Download JSON</button>
+        <button id="importJsonBtn">Load JSON</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Status</label>
+      <div class="meta" id="statusMeta">No changes</div>
+    </div>
+  </aside>
 </div>
 
 <script type="module" src="firebase-config.js"></script>
