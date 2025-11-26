@@ -2,7 +2,6 @@
 const menuIcon = document.getElementById('menuIcon');
 const closeIcon = document.getElementById('closeIcon');
 const sidebar = document.getElementById('sidebar');
-// The body element is no longer needed for shifting
 
 // Function to open the sidebar
 function openSidebar() {
@@ -15,5 +14,8 @@ function closeSidebar() {
 }
 
 // Attach the functions to the click events
-menuIcon.addEventListener('click', openSidebar);
-closeIcon.addEventListener('click', closeSidebar);
+// NOTE: These listeners are active only on the index.html page.
+if (menuIcon && closeIcon && sidebar) {
+    menuIcon.addEventListener('click', openSidebar);
+    closeIcon.addEventListener('click', closeSidebar);
+}
