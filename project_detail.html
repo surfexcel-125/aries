@@ -18,12 +18,12 @@
 /* Basic reset */
 html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial;background:var(--bg);color:#0f172a}
 
-/* Header - black and high-contrast */
+/* Header */
 .topbar {
   display:flex;
   align-items:center;
   gap:12px;
-  padding:10px 12px;
+  padding:10px 14px;
   background:#000;
   color:#fff;
   position:sticky;
@@ -32,37 +32,42 @@ html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe 
   box-shadow:0 2px 8px rgba(0,0,0,0.12);
 }
 
-/* Menu icon */
+/* left area (menu) */
+.header-left { display:flex; align-items:center; gap:8px; flex:0 0 auto; z-index:1210; }
 .hamburger { 
   background:transparent; border:none; color:#fff; font-size:18px; cursor:pointer; 
   width:36px; height:36px; display:flex; align-items:center; justify-content:center;
   flex:0 0 36px;
 }
 
-/* Title - flexible and truncates */
+/* center title absolutely centered so it never collides with left/right */
 .header-title {
   font-weight:700;
   font-size:1rem;
+  color:#fff;
+  position:absolute;
+  left:50%;
+  transform:translateX(-50%);
   white-space:nowrap;
   overflow:hidden;
   text-overflow:ellipsis;
-  color:#fff;
-  margin:0 8px;
-  flex:1 1 320px; /* allow shrinking but keep min width */
-  min-width:140px;
+  max-width:60%;
+  text-align:center;
+  pointer-events:none; /* so clicks go through to other controls */
 }
 
-/* header-controls container (right aligned) */
+/* right actions flow */
 .header-actions {
+  margin-left:auto;
   display:flex;
   gap:8px;
   align-items:center;
-  justify-content:flex-end;
   flex:0 0 auto;
-  min-width:0;
+  z-index:1210;
+  padding-right:12px; /* ensure back link fully inside */
 }
 
-/* individual buttons */
+/* header buttons */
 .topbar .btn, .topbar .tool-btn {
   -webkit-appearance:none; appearance:none;
   border-radius:8px;
@@ -74,13 +79,13 @@ html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe 
   cursor:pointer;
 }
 
-/* small link styled */
+/* ensure backToProjects sits inside header actions and is visible */
 #backToProjects { color:#c8a2ff; text-decoration:none; background:transparent; border:none; padding:6px 8px; }
 
-/* inspector toggle button */
+/* Inspector toggle */
 #toggleInspector { background:transparent; border:1px solid rgba(255,255,255,0.08); color:#fff; padding:6px 8px; border-radius:6px; }
 
-/* layout: canvas + inspector */
+/* layout */
 .app-shell{ display:flex; height: calc(100vh - 52px); overflow:hidden; }
 
 /* Canvas area */
@@ -88,7 +93,7 @@ html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe 
 #canvas{ width:100%; height:100%; position:relative; touch-action:none; user-select:none; }
 #board{ position:absolute; left:0; top:0; transform-origin:top left; width:2200px; height:1600px; }
 
-/* Inspector (right panel) - hidden by default via class 'hidden' */
+/* Inspector (right panel) */
 .inspector {
   width:340px;
   background:#fff;
@@ -103,17 +108,11 @@ html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe 
 }
 .inspector.hidden { transform: translateX(10px); opacity:0; width:0; padding:0 6px; overflow:hidden; }
 
-/* responsive: hide inspector on narrow screens initially */
+/* responsive inspector behavior */
 @media (max-width:1000px) {
   .inspector { position:fixed; right:0; top:52px; bottom:0; width:84%; max-width:420px; transform: translateX(100%); opacity:0; }
   .inspector.visible { transform: translateX(0); opacity:1; }
 }
-
-/* Inspector content */
-.inspector h4{ margin:4px 0 8px 0 }
-.field { display:flex; flex-direction:column; gap:6px; }
-.field input, .field textarea, .field select { padding:8px; border-radius:6px; border:1px solid #e6e6e6; font-size:0.95rem }
-.inspector .meta { font-size:0.85rem; color:var(--muted) }
 
 /* canvas grid + svg overlay */
 #svg{ position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none; z-index:10 }
@@ -124,7 +123,7 @@ html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe 
 .node-title{ font-weight:700; margin-bottom:6px; font-size:1.05rem; color:#0f172a }
 .node-body{ font-size:0.9rem; color:#374151; word-break:break-word }
 
-/* anchors */
+/* anchor */
 .anchor{ position:absolute; width:12px; height:12px; border-radius:50%; background:var(--accent); border:2px solid #fff; opacity:0; transition:opacity .12s; pointer-events:auto; z-index:30 }
 .node:hover .anchor{ opacity:1 }
 .output-anchor{ top:50%; right:-6px; transform:translateY(-50%); cursor:crosshair }
@@ -140,9 +139,17 @@ html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe 
 .context-menu-item{ padding:8px 14px; cursor:pointer }
 .context-menu-item:hover{ background:#f7f7f7 }
 
+/* modal for label input */
+.modal-backdrop {
+  position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.42); z-index:1400;
+}
+.modal-card { background:#fff; border-radius:10px; padding:18px; width:520px; max-width:92%; box-shadow:0 12px 30px rgba(2,6,23,0.36); }
+.modal-card h3 { margin:0 0 8px 0; }
+.modal-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:12px; }
+
 /* small screens */
 @media (max-width:700px) {
-  .header-title { font-size:0.95rem; }
+  .header-title { max-width:52%; }
   .header-actions { gap:6px; }
   #floatingTools { left:8px; bottom:90px; }
   .controls-panel { right:8px; bottom:90px; }
@@ -152,7 +159,10 @@ html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe 
 <body>
 
 <header class="topbar">
-  <button class="hamburger" id="menuIcon" aria-label="Open menu">☰</button>
+  <div class="header-left">
+    <button class="hamburger" id="menuIcon" aria-label="Open menu">☰</button>
+  </div>
+
   <div class="header-title" id="headerTitle">Loading project…</div>
 
   <div class="header-actions" id="headerActions">
@@ -163,7 +173,7 @@ html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe 
       Import JSON
     </label>
     <button id="toggleInspector" title="Toggle Inspector">Inspector</button>
-    <a id="backToProjects" href="projects.html">← Project</a>
+    <a id="backToProjects" href="/projects">← Project</a>
   </div>
 </header>
 
@@ -260,6 +270,19 @@ html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe 
   </aside>
 </div>
 
+<!-- Modal for entering transition label (replaces prompt) -->
+<div id="labelModalBackdrop" class="modal-backdrop" aria-hidden="true">
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="labelModalTitle">
+    <h3 id="labelModalTitle">Enter transition label</h3>
+    <p class="meta">Example: Next, Success</p>
+    <input id="labelModalInput" type="text" style="width:100%; padding:8px; margin-top:8px; border-radius:6px; border:1px solid #ddd" value="Next" />
+    <div class="modal-actions">
+      <button id="labelModalCancel" class="btn">Cancel</button>
+      <button id="labelModalOk" class="btn" style="background:var(--accent); color:#fff;">OK</button>
+    </div>
+  </div>
+</div>
+
 <script type="module" src="firebase-config.js"></script>
 <script type="module" src="app.js"></script>
 
@@ -273,19 +296,17 @@ html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe 
     alert("No project ID found — returning to projects.");
     window.location.href = "projects.html";
   } else {
-    document.getElementById('headerTitle').textContent = `Loading project ${window.currentProjectId.substring(0,5)}…`;
+    document.getElementById('headerTitle').textContent = `Project ${window.currentProjectId.substring(0,6)}`;
   }
 
-  // Inspector toggle behaviour
+  // Inspector toggle + import wiring
   document.addEventListener('DOMContentLoaded', () => {
     const toggleBtn = document.getElementById('toggleInspector');
     const inspector = document.getElementById('inspector');
     const importFile = document.getElementById('importFile');
 
-    // toggle inspector visibility (persist in session)
     function setInspectorVisible(v) {
       if (window.matchMedia && window.matchMedia('(max-width:1000px)').matches) {
-        // on small screens use visible class overlay
         inspector.classList.toggle('visible', v);
         inspector.classList.toggle('hidden', !v);
       } else {
@@ -293,7 +314,6 @@ html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe 
         inspector.classList.remove('visible');
       }
     }
-    // default hidden; allow user to toggle
     setInspectorVisible(false);
 
     toggleBtn.addEventListener('click', () => {
@@ -301,7 +321,6 @@ html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe 
       setInspectorVisible(isHidden);
     });
 
-    // wire import input to other logic in workspace.js by dispatching a custom event
     importFile.addEventListener('change', (ev) => {
       const file = ev.target.files[0];
       if (!file) return;
@@ -309,14 +328,39 @@ html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe 
       reader.onload = (e) => {
         let payload = null;
         try { payload = JSON.parse(e.target.result); } catch(err) { alert('Invalid JSON file'); return; }
-        // dispatch custom event with parsed JSON
         document.dispatchEvent(new CustomEvent('workspace:importJson', { detail: payload }));
       };
       reader.readAsText(file);
-      // reset input
       ev.target.value = '';
     });
   });
+
+  // Label modal helper exposed as Promise:
+  window.requestTransitionLabel = function(defaultValue = "Next") {
+    return new Promise((resolve) => {
+      const bd = document.getElementById('labelModalBackdrop');
+      const input = document.getElementById('labelModalInput');
+      const ok = document.getElementById('labelModalOk');
+      const cancel = document.getElementById('labelModalCancel');
+      bd.style.display = 'flex';
+      bd.setAttribute('aria-hidden','false');
+      input.value = defaultValue || '';
+      input.focus();
+      function cleanup() {
+        bd.style.display = 'none';
+        bd.setAttribute('aria-hidden','true');
+        ok.removeEventListener('click', onOk);
+        cancel.removeEventListener('click', onCancel);
+        bd.removeEventListener('keydown', onKey);
+      }
+      function onOk() { const v = input.value.trim(); cleanup(); resolve(v === '' ? null : v); }
+      function onCancel() { cleanup(); resolve(null); }
+      function onKey(e) { if (e.key === 'Enter') onOk(); if (e.key === 'Escape') onCancel(); }
+      ok.addEventListener('click', onOk);
+      cancel.addEventListener('click', onCancel);
+      bd.addEventListener('keydown', onKey);
+    });
+  };
 </script>
 
 <script src="workspace.js" defer></script>
