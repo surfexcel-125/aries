@@ -1,0 +1,96 @@
+/* --- Global Styles: Setting the Stage --- */
+body {
+    margin: 0;
+    padding: 0;
+    font-family: Arial, sans-serif; /* Default font */
+    background-color: white; /* Plain white screen */
+    display: flex;
+    flex-direction: column; /* Allows header, main, footer to stack vertically */
+    min-height: 100vh; /* Ensures the body takes full viewport height */
+}
+
+/* --- Header Styles: The Black Bar --- */
+header {
+    background-color: black;
+    color: white;
+    padding: 15px 20px;
+    height: 50px; /* Fixed height for the header */
+    display: flex;
+    align-items: center; /* Vertically center items */
+    justify-content: flex-start; /* Aligns content to the start (left) */
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2); /* Subtle shadow below header */
+}
+
+/* --- Menu Icon Styles: The Left Icon --- */
+.menu-icon {
+    font-size: 28px;
+    cursor: pointer;
+    user-select: none;
+    line-height: 1; /* Ensures vertical alignment in header */
+}
+
+/* --- Main Content Layout --- */
+main {
+    flex-grow: 1; /* Allows main content to take up available space */
+    display: flex; /* Use flexbox for horizontal layout of text and image */
+    justify-content: center; /* Center the entire content block horizontally */
+    align-items: center; /* Vertically center the text and image */
+    padding: 20px; /* Some padding around the content */
+    gap: 50px; /* Space between the left and right content sections */
+}
+
+.content-left {
+    text-align: right; /* Align "Aries King" to the right within its container */
+    padding-right: 20px; /* Space from the goat image */
+}
+
+.content-right {
+    display: flex; /* Helps in aligning the image if there were other elements */
+    align-items: center;
+    justify-content: center;
+    padding-left: 20px; /* Space from the Aries text */
+}
+
+/* --- Text Styling (Aries King) --- */
+.aries-title {
+    font-family: 'Crete Round', serif; /* Using Google Font for style */
+    font-size: 80px; /* Large font size */
+    margin: 0; /* Remove default margins */
+    line-height: 0.8; /* Adjust line height for closer spacing */
+    color: black;
+}
+
+.aries-subtitle {
+    font-family: Arial, sans-serif; /* Standard font for "King" */
+    font-size: 24px;
+    margin: 0; /* Remove default margins */
+    color: #333; /* Slightly lighter black */
+    font-weight: normal;
+}
+
+/* --- Goat Image Styling --- */
+.goat-image {
+    max-width: 350px; /* Adjust size as needed, up to 350px */
+    height: auto; /* Maintain aspect ratio */
+}
+
+/* --- Optional: Responsive adjustments --- */
+@media (max-width: 768px) {
+    main {
+        flex-direction: column; /* Stack text and image vertically on smaller screens */
+        gap: 20px;
+    }
+    .content-left, .content-right {
+        text-align: center; /* Center text on smaller screens */
+        padding: 0;
+    }
+    .aries-title {
+        font-size: 60px;
+    }
+    .aries-subtitle {
+        font-size: 20px;
+    }
+    .goat-image {
+        max-width: 250px;
+    }
+}
