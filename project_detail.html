@@ -1,410 +1,730 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Workspace — Aries (Simple Zoomable Whiteboard)</title>
-  <link rel="stylesheet" href="main.css" />
-  <style>
-    :root{
-      --board-bg: #ffffff;
-      --panel-bg: rgba(255,255,255,0.95);
-      --accent: #0b74ff;
-      --muted: #6b7280;
-    }
-    body,html{height:100%; margin:0; font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;}
-    .site-header{display:flex; align-items:center; gap:12px; padding:10px 16px; border-bottom:1px solid #eee; background:#fff;}
-    .icon-btn{background:transparent;border:0;font-size:18px;cursor:pointer;padding:6px;}
-    .workspace-toolbar{margin-left:auto; display:flex; gap:8px; align-items:center;}
-    .ws-btn{padding:8px 10px;border-radius:8px;border:0;background:var(--accent);color:#fff;font-weight:600;cursor:pointer}
-    .ws-btn.ghost{background:transparent;border:1px solid #ddd;color:inherit}
-    /* Board area */
-    .board-viewport{position:relative; height:calc(100vh - 56px); overflow:hidden; background:var(--board-bg);}
-    .board-pan { position:absolute; inset:0; touch-action:none; } /* container used for panning */
-    .board { position:absolute; left:50%; top:50%; transform-origin:0 0; background:transparent; } /* we'll center by translating after sizing */
-    /* Whiteboard canvas */
-    .canvas { width:1600px; height:1000px; border-radius:8px; background:var(--board-bg); box-shadow:0 6px 20px rgba(16,24,40,0.04); margin:auto; position:relative; overflow:visible; }
-    /* node */
-    .node {
-      position:absolute;
-      min-width:160px;
-      max-width:360px;
-      padding:10px 12px;
-      border-radius:8px;
-      background:#fff;
-      border:1px solid rgba(0,0,0,0.08);
-      box-shadow:0 6px 18px rgba(2,6,23,0.06);
-      cursor:grab;
-      user-select:none;
-    }
-    .node:active{cursor:grabbing;}
-    .node .title {font-weight:700;margin:0 0 6px 0;font-size:0.98rem;}
-    .node .body {font-size:0.92rem;color:var(--muted)}
-    .node .mini-controls{position:absolute; right:8px; top:8px; display:flex; gap:6px;}
-    .mini-btn{background:transparent;border:0;cursor:pointer;font-size:14px;}
-    /* popup */
-    .modal-backdrop{position:fixed; inset:0; display:none; justify-content:center; align-items:center; background:rgba(0,0,0,0.35); z-index:1200;}
-    .modal{background:var(--panel-bg); padding:14px; border-radius:10px; width:320px; box-shadow:0 10px 30px rgba(2,6,23,0.2);}
-    .modal h3{margin:0 0 8px 0;font-size:1.05rem;}
-    .field{margin:8px 0; display:flex; flex-direction:column; gap:6px;}
-    .field input[type="text"], .field textarea, .field input[type="color"]{padding:8px;border:1px solid #ddd;border-radius:8px;}
-    .modal-actions{display:flex; justify-content:space-between; gap:10px; margin-top:12px;}
-    .small-muted{color:var(--muted); font-size:0.9rem;}
-    .zoom-indicator{padding:6px 10px;border-radius:8px;border:1px solid #eee;background:#fff; margin-left:8px; font-weight:600;}
-    /* responsive */
-    @media (max-width:720px){
-      .canvas{width:1200px;height:800px;}
-      .modal{width:90%;}
-    }
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Workspace — Aries (Improved)</title>
+<link rel="stylesheet" href="main.css" />
+<style>
+  :root{
+    --accent:#0b74ff;
+    --muted:#6b7280;
+    --panel:#ffffffcc;
+    --bg:#ffffff;
+    --grid-color: rgba(15,23,42,0.03);
+    --node-shadow: 0 8px 24px rgba(15,23,42,0.06);
+  }
+  html,body{height:100%; margin:0; font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; background:var(--bg);}
+  .site-header{display:flex; align-items:center; gap:12px; padding:10px 14px; border-bottom:1px solid #f0f0f0; background:#fff; position:sticky; top:0; z-index:40;}
+  .site-header .title {font-weight:700;}
+  .icon-btn{background:transparent;border:0;font-size:18px;cursor:pointer;padding:6px;}
+  .toolbar { margin-left:auto; display:flex; gap:8px; align-items:center; }
+  .btn { padding:8px 12px; border-radius:8px; background:var(--accent); color:#fff; border:0; cursor:pointer; font-weight:600; }
+  .btn.ghost { background:transparent; color:var(--muted); border:1px solid #e6e6e6; }
+  .small-btn { padding:6px 8px; border-radius:8px; border:1px solid #eee; background:#fff; cursor:pointer; }
+  .zoom-ind { font-weight:700; padding:6px 8px; border-radius:8px; border:1px solid #eee; background:#fff; }
+
+  /* viewport & board */
+  .viewport { position:relative; height:calc(100vh - 56px); overflow:hidden; background:var(--bg); }
+  .pan-layer { position:absolute; inset:0; touch-action:none; } /* capture gestures */
+  .board { position:absolute; left:50%; top:50%; transform-origin:0 0; will-change:transform; }
+  .canvas {
+    width:1600px; height:1000px; border-radius:10px; background:var(--bg);
+    margin:auto; position:relative; box-shadow: 0 12px 30px rgba(2,6,23,0.03); overflow:visible;
+  }
+
+  /* grid overlay */
+  .grid-layer { position:absolute; inset:0; pointer-events:none; z-index:2; }
+  .grid-line { position:absolute; background:var(--grid-color); }
+
+  /* node styles */
+  .node {
+    position:absolute; min-width:160px; max-width:420px; padding:12px; border-radius:10px;
+    background:#fff; border:1px solid rgba(0,0,0,0.06); box-shadow:var(--node-shadow);
+    cursor:grab; user-select:none; z-index:10;
+  }
+  .node:active{ cursor:grabbing; }
+  .node .title { font-weight:700; margin:0 0 8px 0; font-size:1rem; }
+  .node .body { color:var(--muted); font-size:0.92rem; white-space:pre-wrap; }
+  .node .mini { position:absolute; right:8px; top:8px; display:flex; gap:6px; }
+
+  /* popup modal */
+  .modal-backdrop { position:fixed; inset:0; display:none; justify-content:center; align-items:center; background:rgba(0,0,0,0.35); z-index:1200; }
+  .modal { width:360px; background:var(--panel); border-radius:10px; padding:14px; box-shadow:0 12px 40px rgba(2,6,23,0.18); }
+  .modal h3{ margin:0 0 10px 0; }
+  .field { margin:8px 0; display:flex; flex-direction:column; gap:6px; }
+  .field input[type="text"], .field textarea, .field input[type="color"]{ padding:8px; border-radius:8px; border:1px solid #e6e6e6; }
+  .modal-actions { display:flex; justify-content:space-between; gap:8px; margin-top:12px; }
+
+  /* tutorial overlay (full-screen guided with arrows) */
+  .tutorial-backdrop { position:fixed; inset:0; z-index:1300; display:none; background:linear-gradient(180deg, rgba(6,11,28,0.55), rgba(6,11,28,0.55)); color:#fff; }
+  .tutorial-card { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); max-width:920px; background:transparent; text-align:left; padding:28px; }
+  .tutorial-step { background:rgba(255,255,255,0.06); padding:16px; border-radius:12px; margin-bottom:12px; border:1px solid rgba(255,255,255,0.06); }
+  .tutorial-footer { display:flex; justify-content:space-between; gap:8px; margin-top:10px; align-items:center; }
+  .tutorial-btn { padding:8px 12px; border-radius:8px; border:0; cursor:pointer; }
+
+  /* controls panel for grid */
+  .controls-panel { position:fixed; left:16px; bottom:16px; z-index:1400; background:#fff; border-radius:12px; padding:10px; box-shadow:0 8px 30px rgba(2,6,23,0.06); }
+  .controls-panel label { font-size:0.9rem; color:var(--muted); display:block; margin-bottom:6px; }
+
+  /* responsive adjustments */
+  @media (max-width:900px){
+    .canvas{ width:1200px; height:800px; }
+    .modal { width:92%; }
+  }
+
+</style>
 </head>
 <body>
-  <header class="site-header">
-    <button id="menuIcon" class="icon-btn" aria-label="Open menu">☰</button>
-    <strong>Workspace</strong>
-    <div class="workspace-toolbar" role="toolbar" aria-label="Workspace tools">
-      <button id="addNode" class="ws-btn">+ Node</button>
-      <button id="zoomIn" class="ws-btn ghost">Zoom +</button>
-      <button id="zoomOut" class="ws-btn ghost">Zoom -</button>
-      <button id="resetView" class="ws-btn ghost">Reset</button>
-      <div class="zoom-indicator" id="zoomIndicator">100%</div>
-      <button id="saveBoard" class="ws-btn">Save</button>
-      <button id="exportBtn" class="ws-btn ghost">Export</button>
-      <label for="importFile" class="ws-btn ghost" style="cursor:pointer;">Import</label>
-      <input id="importFile" type="file" accept="application/json" style="display:none;">
-    </div>
-  </header>
 
-  <aside id="sidebar" class="sidebar" aria-hidden="true" style="display:none;">
-    <!-- kept minimal; app.js will toggle -->
-    <button id="closeIcon" class="icon-btn" aria-label="Close menu">✕</button>
-    <nav><a href="projects.html">Projects</a></nav>
-  </aside>
+<header class="site-header">
+  <button id="menuIcon" class="icon-btn" aria-label="Open menu">☰</button>
+  <div class="title">Workspace</div>
 
-  <main class="board-viewport" id="viewport">
-    <div class="board-pan" id="panLayer" tabindex="0" aria-label="Whiteboard pan & zoom container">
-      <div id="board" class="board" aria-hidden="false">
-        <div id="canvas" class="canvas" role="application" aria-label="Whiteboard canvas"></div>
+  <div class="toolbar" role="toolbar" aria-label="Workspace toolbar">
+    <button id="addNode" class="btn">+ Node</button>
+    <button id="zoomIn" class="btn ghost">Zoom +</button>
+    <button id="zoomOut" class="btn ghost">Zoom -</button>
+    <button id="resetView" class="btn ghost">Reset</button>
+    <div id="zoomIndicator" class="zoom-ind">100%</div>
+
+    <button id="snapToggle" class="btn ghost" title="Toggle snap">Snap: ON</button>
+    <input id="gridSize" type="number" value="20" min="5" max="200" style="width:72px; padding:8px; border-radius:8px; border:1px solid #eee;" title="Grid size px">
+
+    <button id="saveBoard" class="btn">Save</button>
+    <button id="exportBtn" class="btn ghost">Export</button>
+    <label class="btn ghost" for="importFile" style="cursor:pointer;">Import</label>
+    <input id="importFile" type="file" accept="application/json" style="display:none;">
+  </div>
+</header>
+
+<main class="viewport" id="viewport">
+  <div class="pan-layer" id="panLayer" tabindex="0" aria-label="Pan and zoom layer">
+    <div id="board" class="board" aria-hidden="false">
+      <div id="canvas" class="canvas" role="application" aria-label="Whiteboard canvas">
+        <div id="grid" class="grid-layer" aria-hidden="true"></div>
+        <!-- nodes appended here -->
       </div>
+      <!-- SVG connector layer sits on top of canvas; using absolute coords inside board -->
+      <svg id="svg" style="position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none; z-index:5;"></svg>
     </div>
-  </main>
+  </div>
+</main>
 
-  <!-- modal -->
-  <div id="modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true">
-    <div class="modal" role="document">
-      <h3>Block settings</h3>
-      <div class="field"><label class="small-muted">Title</label><input id="modalTitle" type="text" /></div>
-      <div class="field"><label class="small-muted">Body</label><textarea id="modalBody" rows="4"></textarea></div>
-      <div class="field"><label class="small-muted">Background color</label><input id="modalColor" type="color" value="#ffffff" /></div>
-      <div class="modal-actions">
-        <div style="display:flex; gap:8px;">
-          <button id="deleteBlock" class="ws-btn ghost">Delete</button>
-        </div>
-        <div style="display:flex; gap:8px;">
-          <button id="cancelModal" class="ws-btn ghost">Cancel</button>
-          <button id="saveModal" class="ws-btn">Save</button>
-        </div>
+<!-- controls panel -->
+<div class="controls-panel" role="region" aria-label="Board options">
+  <label><strong>Grid preview</strong></label>
+  <div style="display:flex; gap:8px; align-items:center;">
+    <input id="showGrid" type="checkbox" checked /> <label for="showGrid" style="margin:0 6px;">Show grid</label>
+    <button id="centerBtn" class="tutorial-btn" style="background:#0b74ff;color:#fff;border-radius:8px;">Center</button>
+  </div>
+</div>
+
+<!-- node settings modal -->
+<div id="modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="modal" role="document">
+    <h3>Block settings</h3>
+    <div class="field"><label class="small-muted">Title</label><input id="modalTitle" type="text" /></div>
+    <div class="field"><label class="small-muted">Body</label><textarea id="modalBody" rows="4"></textarea></div>
+    <div class="field"><label class="small-muted">Background</label><input type="color" id="modalColor" value="#ffffff" /></div>
+    <div class="modal-actions">
+      <div><button id="deleteBlock" class="btn ghost">Delete</button></div>
+      <div style="display:flex; gap:8px;"><button id="cancelModal" class="btn ghost">Cancel</button><button id="saveModal" class="btn">Save</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- tutorial overlay (full-screen guided) -->
+<div id="tutorial" class="tutorial-backdrop" role="dialog" aria-hidden="true">
+  <div class="tutorial-card" id="tutorialCard">
+    <div class="tutorial-step" id="stepContent"></div>
+    <div class="tutorial-footer">
+      <div class="small-muted" id="tutorialProgress">Step 1 / 4</div>
+      <div style="display:flex; gap:8px;">
+        <button id="tutorialPrev" class="tutorial-btn" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.2);padding:8px 12px;border-radius:8px;">Prev</button>
+        <button id="tutorialNext" class="tutorial-btn" style="background:var(--accent);color:#fff;padding:8px 12px;border-radius:8px;">Next</button>
+        <button id="tutorialClose" class="tutorial-btn" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.2);padding:8px 12px;border-radius:8px;">Close</button>
       </div>
     </div>
   </div>
+</div>
 
-  <footer style="display:none"></footer>
+<footer style="display:none"></footer>
 
-  <script src="app.js" defer></script>
+<script src="app.js" defer></script>
+<script>
+(function(){
+  /* ---------- Config & State ---------- */
+  const canvas = document.getElementById('canvas');
+  const board = document.getElementById('board');
+  const panLayer = document.getElementById('panLayer');
+  const svg = document.getElementById('svg');
+  const gridLayer = document.getElementById('grid');
 
-  <script>
-  (function(){
-    // Simple zoomable whiteboard with block settings modal
-    const canvas = document.getElementById('canvas');
-    const board = document.getElementById('board');
-    const panLayer = document.getElementById('panLayer');
-    const addNodeBtn = document.getElementById('addNode');
-    const zoomInBtn = document.getElementById('zoomIn');
-    const zoomOutBtn = document.getElementById('zoomOut');
-    const resetViewBtn = document.getElementById('resetView');
-    const zoomIndicator = document.getElementById('zoomIndicator');
-    const saveBoardBtn = document.getElementById('saveBoard');
-    const exportBtn = document.getElementById('exportBtn');
-    const importFile = document.getElementById('importFile');
+  const addNodeBtn = document.getElementById('addNode');
+  const zoomInBtn = document.getElementById('zoomIn');
+  const zoomOutBtn = document.getElementById('zoomOut');
+  const resetBtn = document.getElementById('resetView');
+  const zoomIndicator = document.getElementById('zoomIndicator');
+  const saveBtn = document.getElementById('saveBoard');
+  const exportBtn = document.getElementById('exportBtn');
+  const importFile = document.getElementById('importFile');
+  const snapToggle = document.getElementById('snapToggle');
+  const gridSizeInput = document.getElementById('gridSize');
+  const showGridInput = document.getElementById('showGrid');
+  const centerBtn = document.getElementById('centerBtn');
 
-    const modalBackdrop = document.getElementById('modal');
-    const modalTitle = document.getElementById('modalTitle');
-    const modalBody = document.getElementById('modalBody');
-    const modalColor = document.getElementById('modalColor');
-    const saveModalBtn = document.getElementById('saveModal');
-    const cancelModalBtn = document.getElementById('cancelModal');
-    const deleteBlockBtn = document.getElementById('deleteBlock');
+  // modal elements
+  const modal = document.getElementById('modal');
+  const modalTitle = document.getElementById('modalTitle');
+  const modalBody = document.getElementById('modalBody');
+  const modalColor = document.getElementById('modalColor');
+  const saveModalBtn = document.getElementById('saveModal');
+  const cancelModalBtn = document.getElementById('cancelModal');
+  const deleteBlockBtn = document.getElementById('deleteBlock');
 
-    // project id storage key
-    function getQueryParam(k){ return new URLSearchParams(location.search).get(k); }
-    const projectId = getQueryParam('id') || 'demo';
-    const storageKey = 'aries_board_simple_' + projectId;
+  // tutorial
+  const tutorial = document.getElementById('tutorial');
+  const stepContent = document.getElementById('stepContent');
+  const tutorialProgress = document.getElementById('tutorialProgress');
+  const tutorialPrev = document.getElementById('tutorialPrev');
+  const tutorialNext = document.getElementById('tutorialNext');
+  const tutorialClose = document.getElementById('tutorialClose');
 
-    // model
-    let model = { nodes: [] }; // nodes: [{id,x,y,w,h,title,body,color}]
-    let selectedNodeId = null;
+  // project id key
+  function getQueryParam(k){ return new URLSearchParams(location.search).get(k); }
+  const projectId = getQueryParam('id') || 'demo';
+  const storageKey = 'aries_board_v2_' + projectId;
+  const tutorialKey = 'aries_tutorial_' + projectId;
 
-    // viewport transform state
-    let scale = 1;
-    let pan = { x: 0, y: 0 }; // translation in px applied to board (after centering)
-    const MIN_SCALE = 0.4, MAX_SCALE = 2.5, SCALE_STEP = 0.1;
+  // model
+  let model = { nodes: [], links: [] }; // nodes: {id,x,y,w,h,title,body,color}
+  let selectedNode = null;
 
-    // dragging state
-    let draggingNode = null;
-    let dragOffset = { x:0, y:0 };
+  // transform state
+  let scale = 1, pan = {x:0,y:0};
+  const MIN_SCALE = 0.4, MAX_SCALE = 2.4;
+  const SCALE_STEP = 0.12;
 
-    // panning state
-    let isPanning = false;
-    let panStart = { x:0, y:0 };
+  // pointer / gesture state
+  let dragging = null; // node id
+  let dragOffset = {x:0,y:0};
+  let isPanning = false;
+  let panStart = {x:0,y:0};
 
-    // helpers
-    function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
-    function saveModel(){ localStorage.setItem(storageKey, JSON.stringify(model)); flash('Saved'); }
-    function loadModel(){ try { const raw = localStorage.getItem(storageKey); model = raw ? JSON.parse(raw) : {nodes:[]}; } catch(e){ model = {nodes:[]}; } }
-    function flash(msg){ const el = document.createElement('div'); el.textContent = msg; Object.assign(el.style,{position:'fixed', right:'16px', bottom:'16px', background:'#0b74ff', color:'#fff', padding:'8px 12px', borderRadius:'8px', zIndex:9999}); document.body.appendChild(el); setTimeout(()=>el.remove(),1200); }
+  // pinch-to-zoom
+  let pointers = new Map(); // id -> pointer
+  let initialPinch = null;
 
-    function updateTransform(){
-      // center the board element in the viewport, then apply pan and scale.
-      // Board's CSS positions it with left:50% top:50% so we translate it by -50% of its size first.
-      const rect = canvas.getBoundingClientRect();
-      // translate to keep center origin consistent
-      const tx = -rect.width/2 + pan.x;
-      const ty = -rect.height/2 + pan.y;
-      board.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
-      zoomIndicator.textContent = Math.round(scale*100) + '%';
-      renderNodesPositions(); // nodes are positioned in model coords; rendering will reflect scale via transform
+  // snap settings
+  let snapOn = true;
+  let gridSize = Number(gridSizeInput.value) || 20;
+
+  /* ---------- Utilities ---------- */
+  function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+  function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+  function saveModel(){ try{ localStorage.setItem(storageKey, JSON.stringify(model)); flash('Saved'); }catch(e){} }
+  function loadModel(){ try{ const raw = localStorage.getItem(storageKey); model = raw ? JSON.parse(raw) : {nodes:[],links:[]}; }catch(e){ model = {nodes:[],links:[]}; } }
+  function flash(msg){ const el = document.createElement('div'); el.textContent = msg; Object.assign(el.style,{position:'fixed',right:'20px',bottom:'24px',background:'#0b74ff',color:'#fff',padding:'8px 12px',borderRadius:'8px',zIndex:1500}); document.body.appendChild(el); setTimeout(()=>el.remove(),1200); }
+
+  /* ---------- Grid rendering ---------- */
+  function renderGrid(){
+    gridLayer.innerHTML = '';
+    if (!showGridInput.checked) return;
+    const gs = gridSize;
+    const canvasW = canvas.offsetWidth;
+    const canvasH = canvas.offsetHeight;
+    // Create vertical and horizontal grid lines under scaling. We'll draw lines in canvas coordinate space.
+    // We'll create a single background using CSS gradients would be more efficient but dynamic approach is simple.
+    const frag = document.createDocumentFragment();
+    for (let x = 0; x <= canvasW; x += gs){
+      const div = document.createElement('div');
+      div.className = 'grid-line';
+      div.style.left = x + 'px';
+      div.style.top = '0px';
+      div.style.width = '1px';
+      div.style.height = canvasH + 'px';
+      frag.appendChild(div);
     }
+    for (let y = 0; y <= canvasH; y += gs){
+      const div = document.createElement('div');
+      div.className = 'grid-line';
+      div.style.top = y + 'px';
+      div.style.left = '0px';
+      div.style.height = '1px';
+      div.style.width = canvasW + 'px';
+      frag.appendChild(div);
+    }
+    gridLayer.appendChild(frag);
+  }
 
-    // render nodes
-    function clearNodes(){ canvas.querySelectorAll('.node').forEach(n=>n.remove()); }
-    function renderNodesPositions(){
-      // ensure nodes exist in DOM and visually match model coords
-      model.nodes.forEach(n=>{
-        let el = canvas.querySelector(`.node[data-id="${n.id}"]`);
-        if (!el) {
-          el = document.createElement('div');
-          el.className = 'node';
-          el.dataset.id = n.id;
-          // content
-          el.innerHTML = `
-            <div class="mini-controls">
-              <button class="mini-btn" title="Edit">✎</button>
-            </div>
-            <div class="title" contenteditable="false"></div>
-            <div class="body" contenteditable="false"></div>
-          `;
-          // attach events
-          el.addEventListener('pointerdown', nodePointerDown);
-          el.addEventListener('dblclick', nodeDoubleClick);
-          el.querySelector('.mini-btn').addEventListener('click', (e)=>{ e.stopPropagation(); openModalForNode(n.id); });
-          canvas.appendChild(el);
-        }
-        // style & position
-        el.style.left = (n.x || 60) + 'px';
-        el.style.top = (n.y || 60) + 'px';
-        el.style.width = (n.w || 200) + 'px';
-        el.style.background = n.color || '#ffffff';
+  /* ---------- Coordinate helpers ---------- */
+  // Because we transform board with translate & scale, we convert page coordinates to canvas (model) coordinates:
+  function pageToModel(clientX, clientY){
+    const canvasRect = canvas.getBoundingClientRect();
+    // Point in page relative to canvas top-left
+    const x = (clientX - canvasRect.left) / scale;
+    const y = (clientY - canvasRect.top) / scale;
+    return { x, y };
+  }
+  function modelToCssPos(x,y){
+    return { left: x + 'px', top: y + 'px' };
+  }
+
+  /* ---------- Node DOM helpers ---------- */
+  function createNodeDOM(node){
+    const el = document.createElement('div');
+    el.className = 'node';
+    el.dataset.id = node.id;
+    el.style.left = node.x + 'px';
+    el.style.top = node.y + 'px';
+    el.style.width = (node.w || 220) + 'px';
+    el.style.background = node.color || '#fff';
+    el.innerHTML = `
+      <div class="mini">
+        <button class="mini-edit" title="Edit" style="background:transparent;border:0;cursor:pointer;font-size:14px;">✎</button>
+      </div>
+      <div class="title">${escapeHtml(node.title || 'Untitled')}</div>
+      <div class="body">${escapeHtml(node.body || '')}</div>
+    `;
+    // events
+    el.addEventListener('pointerdown', nodePointerDown);
+    el.addEventListener('dblclick', ()=> openModal(node.id));
+    el.querySelector('.mini-edit').addEventListener('click', (e)=>{ e.stopPropagation(); openModal(node.id); });
+    return el;
+  }
+
+  function escapeHtml(s){ if(!s) return ''; return s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+  function renderNodes(){
+    // remove nodes not in model and re-add / update
+    const existing = Array.from(canvas.querySelectorAll('.node'));
+    const existingIds = new Set(existing.map(n => n.dataset.id));
+    model.nodes.forEach(n=>{
+      let el = canvas.querySelector(`.node[data-id="${n.id}"]`);
+      if (!el){
+        el = createNodeDOM(n);
+        canvas.appendChild(el);
+      } else {
+        // update
+        el.style.left = n.x + 'px';
+        el.style.top = n.y + 'px';
+        el.style.width = (n.w || 220) + 'px';
+        el.style.background = n.color || '#fff';
         el.querySelector('.title').textContent = n.title || 'Untitled';
         el.querySelector('.body').textContent = n.body || '';
-      });
-    }
-
-    // pointer drag for nodes
-    function nodePointerDown(e){
-      e.stopPropagation();
-      const el = e.currentTarget;
-      const id = el.dataset.id;
-      draggingNode = id;
-      const rect = el.getBoundingClientRect();
-      // adjust offset considering the current transform (scale)
-      const sx = e.clientX, sy = e.clientY;
-      dragOffset.x = (sx - rect.left);
-      dragOffset.y = (sy - rect.top);
-      el.setPointerCapture(e.pointerId);
-      el.addEventListener('pointermove', nodePointerMove);
-      el.addEventListener('pointerup', nodePointerUp);
-    }
-    function nodePointerMove(e){
-      if (!draggingNode) return;
-      const el = canvas.querySelector(`.node[data-id="${draggingNode}"]`);
-      if (!el) return;
-      const canvasRect = canvas.getBoundingClientRect();
-      // compute coordinates in canvas (model) space, need to account for board transform (scale & pan & centering)
-      // To convert screen client coords to model coords:
-      // 1) find point in board-local coords before scale/translate: use inverse transform
-      // But simpler approach: compute mouse position relative to canvas top-left in page, then transform by inverse scale and center offsets.
-      const boardRect = board.getBoundingClientRect();
-      // compute board origin after transform: board is centered at viewport center plus pan offsets; instead compute canvas left/top in page:
-      const canvasLeft = boardRect.left + (canvas.offsetLeft * scale);
-      // The above gets messy; easier: we keep node positions in unscaled canvas coordinates and place nodes by setting left/top on canvas which is child of board. 
-      // The browser applies the scale to the whole board so pointer positions need to be adjusted by scale and board offset.
-      const boardTransform = board.getBoundingClientRect();
-      const scaleInv = 1/scale;
-      // Compute mouse position relative to canvas top-left in page coordinates:
-      const mouseX = e.clientX;
-      const mouseY = e.clientY;
-      // Find canvas top-left in page coordinates:
-      const canvasRect = canvas.getBoundingClientRect();
-      const x = (mouseX - canvasRect.left) * scaleInv;
-      const y = (mouseY - canvasRect.top) * scaleInv;
-      // Subtract dragOffset scaled
-      const nodeElRect = el.getBoundingClientRect();
-      const dx = dragOffset.x * scaleInv;
-      const dy = dragOffset.y * scaleInv;
-      const modelX = x - dx;
-      const modelY = y - dy;
-      // clamp to canvas bounds
-      const nodeModel = model.nodes.find(n=>n.id===draggingNode);
-      if (!nodeModel) return;
-      nodeModel.x = Math.max(0, Math.round(modelX));
-      nodeModel.y = Math.max(0, Math.round(modelY));
-      renderNodesPositions();
-    }
-    function nodePointerUp(e){
-      const el = e.currentTarget;
-      el.removeEventListener('pointermove', nodePointerMove);
-      el.removeEventListener('pointerup', nodePointerUp);
-      draggingNode = null;
-      saveModel();
-    }
-
-    // double click to open modal
-    function nodeDoubleClick(e){
-      e.stopPropagation();
-      const id = e.currentTarget.dataset.id;
-      openModalForNode(id);
-    }
-
-    // modal management
-    let modalTargetId = null;
-    function openModalForNode(id){
-      modalTargetId = id;
-      const node = model.nodes.find(n=>n.id===id);
-      if (!node) return;
-      modalTitle.value = node.title || '';
-      modalBody.value = node.body || '';
-      modalColor.value = node.color || '#ffffff';
-      modalBackdrop.style.display = 'flex';
-      modalBackdrop.setAttribute('aria-hidden','false');
-      modalTitle.focus();
-    }
-    function closeModal(){
-      modalBackdrop.style.display = 'none';
-      modalBackdrop.setAttribute('aria-hidden','true');
-      modalTargetId = null;
-    }
-    saveModalBtn.addEventListener('click', ()=>{
-      if (!modalTargetId) return closeModal();
-      const node = model.nodes.find(n=>n.id===modalTargetId);
-      if (!node) return closeModal();
-      node.title = modalTitle.value.trim();
-      node.body = modalBody.value.trim();
-      node.color = modalColor.value;
-      saveModel(); renderNodesPositions(); closeModal();
-    });
-    cancelModalBtn.addEventListener('click', closeModal);
-    deleteBlockBtn.addEventListener('click', ()=>{
-      if (!modalTargetId) return closeModal();
-      if (!confirm('Delete this block?')) return;
-      model.nodes = model.nodes.filter(n=>n.id!==modalTargetId);
-      saveModel(); renderNodesPositions(); closeModal();
-    });
-    modalBackdrop.addEventListener('click', (e)=>{ if (e.target === modalBackdrop) closeModal(); });
-
-    // add node
-    addNodeBtn.addEventListener('click', ()=>{
-      const id = uid();
-      const w = 220, h = 120;
-      // place roughly at center of visible area
-      const canvasRect = canvas.getBoundingClientRect();
-      const centerX = (canvasRect.width/2) - (w/2);
-      const centerY = (canvasRect.height/2) - (h/2);
-      model.nodes.push({ id, x: Math.max(40,centerX), y: Math.max(40,centerY), w, h, title: 'New block', body: '', color:'#ffffff' });
-      saveModel(); renderNodesPositions(); openModalForNode(id);
-    });
-
-    // zoom controls
-    function setScale(s){
-      scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, s));
-      updateTransform();
-    }
-    zoomInBtn.addEventListener('click', ()=> setScale(scale + SCALE_STEP));
-    zoomOutBtn.addEventListener('click', ()=> setScale(scale - SCALE_STEP));
-    resetViewBtn.addEventListener('click', ()=> { scale = 1; pan = {x:0,y:0}; updateTransform(); });
-
-    // wheel zoom (Ctrl + wheel) for desktops
-    panLayer.addEventListener('wheel', (e)=>{
-      if (e.ctrlKey || e.metaKey) {
-        e.preventDefault();
-        const delta = e.deltaY > 0 ? -SCALE_STEP : SCALE_STEP;
-        setScale(scale + delta);
       }
-    }, { passive:false });
-
-    // panning: drag on background (not on nodes) with left button while pressing space or without? We'll allow left-drag on empty canvas.
-    let panActive = false;
-    panLayer.addEventListener('pointerdown', (e)=>{
-      // ignore pointerdown if started on a node
-      if (e.target.closest('.node')) return;
-      panActive = true;
-      panStart.x = e.clientX - pan.x;
-      panStart.y = e.clientY - pan.y;
-      panLayer.setPointerCapture(e.pointerId);
-      panLayer.addEventListener('pointermove', doPan);
-      panLayer.addEventListener('pointerup', endPan);
+      existingIds.delete(n.id);
     });
-    function doPan(e){
-      if (!panActive) return;
-      pan.x = e.clientX - panStart.x;
-      pan.y = e.clientY - panStart.y;
-      updateTransform();
+    // remove leftover
+    existingIds.forEach(id => {
+      const el = canvas.querySelector(`.node[data-id="${id}"]`);
+      if (el) el.remove();
+    });
+    renderLinks();
+  }
+
+  /* ---------- Link rendering (simple straight lines) ---------- */
+  function renderLinks(){
+    svg.innerHTML = '';
+    model.links.forEach(l=>{
+      const from = model.nodes.find(n=>n.id===l.from);
+      const to = model.nodes.find(n=>n.id===l.to);
+      if (!from || !to) return;
+      const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+      const fx = (from.x + (from.w||220)/2) * scale;
+      const fy = (from.y + 20) * scale;
+      const tx = (to.x + (to.w||220)/2) * scale;
+      const ty = (to.y + 20) * scale;
+      line.setAttribute('x1', fx);
+      line.setAttribute('y1', fy);
+      line.setAttribute('x2', tx);
+      line.setAttribute('y2', ty);
+      line.setAttribute('stroke','#0f172a');
+      line.setAttribute('stroke-width', Math.max(1, 2*scale));
+      svg.appendChild(line);
+    });
+  }
+
+  /* ---------- Dragging & pointer handling ---------- */
+  function nodePointerDown(e){
+    e.stopPropagation();
+    const id = e.currentTarget.dataset.id;
+    dragging = id;
+    // compute offset in model coords
+    const modelPoint = pageToModel(e.clientX, e.clientY);
+    const node = model.nodes.find(n=>n.id===id);
+    dragOffset.x = modelPoint.x - (node.x || 0);
+    dragOffset.y = modelPoint.y - (node.y || 0);
+    e.currentTarget.setPointerCapture(e.pointerId);
+    e.currentTarget.addEventListener('pointermove', nodePointerMove);
+    e.currentTarget.addEventListener('pointerup', nodePointerUp);
+  }
+
+  function nodePointerMove(e){
+    if (!dragging) return;
+    const modelPoint = pageToModel(e.clientX, e.clientY);
+    let nx = modelPoint.x - dragOffset.x;
+    let ny = modelPoint.y - dragOffset.y;
+    // snap softly on drop, but while dragging we can show near-grid (soft snap)
+    if (snapOn){
+      // Soft snap: show live but don't lock (apply a small easing)
+      const gs = gridSize;
+      const rx = Math.round(nx/gs)*gs;
+      const ry = Math.round(ny/gs)*gs;
+      // ease factor (0.35) for soft feel
+      nx = nx + (rx - nx) * 0.35;
+      ny = ny + (ry - ny) * 0.35;
     }
-    function endPan(e){
-      panActive = false;
-      panLayer.removeEventListener('pointermove', doPan);
-      panLayer.removeEventListener('pointerup', endPan);
-      saveModel(); // persist pan (optional; not part of model but helpful)
+    const node = model.nodes.find(n=>n.id===dragging);
+    if (!node) return;
+    node.x = Math.max(0, Math.round(nx));
+    node.y = Math.max(0, Math.round(ny));
+    renderNodes();
+  }
+
+  function nodePointerUp(e){
+    const id = e.currentTarget.dataset.id;
+    const node = model.nodes.find(n=>n.id===id);
+    if (!node){ dragging = null; return; }
+    // final snap when releasing (soft or hard)
+    if (snapOn){
+      const gs = gridSize;
+      node.x = Math.round(node.x/gs) * gs;
+      node.y = Math.round(node.y/gs) * gs;
     }
+    // cleanup
+    try {
+      e.currentTarget.removeEventListener('pointermove', nodePointerMove);
+      e.currentTarget.removeEventListener('pointerup', nodePointerUp);
+    } catch(e){}
+    dragging = null;
+    saveModel();
+    renderNodes();
+  }
 
-    // export/import
-    exportBtn.addEventListener('click', ()=>{
-      const data = JSON.stringify(model, null, 2);
-      const blob = new Blob([data], {type:'application/json'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = (projectId || 'board') + '.board.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-    });
-    importFile.addEventListener('change', (e)=>{
-      const f = e.target.files[0]; if (!f) return;
-      const r = new FileReader();
-      r.onload = function(){ try { const parsed = JSON.parse(r.result); if (parsed.nodes) { model = parsed; saveModel(); renderNodesPositions(); flash('Imported'); } else alert('Invalid file'); } catch(err){ alert('Invalid JSON'); } };
-      r.readAsText(f);
-    });
+  // background pointer events for panning
+  panLayer.addEventListener('pointerdown', (e)=>{
+    // ignore if starting on a node
+    if (e.target.closest('.node')) return;
+    panLayer.setPointerCapture(e.pointerId);
+    isPanning = true;
+    panStart.x = e.clientX - pan.x;
+    panStart.y = e.clientY - pan.y;
+    panLayer.addEventListener('pointermove', panMove);
+    panLayer.addEventListener('pointerup', panEnd);
+  });
 
-    // persist on save button
-    saveBoardBtn.addEventListener('click', ()=> saveModel());
+  function panMove(e){
+    if (!isPanning) return;
+    pan.x = e.clientX - panStart.x;
+    pan.y = e.clientY - panStart.y;
+    applyTransform();
+  }
+  function panEnd(e){
+    isPanning = false;
+    panLayer.removeEventListener('pointermove', panMove);
+    panLayer.removeEventListener('pointerup', panEnd);
+    saveModel();
+  }
 
-    // initial load & render
-    loadModel();
-    // if empty, seed a sample block for clarity
-    if (!model.nodes.length) {
-      model.nodes.push({ id: uid(), x: 120, y: 120, w:220, h:120, title:'Sample block', body:'Double-click or click ✎ to edit settings', color:'#fff8f0' });
-      saveModel();
+  /* ---------- Pinch-to-zoom (smooth) ---------- */
+  panLayer.addEventListener('pointerdown', (e)=>{
+    pointers.set(e.pointerId, e);
+    if (pointers.size === 2){
+      // start pinch
+      const pts = Array.from(pointers.values());
+      initialPinch = {
+        dist: Math.hypot(pts[0].clientX - pts[1].clientX, pts[0].clientY - pts[1].clientY),
+        scaleAtStart: scale,
+        center: { x: (pts[0].clientX + pts[1].clientX)/2, y: (pts[0].clientY + pts[1].clientY)/2 }
+      };
     }
-    updateTransform(); // positions nodes after board transform adjustments
-    renderNodesPositions();
+    e.target.setPointerCapture(e.pointerId);
+  });
+  panLayer.addEventListener('pointermove', (e)=>{
+    if (!pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, e);
+    if (initialPinch && pointers.size === 2){
+      const pts = Array.from(pointers.values());
+      const dist = Math.hypot(pts[0].clientX - pts[1].clientX, pts[0].clientY - pts[1].clientY);
+      const factor = dist / initialPinch.dist;
+      // smooth scaling around pinch center
+      const newScale = clamp(initialPinch.scaleAtStart * factor, MIN_SCALE, MAX_SCALE);
+      // adjust pan so zoom focuses on pinch center
+      const center = initialPinch.center;
+      zoomAtPoint(newScale, center.x, center.y);
+    }
+  });
+  panLayer.addEventListener('pointerup', (e)=>{
+    pointers.delete(e.pointerId);
+    if (pointers.size < 2) initialPinch = null;
+  });
+  panLayer.addEventListener('pointercancel', (e)=>{ pointers.delete(e.pointerId); initialPinch = null; });
 
-    // helper: make sure nodes re-render when window resizes
-    window.addEventListener('resize', ()=> updateTransform());
+  /* ---------- Wheel zoom (desktop) ---------- */
+  panLayer.addEventListener('wheel', (e)=>{
+    if (e.ctrlKey || e.metaKey){
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -SCALE_STEP : SCALE_STEP;
+      const newScale = clamp(scale + delta, MIN_SCALE, MAX_SCALE);
+      zoomAtPoint(newScale, e.clientX, e.clientY);
+    }
+  }, { passive:false });
 
-    // keyboard accessibility
-    window.addEventListener('keydown', (e)=>{
-      if (e.key === 'Escape') closeModal();
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); saveModel(); flash('Saved'); }
+  function zoomAtPoint(newScale, clientX, clientY){
+    // compute where the client point maps to in model coords before zoom
+    const before = pageToModel(clientX, clientY);
+    const oldScale = scale;
+    scale = newScale;
+    applyTransform();
+    const after = pageToModel(clientX, clientY);
+    // adjust pan to keep point stable
+    pan.x += (after.x - before.x) * scale;
+    pan.y += (after.y - before.y) * scale;
+    applyTransform();
+  }
+
+  /* ---------- Transform application ---------- */
+  function applyTransform(){
+    // compute translate to center board then apply pan and scale
+    const rect = canvas.getBoundingClientRect();
+    // center offset
+    const tx = -rect.width/2 + pan.x;
+    const ty = -rect.height/2 + pan.y;
+    board.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+    // svg size sync with scaled canvas
+    svg.style.width = (rect.width * scale) + 'px';
+    svg.style.height = (rect.height * scale) + 'px';
+    svg.style.left = (board.offsetLeft) + 'px';
+    svg.style.top = (board.offsetTop) + 'px';
+    zoomIndicator.textContent = Math.round(scale*100) + '%';
+    // links re-render, grid unaffected (grid drawn in model coords)
+    renderGrid();
+    renderLinks();
+  }
+
+  /* ---------- Node creation & modal ---------- */
+  function addNodeAt(x=120,y=120){
+    const id = uid();
+    const node = { id, x, y, w:220, h:120, title:'New block', body:'Double-click to edit', color:'#fff8f0' };
+    model.nodes.push(node);
+    saveModel(); renderNodes(); openModal(id);
+  }
+
+  function openModal(id){
+    selectedNode = model.nodes.find(n=>n.id===id);
+    if (!selectedNode) return;
+    modalTitle.value = selectedNode.title || '';
+    modalBody.value = selectedNode.body || '';
+    modalColor.value = selectedNode.color || '#ffffff';
+    modal.style.display = 'flex';
+    modal.setAttribute('aria-hidden','false');
+    modalTitle.focus();
+  }
+  function closeModal(){
+    modal.style.display = 'none';
+    modal.setAttribute('aria-hidden','true');
+    selectedNode = null;
+  }
+  saveModalBtn.addEventListener('click', ()=>{
+    if (!selectedNode) return closeModal();
+    selectedNode.title = modalTitle.value.trim();
+    selectedNode.body = modalBody.value.trim();
+    selectedNode.color = modalColor.value;
+    saveModel(); renderNodes(); closeModal();
+  });
+  cancelModalBtn.addEventListener('click', closeModal);
+  deleteBlockBtn.addEventListener('click', ()=>{
+    if (!selectedNode) return closeModal();
+    if (!confirm('Delete this block?')) return;
+    model.nodes = model.nodes.filter(n=>n.id!==selectedNode.id);
+    saveModel(); renderNodes(); closeModal();
+  });
+
+  /* ---------- Save/Export/Import ---------- */
+  saveBtn.addEventListener('click', ()=> saveModel());
+  exportBtn.addEventListener('click', ()=>{
+    const data = JSON.stringify(model, null, 2);
+    const blob = new Blob([data], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = (projectId||'board') + '.board.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  });
+  importFile.addEventListener('change', (e)=> {
+    const f = e.target.files[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = function(){ try { const parsed = JSON.parse(r.result); if (parsed.nodes) { model = parsed; saveModel(); renderNodes(); flash('Imported'); } else alert('Invalid file'); } catch(err){ alert('Invalid JSON'); } };
+    r.readAsText(f);
+  });
+
+  /* ---------- UI hooks ---------- */
+  addNodeBtn.addEventListener('click', ()=> {
+    // center-add
+    const rect = canvas.getBoundingClientRect();
+    const x = Math.max(40, Math.round((rect.width/2 - 110)));
+    const y = Math.max(40, Math.round((rect.height/2 - 60)));
+    addNodeAt(x,y);
+  });
+  zoomInBtn.addEventListener('click', ()=> {
+    const newScale = clamp(scale + SCALE_STEP, MIN_SCALE, MAX_SCALE);
+    zoomAtPoint(newScale, window.innerWidth/2, window.innerHeight/2);
+  });
+  zoomOutBtn.addEventListener('click', ()=> {
+    const newScale = clamp(scale - SCALE_STEP, MIN_SCALE, MAX_SCALE);
+    zoomAtPoint(newScale, window.innerWidth/2, window.innerHeight/2);
+  });
+  resetBtn.addEventListener('click', ()=> { scale = 1; pan = {x:0,y:0}; applyTransform(); });
+
+  snapToggle.addEventListener('click', ()=> {
+    snapOn = !snapOn;
+    snapToggle.textContent = 'Snap: ' + (snapOn ? 'ON' : 'OFF');
+  });
+  gridSizeInput.addEventListener('change', ()=> {
+    gridSize = clamp(Number(gridSizeInput.value)||20, 5, 200);
+    renderGrid();
+  });
+  showGridInput.addEventListener('change', ()=> renderGrid());
+  centerBtn.addEventListener('click', ()=> { pan = {x:0,y:0}; applyTransform(); });
+
+  /* ---------- Links interactions (placeholder) ---------- */
+  function renderLinks(){ renderLinksInternal(); }
+  function renderLinksInternal(){
+    // re-render with scale aware coords
+    svg.innerHTML = '';
+    model.links.forEach(l=>{
+      const from = model.nodes.find(n=>n.id===l.from);
+      const to = model.nodes.find(n=>n.id===l.to);
+      if (!from || !to) return;
+      const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+      const fx = (from.x + (from.w||220)/2) * scale;
+      const fy = (from.y + 20) * scale;
+      const tx = (to.x + (to.w||220)/2) * scale;
+      const ty = (to.y + 20) * scale;
+      line.setAttribute('x1', fx); line.setAttribute('y1', fy);
+      line.setAttribute('x2', tx); line.setAttribute('y2', ty);
+      line.setAttribute('stroke', '#0f172a'); line.setAttribute('stroke-width', Math.max(1,2*scale));
+      svg.appendChild(line);
     });
+  }
 
-    // expose debug API
-    window.__aries_simple = { model, saveModel, loadModel, setScale: (s)=>setScale(s) };
-  })();
-  </script>
+  /* ---------- Load/Bootstrap ---------- */
+  loadModel();
+  // seed sample node if none
+  if (!model.nodes.length){
+    model.nodes.push({ id: uid(), x: 120, y: 120, w: 260, h: 120, title: 'Welcome block', body: 'Double-click to edit settings.\nUse two fingers to pinch-zoom.', color:'#fff8f0' });
+    saveModel();
+  }
+  renderGrid();
+  renderNodes();
+  applyTransform();
+
+  /* ---------- Tutorial (full-screen guided overlay) ---------- */
+  const steps = [
+    { title: 'Welcome to the Workspace', text: 'This is your whiteboard. Add blocks with +Node, drag them, and double-click a block to open settings.' },
+    { title: 'Zoom & Pan', text: 'Use pinch-to-zoom on touch, or Ctrl + mouse wheel on desktop. Drag empty space to pan.' },
+    { title: 'Snap & Grid', text: 'Toggle Snap ON/OFF and change grid spacing. Soft snap gently aligns blocks on drop.' },
+    { title: 'Save & Export', text: 'Click Save to store locally. Use Export to download the board JSON.' }
+  ];
+  let tutorialIndex = 0;
+  function showTutorial(index){
+    tutorial.style.display = 'block';
+    tutorial.setAttribute('aria-hidden','false');
+    tutorialIndex = clamp(index, 0, steps.length-1);
+    stepContent.innerHTML = `<h2 style="margin:0 0 6px 0">${steps[tutorialIndex].title}</h2><div style="opacity:0.9">${steps[tutorialIndex].text}</div>`;
+    tutorialProgress.textContent = `Step ${tutorialIndex+1} / ${steps.length}`;
+    tutorialPrev.style.visibility = tutorialIndex === 0 ? 'hidden' : 'visible';
+    tutorialNext.textContent = tutorialIndex === steps.length-1 ? 'Finish' : 'Next';
+  }
+  tutorialNext.addEventListener('click', ()=>{
+    if (tutorialIndex === steps.length-1){
+      closeTutorial();
+      return;
+    }
+    showTutorial(tutorialIndex+1);
+  });
+  tutorialPrev.addEventListener('click', ()=> showTutorial(tutorialIndex-1));
+  tutorialClose.addEventListener('click', closeTutorial);
+
+  function closeTutorial(){
+    tutorial.style.display = 'none';
+    tutorial.setAttribute('aria-hidden','true');
+    // persist that tutorial seen for this project
+    localStorage.setItem(tutorialKey, 'seen');
+  }
+
+  // auto-show tutorial if not seen yet
+  if (!localStorage.getItem(tutorialKey)){
+    showTutorial(0);
+  }
+
+  /* ---------- Persistence on unload ---------- */
+  window.addEventListener('beforeunload', ()=> saveModel() );
+
+  /* ---------- Helpers: renderNodes wrapper ---------- */
+  function renderNodes(){
+    renderGrid(); // update grid sizing
+    // create/update node doms
+    const ids = new Set(model.nodes.map(n=>n.id));
+    // remove deleted
+    Array.from(canvas.querySelectorAll('.node')).forEach(el => {
+      if (!ids.has(el.dataset.id)) el.remove();
+    });
+    model.nodes.forEach(n => {
+      let el = canvas.querySelector(`.node[data-id="${n.id}"]`);
+      if (!el) {
+        el = createNodeDOM(n);
+        canvas.appendChild(el);
+      } else {
+        el.style.left = n.x + 'px';
+        el.style.top = n.y + 'px';
+        el.style.width = (n.w||220) + 'px';
+        el.style.background = n.color || '#fff';
+        el.querySelector('.title').textContent = n.title || 'Untitled';
+        el.querySelector('.body').textContent = n.body || '';
+      }
+    });
+    renderLinksInternal();
+  }
+
+  function createNodeDOM(n){
+    const el = document.createElement('div');
+    el.className = 'node';
+    el.dataset.id = n.id;
+    el.style.left = n.x + 'px';
+    el.style.top = n.y + 'px';
+    el.style.width = (n.w||220) + 'px';
+    el.style.background = n.color || '#fff';
+    el.innerHTML = `
+      <div class="mini">
+        <button class="mini-edit" title="Edit" style="background:transparent;border:0;cursor:pointer;font-size:14px;">✎</button>
+      </div>
+      <div class="title">${escapeHtml(n.title||'Untitled')}</div>
+      <div class="body">${escapeHtml(n.body||'')}</div>
+    `;
+    el.addEventListener('pointerdown', nodePointerDown);
+    el.addEventListener('dblclick', ()=> openModal(n.id));
+    el.querySelector('.mini-edit').addEventListener('click', (ev)=>{ ev.stopPropagation(); openModal(n.id); });
+    return el;
+  }
+
+  /* expose small API for debug */
+  window.__aries = { model, saveModel, loadModel, addNodeAt: ()=> addNodeAt(200,200) };
+
+  /* keyboard shortcuts */
+  window.addEventListener('keydown', (e)=>{
+    if ((e.ctrlKey || e.metaKey) && e.key === 's'){ e.preventDefault(); saveModel(); }
+    if (e.key === 'Escape') closeModal();
+  });
+
+  // small center & initial transform
+  function initialCenter(){
+    pan = {x:0,y:0};
+    scale = 1;
+    applyTransform();
+  }
+  initialCenter();
+
+})();
+</script>
 </body>
 </html>
