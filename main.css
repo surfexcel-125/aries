@@ -18,7 +18,7 @@ body {
     flex-grow: 1; 
 }
 
-/* --- Header Styles: The Black Bar --- */
+/* --- Header Styles: The Black Bar (Used on both pages) --- */
 header {
     background-color: black;
     color: white;
@@ -73,7 +73,7 @@ header {
     line-height: 1;
     display: inline-block;
     padding-left: 10px; 
-    transform: rotate(90deg); /* Rotates the arrow */
+    transform: rotate(90deg);
 }
 
 /* --- Sidebar Button Styling (Exact Look Requested) --- */
@@ -82,11 +82,10 @@ header {
     text-decoration: none;
     font-size: 14px;
     
-    /* STYLES matching the image: */
-    background-color: white; /* White background */
-    color: black; /* Black text */
-    border: 1px solid white; /* A white border for structure */
-    border-radius: 8px; /* Rounded corners */
+    background-color: white; 
+    color: black; 
+    border: 1px solid white; 
+    border-radius: 8px; 
     
     display: block; 
     margin: 10px 15px; 
@@ -98,12 +97,12 @@ header {
 }
 
 .sidebar-button:hover {
-    background-color: #f0f0f0; /* Slight gray on hover */
+    background-color: #f0f0f0; 
     opacity: 0.9; 
     color: black; 
 }
 
-/* --- Main Content Layout --- */
+/* --- Dashboard Main Content Layout (index.html) --- */
 main {
     flex-grow: 1; 
     display: flex; 
@@ -125,9 +124,9 @@ main {
     padding-left: 20px; 
 }
 
-/* --- Text Styling (Aries King) --- */
+/* --- Dashboard Text Styling (Aries King) --- */
 .aries-title {
-    font-family: 'Luckiest Guy', cursive; /* Substitute for Snap ITC */
+    font-family: 'Luckiest Guy', cursive; 
     font-size: 80px; 
     margin: 0; 
     line-height: 0.8; 
@@ -135,7 +134,7 @@ main {
 }
 
 .aries-subtitle {
-    font-family: 'Roboto Slab', serif; /* Substitute for Amasis MT Pro Black */
+    font-family: 'Roboto Slab', serif; 
     font-weight: 900; 
     font-size: 24px;
     margin: 0;
@@ -148,27 +147,143 @@ main {
     height: auto; 
 }
 
+
+/* ---------------------------------------------------------------------------------- */
+/* --- New Styles for Project Manager Page (projects.html) --- */
+/* ---------------------------------------------------------------------------------- */
+
+/* Project Page Header Adjustments */
+header.project-header {
+    justify-content: space-between; 
+    padding: 15px 15px 15px 20px;
+}
+
+.header-title {
+    font-size: 18px;
+    font-weight: bold;
+    margin: 0;
+    flex-grow: 1; 
+    text-align: center;
+}
+
+/* Ram Icon Placeholder */
+.ram-icon {
+    width: 28px;
+    height: 28px;
+    background-image: url('images/goat.png'); 
+    background-size: contain;
+    background-repeat: no-repeat;
+    filter: invert(100%); 
+    margin-left: 10px;
+}
+
+/* Main Content Area */
+.project-manager-main {
+    padding: 30px 20px;
+    display: block; 
+}
+
+.projects-container {
+    max-width: 800px; 
+    margin: 0 auto;
+    border: 1px solid black;
+}
+
+/* PROJECTS Heading and Add Project Button Row */
+.projects-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: black;
+    color: white;
+    padding: 10px 15px;
+}
+
+.projects-heading {
+    font-size: 14px;
+    font-weight: normal;
+    margin: 0;
+}
+
+.add-project-button {
+    background-color: white;
+    color: black;
+    border: none;
+    padding: 5px 10px;
+    border-radius: 5px;
+    font-size: 12px;
+    font-weight: bold;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+}
+
+.plus-icon {
+    font-size: 18px;
+    margin-left: 5px;
+    line-height: 1;
+}
+
+/* Project Cards Styling */
+.project-list-container {
+    padding: 15px;
+}
+
+.project-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #f0f0f0; 
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    padding: 10px;
+    margin-bottom: 15px;
+}
+
+.project-name-box {
+    background-color: white;
+    padding: 8px 15px;
+    border-radius: 15px;
+    border: 1px solid black;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.project-status-box {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    font-size: 10px;
+    font-weight: bold;
+}
+
+.dropdown-box {
+    background-color: white;
+    padding: 8px 15px;
+    border-radius: 15px;
+    border: 1px solid black;
+    font-size: 14px;
+    font-weight: normal;
+}
+
+
 /* --- Optional: Responsive adjustments for phones/tablets --- */
 @media (max-width: 768px) {
-    main {
-        flex-direction: column; 
-        gap: 20px;
+    /* Dashboard Responsive */
+    main { flex-direction: column; gap: 20px; }
+    .content-left, .content-right { text-align: center; padding: 0; }
+    .aries-title { font-size: 60px; }
+    .aries-subtitle { font-size: 20px; }
+    .goat-image { max-width: 250px; }
+    .sidebar.open { width: 100%; } 
+
+    /* Project Manager Responsive */
+    .project-card {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
     }
-    .content-left, .content-right {
-        text-align: center; 
-        padding: 0;
-    }
-    .aries-title {
-        font-size: 60px;
-    }
-    .aries-subtitle {
-        font-size: 20px;
-    }
-    .goat-image {
-        max-width: 250px;
-    }
-    
-    .sidebar.open {
-        width: 100%; /* Sidebar takes full screen on mobile */
+    .project-status-box {
+        margin-top: 5px;
     }
 }
