@@ -5,31 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Aries Dashboard</title>
     <link rel="stylesheet" href="main.css">
-    
-    <link href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&family=Roboto+Slab:wght@900&display=swap" rel="stylesheet">
 </head>
 <body>
 
-    <div id="sidebar" class="sidebar">
-        <div class="sidebar-header">
-            <span id="closeIcon" class="close-icon">&#10094;</span> 
-        </div>
-        
-        <a href="index.html" class="sidebar-button">DASHBOARD</a>
-        <a href="projects.html" class="sidebar-button">PROJECT</a>
-        <a href="#" class="sidebar-button">ABOUT</a>
-        <a href="#" class="sidebar-button">SETTINGS</a>
-    </div>
+    <header class="topbar">
+        <button class="hamburger">☰</button>
+        <div class="brand">ARIES DASHBOARD</div>
+        <img src="images/goat.png" class="logo" alt="Logo">
+    </header>
 
-    <div id="pageWrapper" class="page-wrapper">
-        <header>
-            <span id="menuIcon" class="menu-icon">&#9776;</span> 
-        </header>
-    
-        <main>
+    <div class="page-wrapper">
+        <main class="dashboard-main">
             <div class="content-left">
                 <h1 class="aries-title">Aries</h1>
-                <p class="aries-subtitle">King</p>
+                <p class="aries-subtitle">The King</p>
+                <div id="statusArea" style="margin-top:20px; text-align:right; font-family:'Montserrat';">
+                    <p>System Status: <span style="color:green; font-weight:bold;">Online</span></p>
+                    <a href="projects.html" class="btn-primary" style="text-decoration:none;">Go to Projects &rarr;</a>
+                </div>
             </div>
             <div class="content-right">
                 <img src="images/goat.png" alt="Aries Ram Head" class="goat-image">
@@ -37,7 +30,6 @@
         </main>
     </div>
 
-    <script src="app.js"></script>
-
+    <script type="module" src="app.js"></script>
 </body>
 </html>
