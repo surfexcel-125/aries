@@ -1,7 +1,4 @@
-// READY-TO-REPLACE firebase-config.js (modular v9+ example)
-// NOTE: This file must be loaded as a module: <script type="module" src="firebase-config.js"></script>
-// Replace placeholders with your actual Firebase config values. Restrict API keys / rules on server side where possible.
-
+// firebase-config.js
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
 import { getFirestore } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
@@ -19,5 +16,4 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// Export for other modules on pages that need Firebase
 export { app, auth, db };
