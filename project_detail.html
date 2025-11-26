@@ -3,151 +3,463 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Project Detail — Aries</title>
+  <title>Workspace — Aries</title>
   <link rel="stylesheet" href="main.css" />
+  <style>
+    /* Workspace styles (self-contained) */
+    .workspace-header { display:flex; gap:12px; align-items:center; padding:12px 18px; border-bottom:1px solid #eee; background:#fff; }
+    .workspace-toolbar { display:flex; gap:8px; margin-left:auto; align-items:center; }
+    .ws-btn { padding:8px 10px; border-radius:8px; text-decoration:none; background:#1f2937; color:#fff; font-weight:600; cursor:pointer; }
+    .ws-btn.ghost { background:transparent; border:1px solid #ddd; color:inherit; }
+    .board-wrap { position:relative; height:calc(100vh - 72px); overflow:auto; background:linear-gradient(180deg,#fafafa,#fff); }
+    .board { position:relative; width:2000px; height:1400px; margin:24px; border-radius:12px; background:repeating-linear-gradient(0deg, rgba(0,0,0,0.02) 0 1px, transparent 1px 40px); box-shadow: 0 6px 20px rgba(16,24,40,0.04); }
+    .node {
+      position:absolute;
+      min-width:150px;
+      max-width:320px;
+      padding:10px 12px;
+      border-radius:10px;
+      background:#fff;
+      box-shadow:0 6px 18px rgba(2,6,23,0.06);
+      border:1px solid rgba(0,0,0,0.06);
+      cursor:grab;
+      user-select:none;
+    }
+    .node:active { cursor:grabbing; }
+    .node .node-hdr { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:8px; }
+    .node .node-title { font-weight:700; font-size:0.98rem; margin:0; }
+    .node .node-body { min-height:26px; }
+    .node [contenteditable] { outline:none; }
+    .node .node-controls { display:flex; gap:6px; align-items:center; }
+    .connector-line { position:absolute; inset:0; pointer-events:none; }
+    .mode-indicator { padding:6px 8px; border-radius:8px; font-size:0.92rem; background:#ffe9b3; color:#4a2c00; border:1px solid #ffd27a; }
+    .right-panel { position: absolute; right: 24px; top: 24px; background: rgba(255,255,255,0.95); border-radius:10px; padding:8px; box-shadow:0 6px 18px rgba(2,6,23,0.07); }
+    .small-muted { font-size:0.86rem; color:#6b7280; }
+    .file-input { display:none; }
+    @media (max-width:900px) {
+      .board { width:1200px; height:1000px; }
+    }
+  </style>
 </head>
 <body>
-  <!-- Header -->
-  <header class="site-header">
+  <header class="workspace-header">
     <button id="menuIcon" class="icon-btn" aria-label="Open menu">☰</button>
-    <h1 class="site-title" id="projectName">Project Detail</h1>
+    <h1 id="wsTitle" style="margin:0; font-size:1.05rem;">Workspace</h1>
 
-    <div class="project-switcher" style="position:relative;">
-      <button id="projectDropdownToggle" class="project-toggle" aria-haspopup="true" aria-expanded="false">
-        Projects ▾
-      </button>
-      <nav id="projectDropdownMenu" class="project-dropdown-menu" role="menu" aria-label="Projects menu">
-        <a class="dropdown-project-button" role="menuitem" href="project_detail.html?id=1">Project 1 — Alpha</a>
-        <a class="dropdown-project-button" role="menuitem" href="project_detail.html?id=2">Project 2 — Beta</a>
-        <a class="dropdown-project-button" role="menuitem" href="project_detail.html?id=3">Project 3 — Gamma</a>
-      </nav>
+    <div class="workspace-toolbar" role="toolbar" aria-label="Workspace tools">
+      <button id="addNode" class="ws-btn">+ Add Node</button>
+      <button id="connectToggle" class="ws-btn ghost">Connect</button>
+      <button id="deleteNode" class="ws-btn ghost">Delete</button>
+      <button id="clearBoard" class="ws-btn ghost">Clear</button>
+
+      <button id="saveBoard" class="ws-btn">Save</button>
+      <button id="exportBtn" class="ws-btn ghost">Export</button>
+      <label class="ws-btn ghost" for="importFile" style="cursor:pointer;">Import</label>
+      <input id="importFile" class="file-input" type="file" accept="application/json">
+
+      <div class="mode-indicator" id="modeIndicator" style="display:none;">Connect mode</div>
     </div>
   </header>
 
-  <!-- Sidebar -->
-  <aside id="sidebar" class="sidebar" aria-hidden="true">
-    <button id="closeIcon" class="icon-btn" aria-label="Close menu">✕</button>
-    <nav class="side-nav" aria-label="Main navigation">
-      <a href="index.html">Home</a>
-      <a href="projects.html">Projects</a>
-      <a href="#">About</a>
-      <a href="#">Contact</a>
-    </nav>
-  </aside>
+  <main class="board-wrap">
+    <div id="board" class="board" tabindex="0" aria-label="Workspace board">
+      <!-- SVG connector layer -->
+      <svg id="svgLayer" class="connector-line" xmlns="http://www.w3.org/2000/svg"></svg>
+      <!-- nodes will be appended here -->
+    </div>
 
-  <!-- Main content -->
-  <main class="main-content" role="main">
-    <article class="project-detail" aria-labelledby="projectName">
-      <header class="detail-header">
-        <img src="images/goat.png" alt="Project thumbnail" class="project-detail-thumb" />
-        <div>
-          <h2 id="projectTitle">Project</h2>
-          <p id="projectSubtitle" class="muted">Project subtitle and short summary</p>
-        </div>
-      </header>
-
-      <section id="projectOverview" class="detail-section">
-        <h3>Overview</h3>
-        <p id="overviewText">Project overview will appear here.</p>
-      </section>
-
-      <section id="projectNotes" class="detail-section">
-        <h3>Notes / Tasks</h3>
-        <ul id="notesList">
-          <li>No notes yet. Use this area to add tasks.</li>
-        </ul>
-      </section>
-
-      <div class="detail-actions">
-        <a class="btn" href="projects.html">Back to Projects</a>
-        <a id="openProjectBtn" class="btn ghost" href="#">Open Project</a>
-      </div>
-    </article>
+    <div class="right-panel" aria-hidden="false">
+      <div class="small-muted">Tips</div>
+      <ul style="margin:8px 0 0 16px;">
+        <li>Double-click a node title or body to edit text.</li>
+        <li>Drag to move nodes. Use <strong>Connect</strong> to draw links between nodes.</li>
+        <li>Save/export to keep a copy. Import a JSON file to load.</li>
+      </ul>
+    </div>
   </main>
 
-  <footer class="site-footer">
-    <small>© Aries</small>
-  </footer>
+  <footer style="display:none;"></footer>
 
-  <!-- Load app script (non-module) -->
   <script src="app.js" defer></script>
 
-  <!-- Page-specific script: populate details from query param -->
+  <!-- Workspace logic -->
   <script>
-    (function () {
-      // Simple project data (replace with dynamic source if you have one)
-      const PROJECT_DATA = {
-        '1': {
-          name: 'Project 1 — Alpha',
-          subtitle: 'Alpha demo project',
-          overview: 'This is a sample overview for Project 1. Use this area to present details, links and status.',
-          notes: ['Onboard design', 'Setup repo', 'Initial deploy'],
-          openUrl: '#'
-        },
-        '2': {
-          name: 'Project 2 — Beta',
-          subtitle: 'Beta testing project',
-          overview: 'Overview for Project 2. Replace with real content.',
-          notes: ['User testing', 'Bug fixes'],
-          openUrl: '#'
-        },
-        '3': {
-          name: 'Project 3 — Gamma',
-          subtitle: 'Gamma experimental project',
-          overview: 'Overview for Project 3. Replace with real content.',
-          notes: ['Prototype', 'Feedback loop'],
-          openUrl: '#'
-        }
-      };
+    (function(){
+      // Basic in-memory model with localStorage persistence by project id
+      const board = document.getElementById('board');
+      const svg = document.getElementById('svgLayer');
+      const addNodeBtn = document.getElementById('addNode');
+      const connectToggle = document.getElementById('connectToggle');
+      const deleteNodeBtn = document.getElementById('deleteNode');
+      const clearBoardBtn = document.getElementById('clearBoard');
+      const saveBoardBtn = document.getElementById('saveBoard');
+      const exportBtn = document.getElementById('exportBtn');
+      const importFile = document.getElementById('importFile');
+      const modeIndicator = document.getElementById('modeIndicator');
+      const wsTitle = document.getElementById('wsTitle');
 
-      function getQueryParam(key) {
-        const params = new URLSearchParams(window.location.search);
-        return params.get(key);
+      // Get project id from query param
+      function getQueryParam(k){ return new URLSearchParams(location.search).get(k); }
+      const projectId = getQueryParam('id') || 'workspace-demo';
+      const storageKey = 'aries_board_' + projectId;
+
+      wsTitle.textContent = 'Workspace — ' + (projectId ? projectId : 'Untitled');
+
+      // Model:
+      // nodes: [{id, x, y, w, h, title, body}]
+      // links: [{fromId, toId, id}]
+      let model = { nodes: [], links: [] };
+      let dragging = null;
+      let dragOffset = {x:0,y:0};
+      let connectMode = false;
+      let connectFrom = null;
+      let selectedNodeId = null;
+
+      function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+
+      // Load/save
+      function loadModel() {
+        try {
+          const raw = localStorage.getItem(storageKey);
+          model = raw ? JSON.parse(raw) : { nodes:[], links:[] };
+        } catch (e) { model = { nodes:[], links:[] }; }
+      }
+      function saveModel() {
+        localStorage.setItem(storageKey, JSON.stringify(model));
+        flash('Saved');
       }
 
-      function renderProject(id) {
-        const data = PROJECT_DATA[id] || null;
-        const projectName = document.getElementById('projectName');
-        const projectTitle = document.getElementById('projectTitle');
-        const projectSubtitle = document.getElementById('projectSubtitle');
-        const overviewText = document.getElementById('overviewText');
-        const notesList = document.getElementById('notesList');
-        const openBtn = document.getElementById('openProjectBtn');
+      // Render
+      function clearBoardDOM() {
+        // remove nodes
+        const existing = board.querySelectorAll('.node');
+        existing.forEach(n => n.remove());
+        // clear svg
+        while(svg.firstChild) svg.removeChild(svg.firstChild);
+      }
 
-        if (!data) {
-          projectName.textContent = 'Project not found';
-          projectTitle.textContent = 'Project not found';
-          overviewText.textContent = 'No data available for this project.';
-          notesList.innerHTML = '<li>Project ID not recognized.</li>';
-          openBtn.setAttribute('href', 'projects.html');
+      function render() {
+        clearBoardDOM();
+        // render nodes
+        model.nodes.forEach(n => {
+          const el = createNodeElement(n);
+          board.appendChild(el);
+        });
+        // render links
+        model.links.forEach(l => drawLink(l));
+      }
+
+      function createNodeElement(n) {
+        const el = document.createElement('div');
+        el.className = 'node';
+        el.dataset.id = n.id;
+        el.style.left = (n.x || 80) + 'px';
+        el.style.top = (n.y || 80) + 'px';
+        el.innerHTML = `
+          <div class="node-hdr">
+            <h4 class="node-title" contenteditable="true">${escapeHtml(n.title || 'New node')}</h4>
+            <div class="node-controls">
+              <button class="small-btn" data-action="connect" title="Connect">⤴</button>
+              <button class="small-btn" data-action="duplicate" title="Duplicate">⎘</button>
+              <button class="small-btn" data-action="remove" title="Remove">✕</button>
+            </div>
+          </div>
+          <div class="node-body" contenteditable="true">${escapeHtml(n.body || '')}</div>
+        `;
+        // events
+        el.addEventListener('pointerdown', nodePointerDown);
+        el.addEventListener('dblclick', (e)=> {
+          const t = e.target;
+          if (t && t.isContentEditable) { /* allow edit */ }
+        });
+
+        // controls
+        el.querySelectorAll('[data-action]').forEach(btn => {
+          btn.addEventListener('click', (ev)=>{
+            ev.stopPropagation();
+            const act = btn.dataset.action;
+            if (act === 'remove') { removeNode(n.id); }
+            if (act === 'duplicate') { duplicateNode(n.id); }
+            if (act === 'connect') { startConnectFrom(n.id); }
+          });
+        });
+
+        // contenteditable change commit on blur
+        const titleEl = el.querySelector('.node-title');
+        const bodyEl = el.querySelector('.node-body');
+        [titleEl, bodyEl].forEach(elem => {
+          elem.addEventListener('blur', () => {
+            const node = model.nodes.find(x => x.id === n.id);
+            if (!node) return;
+            node.title = titleEl.innerText.trim();
+            node.body = bodyEl.innerText.trim();
+            saveModel();
+            renderLinks();
+          });
+        });
+
+        // click selects
+        el.addEventListener('click', (ev)=> {
+          ev.stopPropagation();
+          selectNode(n.id);
+          if (connectMode) {
+            if (!connectFrom) startConnectFrom(n.id);
+            else finishConnectTo(n.id);
+          }
+        });
+
+        return el;
+      }
+
+      function escapeHtml(s){ if(!s) return ''; return s.replace(/[&<>"']/g, (m)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+      // Pointer drag handlers
+      function nodePointerDown(e) {
+        e.preventDefault();
+        const el = e.currentTarget;
+        const id = el.dataset.id;
+        dragging = id;
+        const rect = el.getBoundingClientRect();
+        const boardRect = board.getBoundingClientRect();
+        dragOffset.x = e.clientX - rect.left;
+        dragOffset.y = e.clientY - rect.top;
+        el.setPointerCapture(e.pointerId);
+        el.addEventListener('pointermove', nodePointerMove);
+        el.addEventListener('pointerup', nodePointerUp);
+      }
+      function nodePointerMove(e) {
+        if (!dragging) return;
+        const el = board.querySelector(`.node[data-id="${dragging}"]`);
+        if (!el) return;
+        const boardRect = board.getBoundingClientRect();
+        const x = e.clientX - boardRect.left - dragOffset.x;
+        const y = e.clientY - boardRect.top - dragOffset.y;
+        el.style.left = x + 'px';
+        el.style.top = y + 'px';
+      }
+      function nodePointerUp(e) {
+        const el = e.currentTarget;
+        el.removeEventListener('pointermove', nodePointerMove);
+        el.removeEventListener('pointerup', nodePointerUp);
+        const id = el.dataset.id;
+        const node = model.nodes.find(x => x.id === id);
+        if (!node) return;
+        const boardRect = board.getBoundingClientRect();
+        const rect = el.getBoundingClientRect();
+        node.x = rect.left - boardRect.left;
+        node.y = rect.top - boardRect.top;
+        saveModel();
+        dragging = null;
+        renderLinks(); // update connectors
+      }
+
+      // Links
+      function drawLink(link) {
+        const from = model.nodes.find(n => n.id === link.fromId);
+        const to = model.nodes.find(n => n.id === link.toId);
+        if (!from || !to) return;
+        const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+        const boardRect = board.getBoundingClientRect();
+
+        const fx = (from.x || 0) + (getNodeWidth(from.id)/2);
+        const fy = (from.y || 0) + 20;
+        const tx = (to.x || 0) + (getNodeWidth(to.id)/2);
+        const ty = (to.y || 0) + 20;
+
+        line.setAttribute('x1', fx);
+        line.setAttribute('y1', fy);
+        line.setAttribute('x2', tx);
+        line.setAttribute('y2', ty);
+        line.setAttribute('stroke', '#0f172a');
+        line.setAttribute('stroke-width', '2');
+        line.setAttribute('stroke-linecap', 'round');
+        line.dataset.id = link.id;
+        svg.appendChild(line);
+      }
+
+      function drawTempLine(fromX,fromY,toX,toY) {
+        // remove existing temp if any
+        const existing = svg.querySelector('.temp-line');
+        if (existing) existing.remove();
+        const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+        line.setAttribute('x1', fromX);
+        line.setAttribute('y1', fromY);
+        line.setAttribute('x2', toX);
+        line.setAttribute('y2', toY);
+        line.setAttribute('stroke', '#f97316');
+        line.setAttribute('stroke-width', '2');
+        line.setAttribute('stroke-dasharray','6 6');
+        line.classList.add('temp-line');
+        svg.appendChild(line);
+      }
+
+      function renderLinks() {
+        while(svg.firstChild) svg.removeChild(svg.firstChild);
+        model.links.forEach(l => drawLink(l));
+      }
+
+      // helpers
+      function getNodeWidth(id) {
+        const el = board.querySelector(`.node[data-id="${id}"]`);
+        return el ? el.offsetWidth : 140;
+      }
+
+      // Node operations
+      function addNodeAt(x=120,y=120,title='New node') {
+        const n = { id: uid(), x, y, title, body:'', w:180, h:80 };
+        model.nodes.push(n);
+        saveModel();
+        render();
+        selectNode(n.id);
+        return n;
+      }
+      function removeNode(id) {
+        model.nodes = model.nodes.filter(n => n.id !== id);
+        model.links = model.links.filter(l => l.fromId !== id && l.toId !== id);
+        saveModel();
+        render();
+      }
+      function duplicateNode(id) {
+        const orig = model.nodes.find(n => n.id === id);
+        if (!orig) return;
+        const copy = Object.assign({}, orig, { id: uid(), x: orig.x + 30, y: orig.y + 30 });
+        model.nodes.push(copy);
+        saveModel();
+        render();
+      }
+
+      // selection
+      function selectNode(id) {
+        selectedNodeId = id;
+        board.querySelectorAll('.node').forEach(n => n.classList.toggle('selected', n.dataset.id === id));
+      }
+
+      // connect mode
+      function startConnectFrom(id) {
+        connectFrom = id;
+        connectMode = true;
+        modeIndicator.style.display = 'inline-block';
+        connectToggle.classList.add('active');
+        // show temp line following mouse
+        board.addEventListener('pointermove', connectPointerMove);
+        board.addEventListener('pointerdown', connectPointerDown);
+      }
+      function finishConnectTo(id) {
+        if (!connectFrom) return;
+        if (connectFrom === id) { // ignore self link
+          cancelConnectMode();
           return;
         }
-
-        projectName.textContent = data.name;
-        projectTitle.textContent = data.name;
-        projectSubtitle.textContent = data.subtitle;
-        overviewText.textContent = data.overview;
-        notesList.innerHTML = '';
-        data.notes.forEach(n => {
-          const li = document.createElement('li');
-          li.textContent = n;
-          notesList.appendChild(li);
-        });
-        openBtn.setAttribute('href', data.openUrl);
+        const link = { id: uid(), fromId: connectFrom, toId: id };
+        // avoid duplicates
+        const exists = model.links.some(l => l.fromId === link.fromId && l.toId === link.toId);
+        if (!exists) model.links.push(link);
+        saveModel();
+        cancelConnectMode();
+        render();
+      }
+      function cancelConnectMode() {
+        connectMode = false; connectFrom = null;
+        modeIndicator.style.display = 'none';
+        connectToggle.classList.remove('active');
+        board.removeEventListener('pointermove', connectPointerMove);
+        board.removeEventListener('pointerdown', connectPointerDown);
+        const temp = svg.querySelector('.temp-line'); if (temp) temp.remove();
       }
 
-      const id = getQueryParam('id') || '1';
-      renderProject(id);
-
-      // Accessibility: ensure dropdown toggle toggles aria-expanded (mirrors projects page)
-      const toggle = document.getElementById('projectDropdownToggle');
-      const menu = document.getElementById('projectDropdownMenu');
-      if (toggle && menu) {
-        toggle.addEventListener('click', () => {
-          const open = menu.classList.toggle('visible');
-          toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-        });
+      function connectPointerMove(e) {
+        if (!connectFrom) return;
+        const fromNode = model.nodes.find(n => n.id === connectFrom);
+        if (!fromNode) return;
+        const fx = fromNode.x + (getNodeWidth(fromNode.id)/2);
+        const fy = fromNode.y + 20;
+        const boardRect = board.getBoundingClientRect();
+        const toX = e.clientX - boardRect.left;
+        const toY = e.clientY - boardRect.top;
+        drawTempLine(fx,fy,toX,toY);
       }
+      function connectPointerDown(e) {
+        e.preventDefault();
+        // If clicked on empty board, cancel connect
+        if (e.target === board || e.target === svg || e.target === board.parentElement) {
+          cancelConnectMode();
+        }
+      }
+
+      // toolbar bindings
+      addNodeBtn.addEventListener('click', ()=> {
+        addNodeAt(120 + Math.random()*240, 120 + Math.random()*120, 'New node');
+      });
+      connectToggle.addEventListener('click', ()=> {
+        if (connectMode) cancelConnectMode();
+        else { connectMode = true; modeIndicator.style.display='inline-block'; connectToggle.classList.add('active'); }
+      });
+      deleteNodeBtn.addEventListener('click', ()=> {
+        if (!selectedNodeId) { alert('Select a node first by clicking it.'); return; }
+        if (!confirm('Delete selected node?')) return;
+        removeNode(selectedNodeId);
+        selectedNodeId = null;
+      });
+      clearBoardBtn.addEventListener('click', ()=> {
+        if (!confirm('Clear all nodes and links?')) return;
+        model = { nodes:[], links:[] }; saveModel(); render();
+      });
+
+      saveBoardBtn.addEventListener('click', ()=> saveModel());
+      exportBtn.addEventListener('click', ()=> {
+        const data = JSON.stringify(model, null, 2);
+        const blob = new Blob([data], {type:'application/json'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = (projectId||'board') + '.board.json';
+        document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+      });
+      importFile.addEventListener('change', (e)=> {
+        const f = e.target.files[0]; if (!f) return;
+        const r = new FileReader();
+        r.onload = function(){ try { const parsed = JSON.parse(r.result); if (parsed.nodes && parsed.links) { model = parsed; saveModel(); render(); flash('Imported'); } else alert('Invalid file format'); } catch (err){ alert('Invalid JSON'); } };
+        r.readAsText(f);
+      });
+
+      // click on board clears selection
+      board.addEventListener('click', (e)=> {
+        if (e.target === board || e.target === svg) selectNode(null);
+      });
+
+      // render helpers
+      function drawAll() { renderLinks(); }
+
+      // small flash message
+      function flash(msg) {
+        const el = document.createElement('div');
+        el.textContent = msg; el.style.position='fixed'; el.style.right='20px'; el.style.bottom='20px';
+        el.style.background='#0b74ff'; el.style.color='#fff'; el.style.padding='8px 12px'; el.style.borderRadius='8px';
+        el.style.boxShadow='0 8px 20px rgba(15,23,42,0.12)'; document.body.appendChild(el);
+        setTimeout(()=> el.remove(), 1400);
+      }
+
+      // initial load
+      loadModel();
+      render();
+
+      // on window resize or scroll, re-render links (positions might change)
+      window.addEventListener('resize', renderLinks);
+      board.addEventListener('scroll', renderLinks);
+
+      // keyboard support: delete key to remove selected
+      window.addEventListener('keydown', (e)=>{
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+          if (selectedNodeId) { if (confirm('Delete selected node?')) removeNode(selectedNodeId); }
+        }
+        if (e.key === 'Escape') { cancelConnectMode(); }
+      });
+
+      // expose minimal API for debugging
+      window.__aries_board = {
+        getModel: ()=> model,
+        save: saveModel,
+        load: ()=> { loadModel(); render(); }
+      };
     })();
   </script>
 </body>
