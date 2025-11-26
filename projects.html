@@ -9,66 +9,81 @@
     <link href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&family=Roboto+Slab:wght@900&display=swap" rel="stylesheet">
 </head>
 <body>
-
-    <header class="project-header">
-        <span id="menuIcon" class="menu-icon">&#9776;</span>
-        <h1 class="header-title">PROJECT MANAGER</h1>
-        <div class="ram-icon"></div>
-    </header>
-
-    <main class="project-manager-main">
-        <div class="projects-container">
-            
-            <div class="projects-header-row">
-                <h2 class="projects-heading">PROJECTS</h2>
-                <button class="add-project-button">Add Project <span class="plus-icon">+</span></button>
-            </div>
-
-            <div class="project-list-container">
-
-                <div class="project-card">
-                    <div class="project-name-box">
-                        <span class="project-name-text">Project Name 1</span>
-                    </div>
-                    <div class="project-status-box">
-                        <span class="status-label">STATUS</span>
-                        <div class="dropdown-box">DROPDOWN</div>
-                    </div>
-                </div>
-
-                <div class="project-card">
-                    <div class="project-name-box">
-                        <span class="project-name-text">Project Name 2</span>
-                    </div>
-                    <div class="project-status-box">
-                        <span class="status-label">STATUS</span>
-                        <div class="dropdown-box">DROPDOWN</div>
-                    </div>
-                </div>
-                
-                <div class="project-card">
-                    <div class="project-name-box">
-                        <span class="project-name-text">Project Name 3</span>
-                    </div>
-                    <div class="project-status-box">
-                        <span class="status-label">STATUS</span>
-                        <div class="dropdown-box">DROPDOWN</div>
-                    </div>
-                </div>
-
-                <div class="project-card">
-                    <div class="project-name-box">
-                        <span class="project-name-text">Project Name 4</span>
-                    </div>
-                    <div class="project-status-box">
-                        <span class="status-label">STATUS</span>
-                        <div class="dropdown-box">DROPDOWN</div>
-                    </div>
-                </div>
-
-            </div>
+    
+    <div id="sidebar" class="sidebar">
+        <div class="sidebar-header">
+            <span id="closeIcon" class="close-icon">&#10094;</span> 
         </div>
-    </main>
+        
+        <a href="index.html" class="sidebar-button">DASHBOARD</a>
+        <a href="projects.html" class="sidebar-button">PROJECT</a>
+        <a href="#" class="sidebar-button">ABOUT</a>
+        <a href="#" class="sidebar-button">SETTINGS</a>
+    </div>
 
-    </body>
+    <div id="pageWrapper" class="page-wrapper">
+
+        <header class="project-header">
+            <span id="menuIcon" class="menu-icon">&#9776;</span>
+            <h1 class="header-title">PROJECT MANAGER</h1>
+            <div class="ram-icon"></div>
+        </header>
+
+        <main class="project-manager-main">
+            <div class="projects-container">
+                
+                <div class="projects-header-row">
+                    <h2 class="projects-heading">PROJECTS</h2>
+                    <button class="add-project-button">Add Project <span class="plus-icon">+</span></button>
+                </div>
+
+                <div class="project-list-container">
+
+                    <div class="project-card">
+                        <div class="project-name-box">
+                            <span class="project-name-text">Project Name 1</span>
+                        </div>
+                        <div class="project-status-box">
+                            <span class="status-label">STATUS</span>
+                            <div class="dropdown-box">DROPDOWN</div>
+                        </div>
+                    </div>
+
+                    <div class="project-card">
+                        <div class="project-name-box">
+                            <span class="project-name-text">Project Name 2</span>
+                        </div>
+                        <div class="project-status-box">
+                            <span class="status-label">STATUS</span>
+                            <div class="dropdown-box">DROPDOWN</div>
+                        </div>
+                    </div>
+                    
+                    <div class="project-card">
+                        <div class="project-name-box">
+                            <span class="project-name-text">Project Name 3</span>
+                        </div>
+                        <div class="project-status-box">
+                            <span class="status-label">STATUS</span>
+                            <div class="dropdown-box">DROPDOWN</div>
+                        </div>
+                    </div>
+
+                    <div class="project-card">
+                        <div class="project-name-box">
+                            <span class="project-name-text">Project Name 4</span>
+                        </div>
+                        <div class="project-status-box">
+                            <span class="status-label">STATUS</span>
+                            <div class="dropdown-box">DROPDOWN</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+    
+</body>
 </html>
