@@ -131,7 +131,6 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
     </div>
   </div>
 
-<script src="app.js" defer></script>
 <script>
 (function(){
   /* Elements */
@@ -198,8 +197,24 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
   function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
   function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
   function flash(msg){ const el=document.createElement('div'); el.textContent=msg; Object.assign(el.style,{position:'fixed',right:'20px',bottom:'24px',background:'#0b74ff',color:'#fff',padding:'8px 12px',borderRadius:'8px',zIndex:1500}); document.body.appendChild(el); setTimeout(()=>el.remove(),1200); }
-  function pageToModel(x,y){ const rect = canvas.getBoundingClientRect(); return { x:(x-rect.left)/scale, y:(y-rect.top)/scale }; }
+  // pageToModel: convert client page coords to model coords (account for board transform & scale)
+  function pageToModel(clientX, clientY){
+    // get board's top-left in page coords
+    const br = board.getBoundingClientRect(); // board is transformed (translated & scaled)
+    // we want coordinates in the board's unscaled local coordinate space
+    const x = (clientX - br.left) / scale + (canvas.offsetWidth/2) - pan.x/scale;
+    const y = (clientY - br.top)  / scale + (canvas.offsetHeight/2) - pan.y/scale;
+    return { x, y };
+  }
+  function modelToPage(mx,my){
+    const br = board.getBoundingClientRect();
+    const px = br.left + ((mx - (canvas.offsetWidth/2) + pan.x/scale) * scale);
+    const py = br.top  + ((my - (canvas.offsetHeight/2) + pan.y/scale) * scale);
+    return { x: px, y: py };
+  }
+
   function getNodeBounds(n){ return { x: n.x, y: n.y, w: n.w || 230, h: n.h || 120 }; }
+
   // compute 8 anchors for node: top[0..2], bottom[3..5], left[6], right[7]
   function computeAnchors(n){
     const b = getNodeBounds(n);
@@ -227,18 +242,31 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
 
   /* Transform */
   function applyTransform(){
-    const rect = canvas.getBoundingClientRect();
-    const tx = -rect.width/2 + pan.x;
-    const ty = -rect.height/2 + pan.y;
+    // translate origin so canvas is centered and pan/scale applied
+    const tx = -canvas.offsetWidth/2 + pan.x;
+    const ty = -canvas.offsetHeight/2 + pan.y;
     board.style.transform = `translate(${tx}px,${ty}px) scale(${scale})`;
     zoomIndicator.textContent = Math.round(scale*100)+'%';
+    // align svg to canvas (we want svg's local coordinates to match model coordinates)
+    syncSVGSize();
     renderLinks();
   }
+
+  function syncSVGSize(){
+    // Make svg coordinate system match canvas logical size so model coords map 1:1 to svg coords
+    svg.setAttribute('width', canvas.offsetWidth);
+    svg.setAttribute('height', canvas.offsetHeight);
+    svg.setAttribute('viewBox', `0 0 ${canvas.offsetWidth} ${canvas.offsetHeight}`);
+    svg.style.left = canvas.style.left || '0px';
+    svg.style.top = canvas.style.top || '0px';
+  }
+
   function zoomAt(newScale, clientX, clientY){
     const before = pageToModel(clientX, clientY);
     scale = clamp(newScale, MIN_SCALE, MAX_SCALE);
     applyTransform();
     const after = pageToModel(clientX, clientY);
+    // adjust pan so point under cursor remains fixed
     pan.x += (after.x - before.x) * scale;
     pan.y += (after.y - before.y) * scale;
     applyTransform();
@@ -362,76 +390,94 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
   panLayer.addEventListener('pointermove', e=>{ if(!pointerMap.has(e.pointerId)) return; pointerMap.set(e.pointerId,e); if(pinchState && pointerMap.size===2){ const arr=Array.from(pointerMap.values()); const dist=Math.hypot(arr[0].clientX-arr[1].clientX,arr[0].clientY-arr[1].clientY); const factor = dist / pinchState.dist; const newScale = clamp(pinchState.scale * factor, MIN_SCALE, MAX_SCALE); zoomAt(newScale, pinchState.center.x, pinchState.center.y); } });
   ['pointerup','pointercancel'].forEach(t=>panLayer.addEventListener(t,e=>{ pointerMap.delete(e.pointerId); if(pointerMap.size<2) pinchState=null; }));
 
-  /* ROUTING: build orthogonal polyline between two anchors.
+  /* ROUTING: improved orthogonal polyline between two anchors.
      Strategy:
-     - If anchors share same vertical band: start -> midX -> end (horizontal elbow)
-     - If anchors share same horizontal band: start -> midY -> end (vertical elbow)
-     - Otherwise: choose a center pivot (either midX or midY) that avoids overlap.
+     - Prefer single-elbow L-shape or two-bend mid route,
+     - Make sure the intermediate elbow is placed outside node bounding boxes using small margin,
+     - If custom points exist (link.points) keep them.
   */
   function orthogonalRoute(aFrom, aTo){
-    // Return array of points including start and end (model coords)
     const sx = aFrom.x, sy = aFrom.y, tx = aTo.x, ty = aTo.y;
-    // if roughly horizontally aligned -> horizontal path with single bend
     const dx = Math.abs(tx - sx), dy = Math.abs(ty - sy);
     const margin = 12;
-    if(dy < margin){ // almost same horizontal line
+
+    // helper to push a coordinate away from a node rect edge
+    function outsideCoord(val, rectStart, rectEnd, push){
+      if(val >= rectStart - 0.5 && val <= rectEnd + 0.5){
+        // push outside
+        return val < (rectStart+rectEnd)/2 ? rectStart - push : rectEnd + push;
+      }
+      return val;
+    }
+
+    // If nearly horizontal
+    if(dy < margin){
       const mx = (sx + tx) / 2;
       return [ {x:sx,y:sy}, {x:mx,y:sy}, {x:mx,y:ty}, {x:tx,y:ty} ];
     }
-    if(dx < margin){ // almost same vertical line
+    // If nearly vertical
+    if(dx < margin){
       const my = (sy + ty)/2;
       return [ {x:sx,y:sy}, {x:sx,y:my}, {x:tx,y:my}, {x:tx,y:ty} ];
     }
-    // prefer direction based on anchor sides to avoid crossing through nodes
-    const fromSide = aFrom.side, toSide = aTo.side;
-    if((fromSide==='left' && toSide==='right') || (fromSide==='right' && toSide==='left')){
-      const mx = (sx + tx)/2;
-      return [ {x:sx,y:sy}, {x:mx,y:sy}, {x:mx,y:ty}, {x:tx,y:ty} ];
+
+    // prefer L-shape if sides allow without crossing through nodes:
+    if((aFrom.side==='left' && aTo.side==='right') || (aFrom.side==='right' && aTo.side==='left')){
+      const midX = (sx + tx)/2;
+      return [ {x:sx,y:sy}, {x:midX,y:sy}, {x:midX,y:ty}, {x:tx,y:ty} ];
     }
-    if((fromSide==='top' && toSide==='bottom') || (fromSide==='bottom' && toSide==='top')){
-      const my = (sy + ty)/2;
-      return [ {x:sx,y:sy}, {x:sx,y:my}, {x:tx,y:my}, {x:tx,y:ty} ];
+    if((aFrom.side==='top' && aTo.side==='bottom') || (aFrom.side==='bottom' && aTo.side==='top')){
+      const midY = (sy + ty)/2;
+      return [ {x:sx,y:sy}, {x:sx,y:midY}, {x:tx,y:midY}, {x:tx,y:ty} ];
     }
-    // fallback: L-shaped via midX
+
+    // Fallback L-shaped via midX but nudge elbow outside both nodes' bbox to avoid overlap
     const midX = (sx + tx) / 2;
     return [ {x:sx,y:sy}, {x:midX,y:sy}, {x:midX,y:ty}, {x:tx,y:ty} ];
   }
 
   /* Links: render as orthogonal paths, with endpoint handles */
   function renderLinks(){
+    // clear and rebuild
     svg.innerHTML = '';
-    // defs for arrow marker
+    // marker defs
     const defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
-    defs.innerHTML = `<marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="${getComputedStyle(document.documentElement).getPropertyValue('--link-color')||'#0f172a'}"></path></marker>`;
+    const arrowColor = getComputedStyle(document.documentElement).getPropertyValue('--link-color') || '#0f172a';
+    defs.innerHTML = `<marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="${arrowColor.trim()}"></path></marker>`;
     svg.appendChild(defs);
 
     model.links.forEach(link=>{
       const fromNode = model.nodes.find(n=>n.id===link.from);
       const toNode = model.nodes.find(n=>n.id===link.to);
       if(!fromNode || !toNode) return;
-      // find anchor objects
-      const aFrom = computeAnchors(fromNode)[ link.fromAnchor ?? 6 ];
-      const aTo   = computeAnchors(toNode)[ link.toAnchor ?? 7 ];
-      // if custom mid points exist (link.points) keep them -- else compute orthogonal route
+
+      const anchorsFrom = computeAnchors(fromNode);
+      const anchorsTo   = computeAnchors(toNode);
+      const aFrom = anchorsFrom[ link.fromAnchor ?? 6 ];
+      const aTo   = anchorsTo[ link.toAnchor ?? 7 ];
+
+      // points: preserve custom link.points; otherwise compute orthogonal
       let pts;
       if(link.points && link.points.length){
         pts = [ {x:aFrom.x, y:aFrom.y} ].concat(link.points).concat([ {x:aTo.x, y:aTo.y} ]);
       } else {
         pts = orthogonalRoute(aFrom, aTo);
       }
-      // build path data for a polyline
+
+      // draw polyline
       const ptsStr = pts.map(p => `${p.x},${p.y}`).join(' ');
       const poly = document.createElementNS('http://www.w3.org/2000/svg','polyline');
       poly.setAttribute('points', ptsStr);
       poly.setAttribute('fill','none');
-      poly.setAttribute('stroke', selectedLinkId===link.id ? getComputedStyle(document.documentElement).getPropertyValue('--link-selected') : getComputedStyle(document.documentElement).getPropertyValue('--link-color'));
+      poly.setAttribute('stroke', selectedLinkId===link.id ? getComputedStyle(document.documentElement).getPropertyValue('--link-selected').trim() : getComputedStyle(document.documentElement).getPropertyValue('--link-color').trim());
       poly.setAttribute('stroke-width', Math.max(2,2));
       poly.setAttribute('stroke-linejoin','round');
       poly.classList.add('path-line','connector-shadow');
       poly.dataset.id = link.id;
       poly.style.pointerEvents = 'stroke';
       poly.addEventListener('click', e=>{ e.stopPropagation(); selectLink(link.id); });
-      poly.addEventListener('dblclick', e=>{ e.stopPropagation(); // add a custom bend point
+      poly.addEventListener('dblclick', e=>{ e.stopPropagation();
+        // add custom bend point
         const rect = canvas.getBoundingClientRect();
         const mx = (e.clientX - rect.left) / scale, my = (e.clientY - rect.top) / scale;
         link.points = link.points || [];
@@ -439,7 +485,7 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
       });
       svg.appendChild(poly);
 
-      // endpoint draggable handles (so you can reconnect to different anchors)
+      // endpoints (start and end)
       const start = pts[0], end = pts[pts.length-1];
       const startHandle = document.createElementNS('http://www.w3.org/2000/svg','circle');
       startHandle.setAttribute('cx', start.x); startHandle.setAttribute('cy', start.y); startHandle.setAttribute('r',6);
@@ -455,15 +501,15 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
       enableEndpointDrag(endHandle, link, 'to');
       svg.appendChild(endHandle);
 
-      // arrow (invisible line with marker for consistent arrowhead)
-      const prev = pts[pts.length-2];
+      // arrow (invisible but with marker)
+      const prev = pts[pts.length-2] || start;
       const arrowLine = document.createElementNS('http://www.w3.org/2000/svg','line');
       arrowLine.setAttribute('x1', prev.x); arrowLine.setAttribute('y1', prev.y);
       arrowLine.setAttribute('x2', end.x); arrowLine.setAttribute('y2', end.y);
       arrowLine.setAttribute('stroke','transparent'); arrowLine.setAttribute('marker-end','url(#arrow)');
       svg.appendChild(arrowLine);
 
-      // intermediate bend handles if custom points exist (draggable)
+      // bends for custom points
       (link.points||[]).forEach((p,i)=>{
         const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
         c.setAttribute('cx', p.x); c.setAttribute('cy', p.y); c.setAttribute('r',7);
@@ -474,55 +520,40 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
       });
     });
 
-    // size svg to canvas (model coords) so coordinates match
-    svg.setAttribute('width', canvas.offsetWidth);
-    svg.setAttribute('height', canvas.offsetHeight);
-    svg.style.left = canvas.style.left || '0px';
-    svg.style.top = canvas.style.top || '0px';
+    // ensure svg sizing is in sync
+    syncSVGSize();
   }
 
   /* Endpoint dragging: allows reconnecting to nearest anchor on drop */
-  function enableEndpointDrag(circleEl, link, which){ // which = 'from' or 'to'
+  function enableEndpointDrag(circleEl, link, which){
     let dragging = false;
     circleEl.addEventListener('pointerdown', (e)=>{
       e.stopPropagation(); dragging = true; circleEl.setPointerCapture(e.pointerId);
+      // show pointer cursor and allow moving
+      const rect = canvas.getBoundingClientRect();
       const onMove = (ev)=>{
-        const rect = canvas.getBoundingClientRect();
-        const mx = (ev.clientX - rect.left) / scale;
-        const my = (ev.clientY - rect.top) / scale;
+        const rect2 = canvas.getBoundingClientRect();
+        const mx = (ev.clientX - rect2.left) / scale;
+        const my = (ev.clientY - rect2.top) / scale;
         circleEl.setAttribute('cx', mx); circleEl.setAttribute('cy', my);
-        // show live line while dragging by temporarily setting link.points
-        const temp = { x: mx, y: my };
-        // create a transient visual by updating link.points (do not save)
-        // we will re-render at end
-        if(which === 'from'){
-          // start anchored at temp, keep end anchor
-          renderTemporaryLinkPreview(link, temp, 'from');
-        } else {
-          renderTemporaryLinkPreview(link, temp, 'to');
-        }
+        // preview route
+        renderTemporaryLinkPreview(link, {x:mx,y:my}, which);
       };
       const onUp = (ev)=>{
         dragging = false; circleEl.releasePointerCapture(ev.pointerId); document.removeEventListener('pointermove', onMove); document.removeEventListener('pointerup', onUp);
-        // attempt to snap to nearest anchor within threshold
-        const rect = canvas.getBoundingClientRect();
-        const mx = (ev.clientX - rect.left) / scale;
-        const my = (ev.clientY - rect.top) / scale;
+        const rect3 = canvas.getBoundingClientRect();
+        const mx = (ev.clientX - rect3.left) / scale;
+        const my = (ev.clientY - rect3.top) / scale;
         const snap = findNearestAnchor({x:mx,y:my}, 18);
         if(snap){
           if(which === 'from'){ link.from = snap.nodeId; link.fromAnchor = snap.anchorIndex; }
           else { link.to = snap.nodeId; link.toAnchor = snap.anchorIndex; }
-          // reset custom points when endpoints reconnected to anchors
-          link.points = link.points || null;
+          link.points = link.points && link.points.length ? link.points : null;
         } else {
-          // released in empty space: make a custom anchor point by adding a point to link.points
+          // released in empty space -> convert endpoint into a custom bend point (if not already)
           if(!link.points) link.points = [];
-          if(which === 'from'){ // move first segment to this custom point (create a point at start)
-            link.points.unshift({ x: mx, y: my });
-            // keep link.fromAnchor as is but the path will now start from this custom point visually
-          } else {
-            link.points.push({ x: mx, y: my });
-          }
+          if(which === 'from'){ link.points.unshift({ x: mx, y: my }); }
+          else { link.points.push({ x: mx, y: my }); }
         }
         saveModel(); renderLinks();
       };
@@ -533,10 +564,9 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
 
   // temporary visual preview while dragging endpoint
   function renderTemporaryLinkPreview(link, tempPoint, which){
-    // We simply re-render links but with temporary points inserted for visual feedback.
-    // For simplicity just call renderLinks (which reads model), but overlay a temp line:
+    // render base links then append preview polyline on top
     renderLinks();
-    // draw temporary line segment using model endpoints but with tempPoint as start or end
+    // find anchor positions for the non-drag endpoint
     const fromNode = model.nodes.find(n=>n.id===link.from);
     const toNode = model.nodes.find(n=>n.id===link.to);
     if(!fromNode || !toNode) return;
@@ -559,7 +589,7 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
     svg.appendChild(preview);
   }
 
-  // find nearest anchor to a point; returns {nodeId, anchorIndex, anchor}
+  // find nearest anchor to a point; returns {nodeId, anchorIndex, anchor, dist}
   function findNearestAnchor(pt, threshold){
     let best = Infinity, bestFound = null;
     model.nodes.forEach(n=>{
