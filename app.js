@@ -4,22 +4,40 @@ import { collection, addDoc, getDocs, doc, getDoc, updateDoc, serverTimestamp, q
 
 /* --- 0. AUTH PROMISE (Crucial for reliable loading) --- */
 // This promise resolves ONLY after the Firebase user is available (signed in anonymously or existing).
-const authPromise = new Promise(resolve => {
+const authPromise = new Promise((resolve, reject) => {
+    let resolved = false;
+
+    // Timeout mechanism: If connection takes longer than 10 seconds, reject the promise
+    const timeout = setTimeout(() => {
+        if (!resolved) {
+            reject(new Error("Firebase connection timed out after 10 seconds. Check network and config."));
+        }
+    }, 10000); // 10 seconds
+
     onAuthStateChanged(auth, (user) => {
         if (user) {
-            console.log("User logged in:", user.uid);
-            window.currentUser = user;
-            resolve(user);
+            clearTimeout(timeout);
+            if (!resolved) {
+                console.log("Firebase: User logged in:", user.uid);
+                window.currentUser = user;
+                resolved = true;
+                resolve(user);
+            }
         } else {
             // If no user, sign in anonymously and then wait for the next onAuthStateChanged update
-            signInAnonymously(auth).catch((error) => console.error("Auth Failed", error));
+            signInAnonymously(auth).catch((error) => {
+                console.error("Firebase: Anonymous Sign-in Failed:", error.code, error.message);
+                if (!resolved) {
+                    resolved = true;
+                    reject(error); // Reject promise immediately on sign-in error
+                }
+            });
         }
     });
 });
 
 
 /* --- 1. UI INJECTION SYSTEM --- */
-// Injects the sidebar into the DOM of every page
 function injectLayout() {
     const sidebarHTML = `
     <div id="sidebar" class="sidebar">
@@ -50,9 +68,10 @@ function injectLayout() {
 /* --- 2. DATABASE HELPER FUNCTIONS (Now relying on authPromise) --- */
 window.AriesDB = {
     async getProjects() {
-        // This line PAUSES execution until Firebase is ready
+        // This will now wait for auth OR the 10-second timeout
         await authPromise; 
         
+        console.log("Firebase: Auth successful, fetching projects...");
         const q = query(collection(db, "projects"), orderBy("createdAt", "desc"));
         const snapshot = await getDocs(q);
         return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -65,7 +84,7 @@ window.AriesDB = {
             name: name,
             createdAt: serverTimestamp(),
             status: 'Active',
-            owner: window.currentUser.uid, // Use the resolved user ID
+            owner: window.currentUser.uid,
             nodes: [], 
             links: []
         });
@@ -73,7 +92,6 @@ window.AriesDB = {
     },
 
     async loadProjectData(projectId) {
-        // Data loading doesn't strictly need to wait for auth, but we keep the helper centralized
         const docRef = doc(db, "projects", projectId);
         const snap = await getDoc(docRef);
         if (snap.exists()) return snap.data();
@@ -93,6 +111,4 @@ window.AriesDB = {
 };
 
 // Initialize
-document.addEventListener("DOMContentLoaded", () => {
-    injectLayout();
-});
+document.addEventListener("DOMContentLoaded", injectLayout);
