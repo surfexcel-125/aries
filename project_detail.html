@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Workspace — Aries (8-anchor connectors)</title>
+<title>Workspace — Aries (fixed anchors)</title>
 <link rel="stylesheet" href="main.css" />
 <style>
 :root{
@@ -11,9 +11,9 @@
   --grid-color:rgba(15,23,42,0.04); --node-shadow:0 10px 28px rgba(15,23,42,0.08);
   --link-color:#0f172a; --link-selected:#ff7a59;
 }
-html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial;background:var(--bg);}
-.site-header{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #f1f1f1;background:#fff;position:sticky;top:0;z-index:40;}
-.icon-btn{background:transparent;border:0;font-size:18px;cursor:pointer;padding:6px;border-radius:999px;}
+html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial;background:var(--bg)}
+.site-header{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #f1f1f1;background:#fff;position:sticky;top:0;z-index:40}
+.icon-btn{background:transparent;border:0;font-size:18px;cursor:pointer;padding:6px;border-radius:999px}
 .header-title{font-weight:700;font-size:0.98rem}
 .btn{padding:8px 12px;border-radius:8px;border:0;cursor:pointer;font-weight:600;font-size:0.9rem}
 .btn.primary{background:var(--accent);color:#fff}
@@ -55,13 +55,6 @@ html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe 
 .modal{width:380px;max-width:94vw;background:var(--panel);border-radius:12px;padding:16px;box-shadow:0 18px 40px rgba(15,23,42,0.3)}
 .field{margin:8px 0;display:flex;flex-direction:column;gap:4px}
 .field input[type="text"],.field textarea,.field select,.field input[type="color"]{padding:8px;border-radius:8px;border:1px solid #e5e7eb;font-size:0.9rem}
-
-/* tutorial */
-.tutorial-backdrop{position:fixed;inset:0;background:linear-gradient(180deg,rgba(15,23,42,0.7),rgba(15,23,42,0.7));color:#fff;z-index:1300;display:none}
-.tutorial-card{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);max-width:900px;padding:24px}
-.tutorial-step{background:rgba(15,23,42,0.4);border-radius:14px;padding:16px;border:1px solid rgba(255,255,255,0.12)}
-.tutorial-footer{margin-top:10px;display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:0.85rem}
-.tutorial-btn{padding:8px 12px;border-radius:8px;border:0;cursor:pointer;font-size:0.9rem}
 
 /* svg link styles + handles */
 svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:6}
@@ -105,6 +98,7 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
     <div id="panLayer" class="pan-layer" tabindex="0">
       <div id="board" class="board">
         <div id="canvas" class="canvas"></div>
+        <!-- SVG placed inside board alongside canvas; coordinates use model-space (no extra scale multiplication) -->
         <svg id="svg" class="link-layer" xmlns="http://www.w3.org/2000/svg"></svg>
       </div>
     </div>
@@ -133,20 +127,6 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
       <div class="modal-actions" style="display:flex;justify-content:space-between;margin-top:12px">
         <button id="deleteBlock" class="btn ghost">Delete</button>
         <div style="display:flex;gap:8px"><button id="cancelModal" class="btn ghost">Cancel</button><button id="saveModal" class="btn primary">Save</button></div>
-      </div>
-    </div>
-  </div>
-
-  <div id="tutorial" class="tutorial-backdrop" aria-hidden="true">
-    <div class="tutorial-card">
-      <div id="tutorialStep" class="tutorial-step"></div>
-      <div class="tutorial-footer">
-        <div id="tutorialProgress"></div>
-        <div style="display:flex;gap:8px">
-          <button id="tutorialPrev" class="tutorial-btn" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.4)">Prev</button>
-          <button id="tutorialNext" class="tutorial-btn" style="background:var(--accent);color:#fff">Next</button>
-          <button id="tutorialClose" class="tutorial-btn" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.4)">Close</button>
-        </div>
       </div>
     </div>
   </div>
@@ -189,17 +169,10 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
   const cancelModalBtn = document.getElementById('cancelModal');
   const deleteBlockBtn = document.getElementById('deleteBlock');
 
-  const tutorial = document.getElementById('tutorial');
-  const tutorialStep = document.getElementById('tutorialStep');
-  const tutorialProgress = document.getElementById('tutorialProgress');
-  const tutorialPrev = document.getElementById('tutorialPrev');
-  const tutorialNext = document.getElementById('tutorialNext');
-  const tutorialClose = document.getElementById('tutorialClose');
-
   /* Storage & model */
   function getQueryParam(k){ return new URLSearchParams(location.search).get(k); }
   const projectId = getQueryParam('id') || 'demo';
-  const storageKey = 'aries_anchors_v1_' + projectId;
+  const storageKey = 'aries_anchors_v2_' + projectId;
   const tutorialKey = 'aries_tutorial_' + projectId;
 
   let model = { nodes: [], links: [] }; // link: {id, from, to, fromAnchor, toAnchor, points?}
@@ -230,21 +203,17 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
   // compute 8 anchors for node: top[0..2], bottom[3..5], left[6], right[7]
   function computeAnchors(n){
     const b = getNodeBounds(n);
-    const topYs = b.y;
-    const bottomYs = b.y + b.h;
+    const topY = b.y;
+    const bottomY = b.y + b.h;
     const xs = [ b.x + b.w*0.25, b.x + b.w*0.5, b.x + b.w*0.75 ];
     const anchors = [];
-    // top three
-    anchors.push({ x: xs[0], y: topYs, side: 'top' });
-    anchors.push({ x: xs[1], y: topYs, side: 'top' });
-    anchors.push({ x: xs[2], y: topYs, side: 'top' });
-    // bottom three
-    anchors.push({ x: xs[0], y: bottomYs, side: 'bottom' });
-    anchors.push({ x: xs[1], y: bottomYs, side: 'bottom' });
-    anchors.push({ x: xs[2], y: bottomYs, side: 'bottom' });
-    // left center
+    anchors.push({ x: xs[0], y: topY, side: 'top' });
+    anchors.push({ x: xs[1], y: topY, side: 'top' });
+    anchors.push({ x: xs[2], y: topY, side: 'top' });
+    anchors.push({ x: xs[0], y: bottomY, side: 'bottom' });
+    anchors.push({ x: xs[1], y: bottomY, side: 'bottom' });
+    anchors.push({ x: xs[2], y: bottomY, side: 'bottom' });
     anchors.push({ x: b.x, y: b.y + b.h/2, side: 'left' });
-    // right center
     anchors.push({ x: b.x + b.w, y: b.y + b.h/2, side: 'right' });
     return anchors;
   }
@@ -345,7 +314,6 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
     const id = e.currentTarget.dataset.id;
     const node = model.nodes.find(n=>n.id===id);
     if(node && snapOn){ const gs = gridSize; node.x = Math.round(node.x/gs)*gs; node.y = Math.round(node.y/gs)*gs; }
-    // automatic linking on drop via anchor distances
     autoLinkOnDrop(node);
     draggingId = null;
     try{ e.currentTarget.removeEventListener('pointermove', onNodePointerMove); e.currentTarget.removeEventListener('pointerup', onNodePointerUp); }catch(err){}
@@ -361,7 +329,6 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
     model.nodes.forEach(other=>{
       if(other.id === node.id) return;
       const anchorsB = computeAnchors(other);
-      // find closest pair
       let best = Infinity, bestPair = null;
       anchorsA.forEach((pa,i)=>{
         anchorsB.forEach((pb,j)=>{
@@ -370,7 +337,6 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
         });
       });
       if(bestPair && bestPair.d <= threshold){
-        // create link from node -> other using the chosen anchors
         const exists = model.links.some(l => l.from === node.id && l.to === other.id && l.fromAnchor === bestPair.aIndex && l.toAnchor === bestPair.bIndex);
         if(!exists){
           model.links.push({ id: uid(), from: node.id, to: other.id, fromAnchor: bestPair.aIndex, toAnchor: bestPair.bIndex, points: null });
@@ -379,7 +345,7 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
     });
   }
 
-  /* Pan/zoom events */
+  /* Pan/zoom */
   panLayer.addEventListener('pointerdown', e=>{
     if(e.target.closest('.node')) return;
     panLayer.setPointerCapture(e.pointerId);
@@ -391,87 +357,86 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
 
   panLayer.addEventListener('wheel', e=>{ e.preventDefault(); const delta = e.deltaY > 0 ? -SCALE_STEP : SCALE_STEP; const newScale = scale + delta; zoomAt(newScale,e.clientX,e.clientY); }, { passive:false });
 
-  // pinch to zoom
+  // pinch
   panLayer.addEventListener('pointerdown', e=>{ pointerMap.set(e.pointerId,e); if(pointerMap.size===2){ const arr=Array.from(pointerMap.values()); pinchState={ dist: Math.hypot(arr[0].clientX-arr[1].clientX, arr[0].clientY-arr[1].clientY), scale:scale, center:{x:(arr[0].clientX+arr[1].clientX)/2,y:(arr[0].clientY+arr[1].clientY)/2} }; } e.target.setPointerCapture(e.pointerId); });
   panLayer.addEventListener('pointermove', e=>{ if(!pointerMap.has(e.pointerId)) return; pointerMap.set(e.pointerId,e); if(pinchState && pointerMap.size===2){ const arr=Array.from(pointerMap.values()); const dist=Math.hypot(arr[0].clientX-arr[1].clientX,arr[0].clientY-arr[1].clientY); const factor = dist / pinchState.dist; const newScale = clamp(pinchState.scale * factor, MIN_SCALE, MAX_SCALE); zoomAt(newScale, pinchState.center.x, pinchState.center.y); } });
   ['pointerup','pointercancel'].forEach(t=>panLayer.addEventListener(t,e=>{ pointerMap.delete(e.pointerId); if(pointerMap.size<2) pinchState=null; }));
 
-  /* Links: render, selection, handles */
+  /* Links: render (FIXED: use model-space coordinates — DO NOT multiply by scale) */
   function renderLinks(){
+    // clear svg
     svg.innerHTML = '';
     // defs arrow
     const defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
     defs.innerHTML = `<marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="${getComputedStyle(document.documentElement).getPropertyValue('--link-color')||'#0f172a'}"></path></marker>`;
     svg.appendChild(defs);
 
+    // IMPORTANT: svg is inside the same transformed board as nodes.
+    // draw using model coordinates (no extra scale multiplication) so transform lines up with nodes.
     model.links.forEach(link=>{
-      // compute anchor positions (model coords) for endpoint anchors
       const fromNode = model.nodes.find(n=>n.id===link.from);
       const toNode = model.nodes.find(n=>n.id===link.to);
       if(!fromNode || !toNode) return;
-      const aFrom = computeAnchors(fromNode)[ link.fromAnchor ?? 3 /* fallback */ ];
-      const aTo   = computeAnchors(toNode)[ link.toAnchor ?? 4 /* fallback */ ];
-      // if link has points -> draw polyline else just straight line between anchors
+      const aFrom = computeAnchors(fromNode)[ link.fromAnchor ?? 3 ];
+      const aTo   = computeAnchors(toNode)[ link.toAnchor ?? 4 ];
       if(link.points && link.points.length){
-        // build point list: start anchor, points..., end anchor
         const pts = [ {x: aFrom.x, y: aFrom.y} ].concat(link.points).concat([ {x: aTo.x, y: aTo.y} ]);
-        const scaled = pts.map(p => `${p.x*scale},${p.y*scale}`).join(' ');
+        const scaled = pts.map(p => `${p.x},${p.y}`).join(' ');
         const poly = document.createElementNS('http://www.w3.org/2000/svg','polyline');
         poly.setAttribute('points', scaled);
         poly.classList.add('link-line');
         poly.dataset.id = link.id;
         poly.setAttribute('fill','none');
         poly.setAttribute('stroke', selectedLinkId===link.id ? getComputedStyle(document.documentElement).getPropertyValue('--link-selected') : getComputedStyle(document.documentElement).getPropertyValue('--link-color'));
-        poly.setAttribute('stroke-width', Math.max(2,2*scale));
+        poly.setAttribute('stroke-width', Math.max(2,2));
         poly.style.pointerEvents = 'stroke';
         poly.addEventListener('click', e=>{ e.stopPropagation(); selectLink(link.id); });
         poly.addEventListener('dblclick', e=>{ e.stopPropagation(); insertHandleAt(link,e); });
         svg.appendChild(poly);
-        // add handle circles for internal points
         (link.points||[]).forEach((p,i)=>{
-          const cx = p.x*scale, cy = p.y*scale;
           const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
-          c.setAttribute('cx',cx); c.setAttribute('cy',cy); c.setAttribute('r',8);
+          c.setAttribute('cx', p.x); c.setAttribute('cy', p.y); c.setAttribute('r',8);
           c.classList.add('handle'); c.dataset.linkId = link.id; c.dataset.handleIndex = i;
           enableSvgHandleDrag(c, link, i);
           svg.appendChild(c);
         });
-        // add arrowhead at end: use small triangle path because marker on polyline may be inconsistent across browsers; append a small marker line
-        // create a small invisible line for marker
+        // arrow: draw invisible line segment for marker-end (marker will be transformed with board)
         const last = pts[pts.length-1], prev = pts[pts.length-2];
         const arrowLine = document.createElementNS('http://www.w3.org/2000/svg','line');
-        arrowLine.setAttribute('x1', prev.x*scale); arrowLine.setAttribute('y1', prev.y*scale);
-        arrowLine.setAttribute('x2', last.x*scale); arrowLine.setAttribute('y2', last.y*scale);
+        arrowLine.setAttribute('x1', prev.x); arrowLine.setAttribute('y1', prev.y);
+        arrowLine.setAttribute('x2', last.x); arrowLine.setAttribute('y2', last.y);
         arrowLine.setAttribute('stroke','transparent'); arrowLine.setAttribute('marker-end','url(#arrow)');
         svg.appendChild(arrowLine);
       } else {
-        const fx = aFrom.x*scale, fy = aFrom.y*scale;
-        const tx = aTo.x*scale, ty = aTo.y*scale;
         const line = document.createElementNS('http://www.w3.org/2000/svg','line');
-        line.setAttribute('x1', fx); line.setAttribute('y1', fy); line.setAttribute('x2', tx); line.setAttribute('y2', ty);
+        line.setAttribute('x1', aFrom.x); line.setAttribute('y1', aFrom.y);
+        line.setAttribute('x2', aTo.x); line.setAttribute('y2', aTo.y);
         line.setAttribute('stroke', selectedLinkId===link.id ? getComputedStyle(document.documentElement).getPropertyValue('--link-selected') : getComputedStyle(document.documentElement).getPropertyValue('--link-color'));
-        line.setAttribute('stroke-width', Math.max(2,2*scale));
+        line.setAttribute('stroke-width', Math.max(2,2));
         line.setAttribute('marker-end','url(#arrow)');
         line.classList.add('link-line');
         line.dataset.id = link.id;
         line.style.pointerEvents = 'stroke';
         line.addEventListener('click', e=>{ e.stopPropagation(); selectLink(link.id); });
-        line.addEventListener('dblclick', e=>{ e.stopPropagation(); // convert straight to polyline by inserting midpoint
-          const mx = (aFrom.x + aTo.x)/2; const my = (aFrom.y + aTo.y)/2;
-          link.points = link.points || []; link.points.push({x:mx,y:my}); saveModel(); renderLinks();
-        });
+        line.addEventListener('dblclick', e=>{ e.stopPropagation(); const mx = (aFrom.x + aTo.x)/2; const my = (aFrom.y + aTo.y)/2; link.points = link.points || []; link.points.push({x:mx,y:my}); saveModel(); renderLinks(); });
         svg.appendChild(line);
       }
     });
+    // ensure SVG element covers canvas in model units (so coordinates line up)
+    svg.setAttribute('width', canvas.offsetWidth);
+    svg.setAttribute('height', canvas.offsetHeight);
+    svg.style.left = canvas.style.left || '0px';
+    svg.style.top = canvas.style.top || '0px';
   }
 
-  /* Polyline handle interactions */
+  /* Polyline handle dragging (model-space coords) */
   function enableSvgHandleDrag(circleEl, link, index){
     let dragging = false;
     circleEl.addEventListener('pointerdown', (e)=>{
       e.stopPropagation(); dragging = true; circleEl.setPointerCapture(e.pointerId);
       const onMove = (ev)=>{
         const rect = canvas.getBoundingClientRect();
+        // convert client to model coordinates (account for board transform)
         const mx = (ev.clientX - rect.left) / scale;
         const my = (ev.clientY - rect.top) / scale;
         link.points[index] = { x: mx, y: my }; renderLinks();
@@ -485,18 +450,16 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
     circleEl.addEventListener('dblclick', e=>{ e.stopPropagation(); link.points.splice(index,1); if(link.points.length===0) link.points=null; saveModel(); renderLinks(); });
   }
 
-  /* Insert handle on polyline double-click */
+  /* Insert handle on polyline double-click (model coords) */
   function insertHandleAt(link, e){
     const rect = canvas.getBoundingClientRect();
     const mx = (e.clientX - rect.left) / scale;
     const my = (e.clientY - rect.top) / scale;
     link.points = link.points || [];
-    // insert at nearest segment by distance to segment midpoints
     let bestIdx = 0, bestD = Infinity;
     for(let i=0;i<=link.points.length;i++){
       const a = (i===0) ? computeAnchors(model.nodes.find(n=>n.id===link.from))[link.fromAnchor] : link.points[i-1];
       const b = (i===link.points.length) ? computeAnchors(model.nodes.find(n=>n.id===link.to))[link.toAnchor] : link.points[i];
-      // compute distance from (mx,my) to segment ab
       const d = pointToSegmentDistance({x:mx,y:my}, a, b);
       if(d < bestD){ bestD = d; bestIdx = i; }
     }
@@ -563,9 +526,8 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
 
   function nodeClickForConnect(id){
     if(!connectMode) return;
-    if(!connectFrom){ connectFrom = id; highlightNode(connectFrom,true); flash('Source selected — click target'); return; }
+    if(!connectFrom){ connectFrom = id; highlightNode(connectFrom,true); return; }
     if(connectFrom === id){ highlightNode(connectFrom,false); connectFrom = null; return; }
-    // choose nearest anchor pair between nodes
     const fromNode = model.nodes.find(n=>n.id===connectFrom);
     const toNode = model.nodes.find(n=>n.id===id);
     if(!fromNode || !toNode){ connectFrom = null; setConnectMode(false); return; }
@@ -622,19 +584,6 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
   /* Canvas click deselect */
   canvas.addEventListener('click', (e)=>{ selectedNodeId = null; selectedLinkId = null; toolDeleteNode.disabled = true; toolDeleteLink.disabled = true; selectedLinkLabel.textContent = 'none'; renderNodes(); renderLinks(); });
 
-  /* Tutorial */
-  const steps = [
-    {title:'Welcome',text:'Add nodes, drag to move, scroll to zoom. Use Connector to link or drop nodes near each other to auto-link.'},
-    {title:'Edit',text:'Double-click a block or click ✎ to open settings. Change color or shape.'},
-    {title:'Bend connectors',text:'Double-click a connector to add a handle. Drag handles to bend the line.'}
-  ];
-  let tutorialIndex = 0;
-  function showTutorial(i){ tutorial.style.display='block'; tutorial.setAttribute('aria-hidden','false'); tutorialIndex = clamp(i,0,steps.length-1); const s = steps[tutorialIndex]; tutorialStep.innerHTML = `<h2 style="margin:0 0 6px">${s.title}</h2><div style="opacity:0.95">${s.text}</div>`; tutorialProgress.textContent = `Step ${tutorialIndex+1} / ${steps.length}`; tutorialPrev.style.visibility = tutorialIndex===0 ? 'hidden':'visible'; tutorialNext.textContent = tutorialIndex===steps.length-1 ? 'Finish':'Next'; }
-  tutorialNext.addEventListener('click', ()=> { if(tutorialIndex===steps.length-1) closeTutorial(); else showTutorial(tutorialIndex+1); });
-  tutorialPrev.addEventListener('click', ()=> showTutorial(tutorialIndex-1));
-  tutorialClose.addEventListener('click', closeTutorial);
-  function closeTutorial(){ tutorial.style.display='none'; tutorial.setAttribute('aria-hidden','true'); localStorage.setItem(tutorialKey,'seen'); }
-
   /* Bootstrap */
   loadModel();
   if(!model.nodes.length){
@@ -642,9 +591,8 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
     saveModel();
   }
   updateGrid(); renderNodes(); applyTransform();
-  if(!localStorage.getItem(tutorialKey)) showTutorial(0);
 
-  /* Optional: expose debug helper to show anchor points */
+  /* Debug helper: show anchors (model-space) */
   window.__aries = window.__aries || {};
   window.__aries.showAnchors = function(show){
     document.querySelectorAll('.anchor-debug').forEach(el=>el.remove());
@@ -658,7 +606,6 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
   };
 
   window.__ariesWorkspace = { model, saveModel, addNodeAt: (x,y)=>addNodeAt(x,y) };
-
 })();
 </script>
 </body>
