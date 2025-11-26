@@ -1,6 +1,5 @@
 /* workspace.js
-   COMPLETE Workflow Mapper script with Firebase integration.
-   Includes rendering for Page, Action, Decision nodes and link label functionality.
+   COMPLETE Workflow Mapper script with FIXED dragging, live-connectors, and context menu.
 */
 (function(){
   /* Elements (resolved after DOM ready) */
@@ -16,11 +15,9 @@
     const board = document.getElementById('board');
     const panLayer = document.getElementById('panLayer');
     const svg = document.getElementById('svg');
-
     const headerTitle = document.getElementById('headerTitle');
-    const floatingTools = document.getElementById('floatingTools');
     
-    // New Node Tool Buttons
+    // Node Tool Buttons
     const toolAddPage = document.getElementById('toolAddPage');
     const toolAddAction = document.getElementById('toolAddAction');
     const toolAddDecision = document.getElementById('toolAddDecision');
@@ -44,6 +41,12 @@
     const cancelModal = document.getElementById('cancelModal');
     const saveModal = document.getElementById('saveModal');
 
+    // Context Menu
+    const contextMenu = document.getElementById('contextMenu');
+    const contextEdit = document.getElementById('contextEdit');
+    const contextDelete = document.getElementById('contextDelete');
+
+
     // --- Model and State Initialization ---
     let model = { nodes: [], links: [] };
     let transform = { x: 0, y: 0, scale: 1 };
@@ -52,7 +55,8 @@
     let dragInfo = null;
     let activeModalNode = null;
     let gridSize = parseInt(gridSizeInput.value) || 25;
-    let linkDraw = null; // State for when a link is being drawn
+    let linkDraw = null; 
+    let highestZIndex = 15; // Starting Z-index for nodes
 
     
     // --- Utility Functions ---
@@ -71,7 +75,7 @@
     function applyTransform() {
       board.style.transform = `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`;
       updateZoomIndicator();
-      updateGrid(); // Grid size is affected by scale
+      updateGrid(); 
       renderLinks();
     }
 
@@ -146,7 +150,6 @@
     
     function seedInitialModel() {
       if (model.nodes.length === 0) {
-        // Default starting node for a new workflow
         addNodeAt(200, 200, 'page'); 
       }
     }
@@ -157,34 +160,19 @@
       const el = document.getElementById(`node-${node.id}`);
       if (!el) return { x: node.x, y: node.y }; 
 
-      // Get screen space coordinates of the element's bounding box
-      const rect = el.getBoundingClientRect();
-      const boardRect = board.getBoundingClientRect();
+      const width = el.offsetWidth / transform.scale;
+      const height = el.offsetHeight / transform.scale;
       
-      // Calculate true width/height in board space
-      const width = rect.width / transform.scale;
-      const height = rect.height / transform.scale;
-
-      // Center point in board space
-      let cx = node.x + width / 2;
-      let cy = node.y + height / 2;
+      let ax, ay;
       
-      // For simple horizontal flow, anchors are on the right (source) and left (target)
-      let ax = isTarget ? node.x : node.x + width;
-      let ay = cy; 
-      
-      // If Decision node, adjust anchor for rotated shape
       if (node.type === 'decision') {
-          // Anchors should be at the corners of the diamond
-          if (isTarget) {
-              // Left point
-              ax = node.x;
-              ay = node.y + height / 2;
-          } else {
-              // Right point
-              ax = node.x + width;
-              ay = node.y + height / 2;
-          }
+          // For decision nodes, connect to the left/right points of the diamond
+          ax = isTarget ? node.x : node.x + width;
+          ay = node.y + height / 2;
+      } else {
+          // For card-like nodes, connect to the right/left edges at the center
+          ax = isTarget ? node.x : node.x + width;
+          ay = node.y + height / 2;
       }
 
       return { x: ax, y: ay };
@@ -198,11 +186,11 @@
         el.className = `node node-type-${node.type} ${node.id === selectedNodeId ? 'selected' : ''}`;
         el.id = `node-${node.id}`;
         
-        // Position relative to the board
         el.style.left = `${node.x}px`;
         el.style.top = `${node.y}px`;
+        el.style.zIndex = node.zIndex || 15; // Use stored zIndex
         
-        // Set fixed width/height for Decision node type
+        // Decision nodes have fixed size defined in CSS
         if (node.type !== 'decision') {
             el.style.width = `${node.w}px`;
             el.style.height = `${node.h}px`;
@@ -218,6 +206,8 @@
         
         el.addEventListener('mousedown', (e) => handleNodeMouseDown(e, node.id));
         el.addEventListener('dblclick', (e) => { e.stopPropagation(); openNodeModal(node); });
+        el.addEventListener('contextmenu', (e) => handleContextMenu(e, node.id));
+
 
         board.appendChild(el);
       });
@@ -226,6 +216,25 @@
     
     function renderLinks() {
       svg.innerHTML = ''; 
+      
+      // Add temporary link path first if drawing
+      if (linkDraw) {
+        const tempPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        
+        // Use a simple straight line for temporary drawing
+        const p1 = { x: linkDraw.x, y: linkDraw.y };
+        const p2 = { x: linkDraw.currentX, y: linkDraw.currentY };
+        const pathData = `M${p1.x} ${p1.y} L${p2.x} ${p2.y}`;
+        
+        tempPath.setAttribute('d', pathData);
+        tempPath.setAttribute('stroke', 'var(--accent)');
+        tempPath.setAttribute('stroke-dasharray', '5,5');
+        tempPath.setAttribute('stroke-width', 3);
+        tempPath.setAttribute('fill', 'none');
+        tempPath.id = 'temp-link';
+        svg.appendChild(tempPath);
+      }
+
 
       model.links.forEach(link => {
         const sourceNode = findNode(link.source);
@@ -236,7 +245,7 @@
         const p1 = getAnchor(sourceNode);
         const p2 = getAnchor(targetNode, true);
 
-        // Compute control points for a strong, horizontal Bezier curve
+        // Compute control points for Bezier curve
         const dx = Math.max(50, Math.abs(p1.x - p2.x) * 0.4);
         const c1x = p1.x + dx;
         const c1y = p1.y;
@@ -262,6 +271,7 @@
           selectedNodeId = null;
           toolDeleteLink.disabled = false;
           toolDeleteNode.disabled = true;
+          contextMenu.style.display = 'none'; // Hide context menu
           renderNodes(); 
           renderLinks(); 
         });
@@ -270,45 +280,42 @@
         
         // Add Link Label Text
         if (link.label) {
-            // Find the midpoint of the path for text placement
+            // Find the midpoint of the path
             const midX = (p1.x + p2.x) / 2;
             const midY = (p1.y + p2.y) / 2;
             
             const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
             text.setAttribute('x', midX);
-            text.setAttribute('y', midY - 5); // Shift up slightly
+            text.setAttribute('y', midY - 5); 
             text.setAttribute('class', 'link-label');
             text.textContent = link.label;
             text.setAttribute('text-anchor', 'middle');
             svg.appendChild(text);
         }
       });
-      
-      // Render temporary link being drawn
-      if (linkDraw) {
-        // This is complex, but for simplicity, we'll draw a straight line
-        const tempPath = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-        tempPath.setAttribute('x1', linkDraw.x);
-        tempPath.setAttribute('y1', linkDraw.y);
-        tempPath.setAttribute('x2', linkDraw.currentX);
-        tempPath.setAttribute('y2', linkDraw.currentY);
-        tempPath.setAttribute('stroke', 'var(--accent)');
-        tempPath.setAttribute('stroke-width', 2);
-        tempPath.setAttribute('fill', 'none');
-        svg.appendChild(tempPath);
-      }
     }
 
 
     // --- Interaction Handlers ---
 
     function addNodeAt(x, y, type) {
+      // Small offset to prevent perfect stacking on creation
+      const offset = model.nodes.length * 10 % 50; 
+      
       const snappedCoords = {
-        x: Math.round(x / gridSize) * gridSize,
-        y: Math.round(y / gridSize) * gridSize
+        x: Math.round((x + offset) / gridSize) * gridSize,
+        y: Math.round((y + offset) / gridSize) * gridSize
       };
       
-      const defaults = { id: uid(), x: snappedCoords.x, y: snappedCoords.y, w: 220, h: 100, type: type };
+      const defaults = { 
+        id: uid(), 
+        x: snappedCoords.x, 
+        y: snappedCoords.y, 
+        w: 220, 
+        h: 100, 
+        type: type,
+        zIndex: 15
+      };
       let newNode;
       
       if (type === 'page') {
@@ -328,35 +335,53 @@
     function startLinkDraw(e, sourceId) {
         e.stopPropagation(); 
         const nodeEl = document.getElementById(`node-${sourceId}`);
-        const rect = nodeEl.getBoundingClientRect();
-        const boardRect = board.getBoundingClientRect();
         
-        // Calculate anchor position in board space (right center of the node)
-        const startX = nodeEl.offsetLeft + rect.width; 
-        const startY = nodeEl.offsetTop + rect.height / 2;
+        // Get the anchor position in board space
+        const anchorPos = getAnchor(findNode(sourceId));
         
         linkDraw = { 
             sourceId: sourceId, 
-            x: startX, 
-            y: startY, 
-            currentX: startX,
-            currentY: startY
+            x: anchorPos.x, 
+            y: anchorPos.y, 
+            currentX: anchorPos.x, // Initial current position is the anchor
+            currentY: anchorPos.y
         };
         panLayer.style.cursor = 'crosshair';
+    }
+    
+    function handleContextMenu(e, nodeId) {
+        e.preventDefault(); // Prevent default browser context menu
+        
+        selectedNodeId = nodeId;
+        toolDeleteNode.disabled = false;
+        renderNodes(); 
+
+        contextMenu.style.left = `${e.clientX}px`;
+        contextMenu.style.top = `${e.clientY}px`;
+        contextMenu.style.display = 'block';
+        
+        // Attach actions to context menu buttons
+        contextEdit.onclick = () => { contextMenu.style.display = 'none'; openNodeModal(findNode(nodeId)); };
+        contextDelete.onclick = () => { contextMenu.style.display = 'none'; deleteSelectedNode(); };
     }
 
 
     function handleNodeMouseDown(e, nodeId) {
-      e.stopPropagation(); 
+      e.stopPropagation(); // Stop propagation to prevent panLayer mousedown
+      contextMenu.style.display = 'none'; // Hide context menu
 
       selectedNodeId = nodeId;
       selectedLinkId = null;
       toolDeleteNode.disabled = false;
       toolDeleteLink.disabled = true;
-      renderNodes(); 
-
+      
+      // Move node to front (z-index fix)
       const node = findNode(nodeId);
-      if (!node) return;
+      if (node) {
+        highestZIndex++;
+        node.zIndex = highestZIndex;
+        document.getElementById(`node-${nodeId}`).style.zIndex = highestZIndex;
+      }
 
       dragInfo = {
         mode: 'node',
@@ -366,16 +391,20 @@
         startNodeY: node.y,
         nodeId: nodeId
       };
+      
+      renderNodes(); 
     }
 
     function handleMouseDown(e) {
-      if (e.target !== panLayer && e.target !== canvas) return;
-
+      if (e.target.closest('.node') || e.target.closest('#contextMenu')) return;
+      
       // Clear selections on background click
       selectedNodeId = null;
       selectedLinkId = null;
       toolDeleteNode.disabled = true;
       toolDeleteLink.disabled = true;
+      contextMenu.style.display = 'none';
+
       renderNodes(); 
       renderLinks();
 
@@ -394,15 +423,17 @@
     function handleMouseMove(e) {
       if (!dragInfo && !linkDraw) return;
       
-      const deltaX = e.clientX - (dragInfo ? dragInfo.startX : 0);
-      const deltaY = e.clientY - (dragInfo ? dragInfo.startY : 0);
       const { x: cursorX, y: cursorY } = screenToBoard(e.clientX, e.clientY);
 
       if (dragInfo && dragInfo.mode === 'pan') {
+        const deltaX = e.clientX - dragInfo.startX;
+        const deltaY = e.clientY - dragInfo.startY;
         transform.x = dragInfo.startTransformX + deltaX;
         transform.y = dragInfo.startTransformY + deltaY;
         applyTransform();
       } else if (dragInfo && dragInfo.mode === 'node') {
+        const deltaX = e.clientX - dragInfo.startX;
+        const deltaY = e.clientY - dragInfo.startY;
         const node = findNode(dragInfo.nodeId);
         if (node) {
           node.x = dragInfo.startNodeX + deltaX / transform.scale;
@@ -416,10 +447,9 @@
           renderLinks(); 
         }
       } else if (linkDraw) {
-          // Update temporary link line endpoint
           linkDraw.currentX = cursorX;
           linkDraw.currentY = cursorY;
-          renderLinks(); // Re-render to show the line
+          renderLinks(); 
       }
     }
 
@@ -430,11 +460,10 @@
         if (targetElement) {
             const targetId = targetElement.id.replace('node-', '');
             
-            // Do not link a node to itself
             if (targetId !== linkDraw.sourceId) {
                 const label = prompt("Enter transition label (e.g., 'Success', 'User Clicks'):", "Next Step");
                 
-                if (label !== null) { // Check if user didn't hit cancel
+                if (label !== null) { 
                     model.links.push({
                         id: uid('link'),
                         source: linkDraw.sourceId,
@@ -449,12 +478,12 @@
         
         linkDraw = null;
         panLayer.style.cursor = 'grab';
-        renderLinks(); // Clear temporary line
+        renderLinks(); 
       }
       
       if (dragInfo) {
           if (dragInfo.mode === 'node') {
-            // Snap node to grid before saving
+            // Snap node to grid and save
             const node = findNode(dragInfo.nodeId);
             if (node) {
               node.x = Math.round(node.x / gridSize) * gridSize;
@@ -475,9 +504,6 @@
       modalTitle.value = node.title;
       modalBody.value = node.body;
       modalProjectId.textContent = node.id;
-      
-      // Ensure color/shape inputs are hidden/unused if you removed them from HTML
-      
       modal.setAttribute('aria-hidden', 'false');
     }
 
@@ -504,16 +530,6 @@
         }
     }
     
-    function deleteSelectedLink() {
-        if (selectedLinkId) {
-            model.links = model.links.filter(l => l.id !== selectedLinkId);
-            selectedLinkId = null;
-            toolDeleteLink.disabled = true;
-            renderLinks();
-            triggerSave();
-        }
-    }
-    
     // --- Event Listeners ---
 
     if (saveBoardBtn) saveBoardBtn.addEventListener('click', saveModel);
@@ -532,12 +548,16 @@
         document.addEventListener('mousemove', handleMouseMove);
         document.addEventListener('mouseup', handleMouseUp);
         
-        // Disable context menu on canvas
-        canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+        // Hide context menu on background click
+        canvas.addEventListener('mousedown', () => contextMenu.style.display = 'none');
+        // Prevent default context menu everywhere
+        document.addEventListener('contextmenu', (e) => {
+            if (!e.target.closest('.node')) e.preventDefault();
+        });
     }
     
     // Control Panel
-    if (showGrid) showGrid.addEventListener('change', applyTransform); // Calls updateGrid internally
+    if (showGrid) showGrid.addEventListener('change', applyTransform); 
     if (gridSizeInput) gridSizeInput.addEventListener('change', applyTransform);
     if (centerBtn) centerBtn.addEventListener('click', () => { 
         transform = { x: 0, y: 0, scale: 1 };
