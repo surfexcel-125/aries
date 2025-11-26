@@ -1,127 +1,95 @@
-// READY-TO-REPLACE app.js
-// Enhancements: keyboard accessibility, defensive checks, dropdown repositioning, small UX tweaks.
+import { auth, db } from './firebase-config.js';
+import { signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
+import { collection, addDoc, getDocs, doc, getDoc, updateDoc, serverTimestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
 
-(function () {
-  'use strict';
+/* --- 1. UI INJECTION SYSTEM --- */
+// Allows us to maintain one sidebar code for all pages
+function injectLayout() {
+    const sidebarHTML = `
+    <div id="sidebar" class="sidebar">
+        <div class="sidebar-header">
+            <span id="closeIcon" class="close-icon">&#10094;</span> 
+        </div>
+        <a href="index.html" class="sidebar-button">DASHBOARD</a>
+        <a href="projects.html" class="sidebar-button">PROJECTS</a>
+        <a href="#" class="sidebar-button">SETTINGS</a>
+    </div>`;
 
-  // --- Sidebar Functionality ---
-  const menuIcon = document.getElementById('menuIcon');
-  const closeIcon = document.getElementById('closeIcon');
-  const sidebar = document.getElementById('sidebar');
-
-  function openSidebar() {
-    if (sidebar) sidebar.classList.add('open');
-  }
-
-  function closeSidebar() {
-    if (sidebar) sidebar.classList.remove('open');
-  }
-
-  // Add keyboard handlers for accessibility
-  function addButtonKeyboardSupport(el, onActivate) {
-    if (!el) return;
-    el.setAttribute('role', 'button');
-    el.setAttribute('tabindex', '0');
-    el.addEventListener('keydown', (ev) => {
-      if (ev.key === 'Enter' || ev.key === ' ') {
-        ev.preventDefault();
-        onActivate();
-      }
-      if (ev.key === 'Escape') {
-        ev.preventDefault();
-        // if sidebar open, close it
-        closeSidebar();
-      }
-    });
-  }
-
-  if (menuIcon && closeIcon && sidebar) {
-    menuIcon.addEventListener('click', openSidebar);
-    closeIcon.addEventListener('click', closeSidebar);
-
-    addButtonKeyboardSupport(menuIcon, openSidebar);
-    addButtonKeyboardSupport(closeIcon, closeSidebar);
-  }
-
-  // --- Project Switcher Functionality (New) ---
-  const projectDropdownToggle = document.getElementById('projectDropdownToggle');
-  const projectDropdownMenu = document.getElementById('projectDropdownMenu');
-  const dropdownButtons = document.querySelectorAll('.dropdown-project-button');
-
-  // Toggle dropdown menu visibility
-  function toggleProjectDropdown() {
-    if (!projectDropdownMenu) return;
-    projectDropdownMenu.classList.toggle('visible');
-    // Try to position the dropdown if it might overflow the viewport
-    repositionProjectDropdown();
-  }
-
-  // Reposition dropdown if it would go offscreen (basic)
-  function repositionProjectDropdown() {
-    if (!projectDropdownMenu || !projectDropdownToggle) return;
-    const menuRect = projectDropdownMenu.getBoundingClientRect();
-    const toggleRect = projectDropdownToggle.getBoundingClientRect();
-    // If dropdown would overflow bottom of viewport, show above the header
-    if (menuRect.bottom > window.innerHeight) {
-      projectDropdownMenu.style.top = (toggleRect.top - menuRect.height - 8) + 'px';
-    } else {
-      // Reset to default (this matches CSS default of top near header)
-      projectDropdownMenu.style.top = (toggleRect.bottom + 8) + 'px';
+    // Only inject sidebar if it doesn't exist
+    if (!document.getElementById('sidebar')) {
+        document.body.insertAdjacentHTML('afterbegin', sidebarHTML);
     }
-  }
 
-  // Simulated save and navigation
-  function saveAndSwitchProject(event) {
-    event.preventDefault(); // Stop immediate navigation
-    const targetUrl = event.currentTarget.href;
-    const currentProjectName = projectDropdownToggle ? projectDropdownToggle.innerText.split(' ')[0] : 'Project';
+    // Logic for Sidebar Toggle
+    const menuIcon = document.querySelector('.hamburger'); // Works for both pages
+    const closeIcon = document.getElementById('closeIcon');
+    const sidebar = document.getElementById('sidebar');
 
-    // Simulated save (replace with actual API call if you have one)
-    // console.log(`Auto-saving workspace state for ${currentProjectName}...`);
+    if (menuIcon) {
+        menuIcon.addEventListener('click', () => sidebar.classList.add('open'));
+    }
+    if (closeIcon) {
+        closeIcon.addEventListener('click', () => sidebar.classList.remove('open'));
+    }
+}
 
-    setTimeout(() => {
-      // console.log('Save complete. Switching project...');
-      if (targetUrl) window.location.href = targetUrl;
-    }, 300);
-  }
-
-  if (projectDropdownToggle && projectDropdownMenu) {
-    projectDropdownToggle.addEventListener('click', toggleProjectDropdown);
-    addButtonKeyboardSupport(projectDropdownToggle, toggleProjectDropdown);
-
-    // Hide menu if user clicks outside
-    document.addEventListener('click', (event) => {
-      if (!projectDropdownMenu.contains(event.target) && !projectDropdownToggle.contains(event.target)) {
-        projectDropdownMenu.classList.remove('visible');
-      }
-    });
-
-    // Escape key closes the dropdown globally
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
-        projectDropdownMenu.classList.remove('visible');
-        closeSidebar();
-      }
-    });
-
-    // Attach save-and-switch for each dropdown button
-    dropdownButtons.forEach(button => {
-      button.addEventListener('click', saveAndSwitchProject);
-      // keyboard accessible by default because it's an <a>, but ensure Enter works
-      button.addEventListener('keydown', (ev) => {
-        if (ev.key === 'Enter') {
-          ev.preventDefault();
-          saveAndSwitchProject(ev);
+/* --- 2. AUTHENTICATION SERVICE --- */
+// Auto-login user anonymously so they can read/write to database immediately
+function initAuth() {
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            console.log("User logged in:", user.uid);
+            window.currentUser = user;
+            // Dispatch event for pages waiting for auth
+            window.dispatchEvent(new CustomEvent('auth-ready', { detail: user }));
+        } else {
+            signInAnonymously(auth).catch((error) => console.error("Auth Failed", error));
         }
-      });
     });
-  }
+}
 
-  // On resize, reposition dropdown so it remains visible
-  window.addEventListener('resize', () => {
-    if (projectDropdownMenu && projectDropdownMenu.classList.contains('visible')) {
-      repositionProjectDropdown();
+/* --- 3. DATABASE HELPER FUNCTIONS --- */
+// Exported globally so HTML pages can use them easily
+window.AriesDB = {
+    async getProjects() {
+        if(!auth.currentUser) return [];
+        const q = query(collection(db, "projects"), orderBy("createdAt", "desc"));
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    },
+
+    async createProject(name) {
+        if(!auth.currentUser) return;
+        const docRef = await addDoc(collection(db, "projects"), {
+            name: name,
+            createdAt: serverTimestamp(),
+            status: 'Active',
+            owner: auth.currentUser.uid,
+            nodes: [], // Empty workspace
+            links: []
+        });
+        return docRef.id;
+    },
+
+    async loadProjectData(projectId) {
+        const docRef = doc(db, "projects", projectId);
+        const snap = await getDoc(docRef);
+        if (snap.exists()) return snap.data();
+        return null;
+    },
+
+    async saveProjectWorkspace(projectId, nodes, links) {
+        const docRef = doc(db, "projects", projectId);
+        await updateDoc(docRef, {
+            nodes: nodes,
+            links: links,
+            lastModified: serverTimestamp()
+        });
     }
-  });
+};
 
-})(); 
+// Initialize
+document.addEventListener("DOMContentLoaded", () => {
+    injectLayout();
+    initAuth();
+});
