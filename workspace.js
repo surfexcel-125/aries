@@ -1,5 +1,5 @@
 /* workspace.js
-   COMPLETE Workflow Mapper script with FIXED dragging, live-connectors, and context menu.
+   COMPLETE Workflow Mapper script with FIXED dragging (event propagation) and layout fixes.
 */
 (function(){
   /* Elements (resolved after DOM ready) */
@@ -86,7 +86,6 @@
     function updateGrid() {
       gridSize = parseInt(gridSizeInput.value) || 25;
       if (showGrid.checked) {
-        // Correctly calculate background position to follow pan/zoom
         const bgSize = `${gridSize * transform.scale}px ${gridSize * transform.scale}px`;
         const bgPosX = transform.x % (gridSize * transform.scale);
         const bgPosY = transform.y % (gridSize * transform.scale);
@@ -99,7 +98,7 @@
       }
     }
     
-    // --- Data Management Functions ---
+    // --- Data Management Functions (Stubbed for completeness) ---
 
     let autoSaveTimer;
     const DEBOUNCE_DELAY = 1000;
@@ -138,7 +137,6 @@
                 if (headerTitle) headerTitle.textContent = data.name || `Workflow: ${projectId.substring(0, 5)}...`;
                 model.nodes = data.nodes || [];
                 model.links = data.links || [];
-                // Re-calculate highest Z-index from loaded nodes
                 highestZIndex = model.nodes.reduce((max, node) => Math.max(max, node.zIndex || 15), 15);
             } else {
                 seedInitialModel(); 
@@ -167,19 +165,15 @@
       const el = document.getElementById(`node-${node.id}`);
       if (!el) return { x: node.x, y: node.y }; 
 
-      // Use el.offsetWidth/Height for the current rendered size
       const width = el.offsetWidth / transform.scale;
       const height = el.offsetHeight / transform.scale;
       
       let ax, ay;
       
-      // Node position is top-left
       if (node.type === 'decision') {
-          // Anchors at the diamond's left/right points
           ax = isTarget ? node.x : node.x + width;
           ay = node.y + height / 2;
       } else {
-          // Anchors at the card's left/right edges
           ax = isTarget ? node.x : node.x + width;
           ay = node.y + height / 2;
       }
@@ -188,7 +182,6 @@
     }
 
     function renderNodes() {
-      // Clear all existing nodes
       document.querySelectorAll('.node').forEach(n => n.remove());
 
       model.nodes.forEach(node => {
@@ -196,12 +189,10 @@
         el.className = `node node-type-${node.type} ${node.id === selectedNodeId ? 'selected' : ''}`;
         el.id = `node-${node.id}`;
         
-        // Position relative to the board
         el.style.left = `${node.x}px`;
         el.style.top = `${node.y}px`;
-        el.style.zIndex = node.zIndex || 15; // Apply Z-index from model
+        el.style.zIndex = node.zIndex || 15;
         
-        // Decision nodes have fixed size defined in CSS
         if (node.type !== 'decision') {
             el.style.width = `${node.w}px`;
             el.style.height = `${node.h}px`;
@@ -209,12 +200,12 @@
 
         el.innerHTML = `<div class="node-title">${node.title}</div><div class="node-body">${node.body}</div>`;
         
-        // Output Anchor
         const outputAnchor = document.createElement('div');
         outputAnchor.className = 'anchor output-anchor';
         outputAnchor.addEventListener('mousedown', (e) => startLinkDraw(e, node.id));
         el.appendChild(outputAnchor);
         
+        // Add listeners to enable dragging and modification
         el.addEventListener('mousedown', (e) => handleNodeMouseDown(e, node.id));
         el.addEventListener('dblclick', (e) => { e.stopPropagation(); openNodeModal(node); });
         el.addEventListener('contextmenu', (e) => handleContextMenu(e, node.id));
@@ -228,14 +219,12 @@
     function renderLinks() {
       svg.innerHTML = ''; 
       
-      // Add temporary link path first if drawing (Connector Feedback)
       if (linkDraw) {
         const tempPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         
         const p1 = { x: linkDraw.x, y: linkDraw.y };
         const p2 = { x: linkDraw.currentX, y: linkDraw.currentY };
         
-        // Use a slight Bezier curve for smoother temporary line
         const midX = (p1.x + p2.x) / 2;
         const pathData = `M${p1.x} ${p1.y} C${midX} ${p1.y}, ${midX} ${p2.y}, ${p2.x} ${p2.y}`;
 
@@ -258,7 +247,6 @@
         const p1 = getAnchor(sourceNode);
         const p2 = getAnchor(targetNode, true);
 
-        // Compute control points for Bezier curve
         const dx = Math.max(50, Math.abs(p1.x - p2.x) * 0.4);
         const c1x = p1.x + dx;
         const c1y = p1.y;
@@ -284,14 +272,13 @@
           selectedNodeId = null;
           toolDeleteLink.disabled = false;
           toolDeleteNode.disabled = true;
-          contextMenu.style.display = 'none'; 
+          contextMenu.style.display = 'none';
           renderNodes(); 
           renderLinks(); 
         });
 
         svg.appendChild(path);
         
-        // Add Link Label Text
         if (link.label) {
             const midX = (p1.x + p2.x) / 2;
             const midY = (p1.y + p2.y) / 2;
@@ -311,7 +298,6 @@
     // --- Interaction Handlers ---
 
     function addNodeAt(x, y, type) {
-      // Improved randomization to prevent initial stacking
       const randOffset = Math.floor(Math.random() * 8) * gridSize / 4; 
       
       const snappedCoords = {
@@ -319,7 +305,7 @@
         y: Math.round((y + randOffset) / gridSize) * gridSize
       };
       
-      highestZIndex++; // Ensure new node is on top
+      highestZIndex++;
       
       const defaults = { 
         id: uid(), 
@@ -338,7 +324,7 @@
         newNode = { ...defaults, title: 'User Action', body: 'Button Click or Input' };
         newNode.w = 180;
       } else if (type === 'decision') {
-        newNode = { ...defaults, title: 'Decision', body: 'Is X True?', w: 150, h: 150 }; // Match CSS size
+        newNode = { ...defaults, title: 'Decision', body: 'Is X True?', w: 150, h: 150 };
       }
       
       model.nodes.push(newNode);
@@ -367,9 +353,8 @@
         selectedLinkId = null;
         toolDeleteNode.disabled = false;
         toolDeleteLink.disabled = true;
-        renderNodes(); // Update selection status
+        renderNodes(); 
 
-        // Display menu at cursor position
         contextMenu.style.left = `${e.clientX}px`;
         contextMenu.style.top = `${e.clientY}px`;
         contextMenu.style.display = 'block';
@@ -378,11 +363,15 @@
         contextDelete.onclick = () => { contextMenu.style.display = 'none'; deleteSelectedNode(); };
     }
 
-
+    /**
+     * Handles mousedown on a node.
+     * CRITICAL FIX: e.stopPropagation() prevents the event from reaching the panLayer.
+     */
     function handleNodeMouseDown(e, nodeId) {
       if(e.button !== 0) return; // Only handle left clicks for drag
 
-      e.stopPropagation(); 
+      e.stopPropagation(); // <--- THIS IS THE CRITICAL FIX for stopping workspace panning
+      
       contextMenu.style.display = 'none';
 
       selectedNodeId = nodeId;
@@ -390,7 +379,6 @@
       toolDeleteNode.disabled = false;
       toolDeleteLink.disabled = true;
       
-      // Move node to front (z-index fix for stacking)
       const node = findNode(nodeId);
       if (node) {
         highestZIndex++;
@@ -411,9 +399,9 @@
     }
 
     function handleMouseDown(e) {
+      // If we clicked on a node or the context menu, exit, as handleNodeMouseDown handled it.
       if (e.target.closest('.node') || e.target.closest('#contextMenu')) return;
       
-      // Clear selections on background click
       selectedNodeId = null;
       selectedLinkId = null;
       toolDeleteNode.disabled = true;
@@ -456,22 +444,20 @@
           
           const el = document.getElementById(`node-${node.id}`);
           if (el) {
-            // CRUCIAL: Update DOM element position live during drag
             el.style.left = `${node.x}px`;
             el.style.top = `${node.y}px`;
           }
-          renderLinks(); // Re-render links to follow the node
+          renderLinks(); 
         }
       } else if (linkDraw) {
           linkDraw.currentX = cursorX;
           linkDraw.currentY = cursorY;
-          renderLinks(); // Re-render links to show the temporary line
+          renderLinks();
       }
     }
 
     function handleMouseUp(e) {
       if (linkDraw) {
-        // Finalize link
         const targetElement = e.target.closest('.node');
         if (targetElement) {
             const targetId = targetElement.id.replace('node-', '');
@@ -499,13 +485,12 @@
       
       if (dragInfo) {
           if (dragInfo.mode === 'node') {
-            // Apply snap-to-grid after the drag is complete and save
             const node = findNode(dragInfo.nodeId);
             if (node) {
               node.x = Math.round(node.x / gridSize) * gridSize;
               node.y = Math.round(node.y / gridSize) * gridSize;
             }
-            renderNodes(); // Re-render to finalize snapped position
+            renderNodes(); 
             triggerSave();
           }
           dragInfo = null;
@@ -574,9 +559,7 @@
         document.addEventListener('mousemove', handleMouseMove);
         document.addEventListener('mouseup', handleMouseUp);
         
-        // Hide context menu on background click
         canvas.addEventListener('mousedown', () => contextMenu.style.display = 'none');
-        // Prevent default context menu everywhere unless on a node
         document.addEventListener('contextmenu', (e) => {
             if (!e.target.closest('.node')) e.preventDefault();
         });
