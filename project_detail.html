@@ -9,10 +9,10 @@
 /* --- BASE STYLES --- */
 :root{
   --accent:#0b74ff; --muted:#6b7280; --panel:#ffffffee; --bg:#ffffff;
-  --canvas-bg: #f5f5f5; /* NEW: Light gray background for contrast */
-  --grid-color:rgba(15,23,42,0.08); /* Darker grid for visibility */
+  --canvas-bg: #f5f5f5; /* Light gray background for contrast */
+  --grid-color:rgba(15,23,42,0.08); 
   --node-shadow:0 5px 15px rgba(15,23,42,0.1);
-  --link-color:#4b5563; /* Darker link color */
+  --link-color:#4b5563; 
   --link-selected:#ff7a59;
 }
 html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial;background:var(--bg)}
@@ -32,23 +32,35 @@ html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe 
 /* --- CANVAS & BOARD --- */
 .canvas-wrap{flex-grow:1;overflow:hidden;position:relative; background:var(--canvas-bg);}
 #canvas{width:100%;height:100%;position:absolute;top:0;left:0;cursor:grab; background:var(--canvas-bg);}
-#board{transform-origin:top left;transition:transform 0.15s ease-out}
+#board{transform-origin:top left;transition:transform 0.15s ease-out; position:relative; width:100%; height:100%;} /* Ensure board is relative */
 #panLayer{position:absolute;top:0;left:0;width:100%;height:100%;z-index:20;cursor:grab}
 #svg{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10}
 
-/* --- NODE STYLES (NEW WORKFLOW TYPES) --- */
-.node{position:absolute;padding:16px 20px;min-width:180px;min-height:80px;box-shadow:var(--node-shadow);border-radius:12px;background:var(--panel);cursor:pointer;transition:all 0.15s;border:2px solid transparent}
-.node.selected{border-color:var(--accent)}
+/* --- NODE STYLES (WORKFLOW TYPES) --- */
+.node{
+  position:absolute; /* Crucial for moving */
+  padding:16px 20px;
+  min-width:180px;
+  min-height:80px;
+  box-shadow:var(--node-shadow);
+  border-radius:12px;
+  background:var(--panel);
+  cursor:pointer;
+  transition:border-color 0.1s; /* Smoother transition */
+  border:2px solid transparent;
+  z-index: 15; /* Below panLayer/svg */
+  transform-origin: center center;
+}
+.node.selected{border-color:var(--accent); box-shadow:0 0 0 3px rgba(11, 116, 255, 0.3);} /* Highlight */
 .node-title{font-weight:700;font-size:1.1rem;margin-bottom:8px}
 .node-body{font-size:0.9rem;color:#374151}
 
 /* Specific Node Type Visuals */
-.node-type-page { background-color: #e6f0ff !important; border-color: #0b74ff; } /* Light Blue Page */
-.node-type-action { background-color: #fff8f0 !important; border-color: #ffb84d; } /* Light Yellow Action */
+.node-type-page { background-color: #e6f0ff !important; border-color: #0b74ff; } 
+.node-type-action { background-color: #fff8f0 !important; border-color: #ffb84d; } 
 .node-type-decision { 
   background-color: #f0fff0 !important; 
-  border-color: #00a854; /* Light Green Decision */
-  /* Diamond Shape Transformation */
+  border-color: #00a854; 
   width: 140px; 
   height: 140px; 
   border-radius: 4px;
@@ -59,13 +71,9 @@ html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe 
   padding: 0;
 }
 .node-type-decision > * {
-  transform: rotate(-45deg); /* Rotate content back */
+  transform: rotate(-45deg); 
   text-align: center;
   max-width: 90%;
-}
-.node-type-decision .node-title, .node-type-decision .node-body {
-    white-space: normal;
-    word-break: break-word;
 }
 
 
@@ -75,7 +83,7 @@ html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe 
   width: 12px;
   height: 12px;
   border-radius:50%;
-  background: var(--accent); /* Blue for connection */
+  background: var(--accent); 
   border: 2px solid white;
   opacity:0;
   transition:opacity 0.1s;
@@ -83,26 +91,47 @@ html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe 
   z-index:30;
 }
 .node:hover .anchor{opacity:1;}
-/* Output anchor always on the right */
 .output-anchor {
     top: 50%;
-    right: -6px; /* Half of anchor width */
+    right: -6px; 
     transform: translateY(-50%);
     cursor: crosshair;
-}
-/* Input anchor for link drawing helper (optional, can be center) */
-.input-anchor {
-    top: 50%;
-    left: -6px;
-    transform: translateY(-50%);
 }
 
 .link-label {
   fill: var(--link-color);
   font-size: 14px;
   font-weight: bold;
-  text-shadow: 0 0 5px var(--canvas-bg), 0 0 5px var(--canvas-bg); /* Ensure visibility */
   pointer-events: none; 
+  /* Visual improvement for text over path */
+  text-shadow: 1px 1px 0 var(--canvas-bg), -1px 1px 0 var(--canvas-bg), 1px -1px 0 var(--canvas-bg), -1px -1px 0 var(--canvas-bg);
+}
+
+
+/* --- CONTEXT MENU (NEW) --- */
+#contextMenu {
+    position: absolute;
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 100;
+    padding: 5px 0;
+    min-width: 150px;
+    display: none; /* Controlled by JS */
+}
+
+.context-menu-item {
+    padding: 8px 15px;
+    cursor: pointer;
+    font-size: 14px;
+    display: block;
+}
+.context-menu-item:hover {
+    background: #f0f0f0;
+}
+.context-menu-item.danger {
+    color: #e53e3e;
 }
 
 
@@ -184,11 +213,16 @@ html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe 
   </div>
 </div>
 
+<div id="contextMenu" style="display: none;">
+    <div class="context-menu-item" id="contextEdit">Edit Node</div>
+    <div class="context-menu-item danger" id="contextDelete">Delete Node</div>
+</div>
+
 
 <div id="modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true">
   <div class="modal">
     <h3>Block Settings</h3>
-    <p>Project: <span id="modalProjectId" style="font-weight:bold;"></span></p>
+    <p>ID: <span id="modalProjectId" style="font-weight:bold; font-family: monospace;"></span></p>
     <div class="field"><label>Title (Appears on Node)</label><input id="modalTitle" type="text"></div>
     <div class="field"><label>Notes/Details</label><textarea id="modalBody" rows="4"></textarea></div>
     <div class="modal-actions" style="display:flex;justify-content:space-between;margin-top:20px">
