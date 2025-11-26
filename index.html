@@ -3,99 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Aries King Project Manager</title>
-    <link href="https://fonts.googleapis.com/css2?family=Creepster&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css">
-
-    <script src="https://unpkg.com/konva@8.3.2/konva.min.js"></script>
-    
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
-
-    <script type="module" src="firebase-config.js"></script>
-    <script type="module" src="scripts.js"></script>
+    <title>Aries Dashboard</title>
+    <link rel="stylesheet" href="main.css">
+    <link href="https://fonts.googleapis.com/css2?family=Crete+Round&display=swap" rel="stylesheet">
 </head>
 <body>
 
-    <main id="app-container">
-
-        <section id="login-view" class="app-view active-view">
-            <div class="login-container">
-                <h1 class="aries-font">Aries King</h1>
-                <h2>Project Manager Login</h2>
-                <form id="login-form">
-                    <input type="email" id="login-email" placeholder="Email" required>
-                    <input type="password" id="login-password" placeholder="Password" required>
-                    <button type="submit" class="auth-button login-btn">Log In</button>
-                    <button type="button" id="signup-button" class="auth-button signup-btn">Sign Up</button>
-                </form>
-            </div>
-        </section>
-
-        <section id="main-app-shell" class="app-view hidden-view">
-            
-            <header id="main-header">
-                <div class="header-content">
-                    <div class="menu-icon" id="sidebar-toggle">☰</div> 
-                    <button class="project-indicator" onclick="toggleProjectPopup()">Projects</button>
-                    <img src="https://via.placeholder.com/30/000000/ffffff?text=🐏" alt="Ram Logo" class="ram-logo">
-                    <button onclick="handleLogout()" class="logout-btn">Logout</button>
-                </div>
-            </header>
-
-            <div id="sidebar-menu" class="sidebar">
-                <div class="menu-header" onclick="toggleSidebar()">
-                    <span class="menu-icon-back">←</span> 
-                    <span class="project-label">PROJECT</span>
-                </div>
-                
-                <button class="menu-link" onclick="navigateTo('home')">Home (Slide 1)</button>
-                <button class="menu-link" onclick="navigateTo('dashboard')">Projects (Slide 3)</button>
-                </div>
-
-            <div id="content-area">
-                
-                <div id="home-view" class="content-view active-content-view">
-                    <div class="landing-container">
-                        <div class="text-brand">
-                            <h1 class="aries-font">Aries</h1>
-                            <p class="king-text">King</p>
-                        </div>
-                        <img src="https://via.placeholder.com/300/000000/ffffff?text=RAM+LOGO" alt="Aries King Logo" class="ram-logo-placeholder">
-                    </div>
-                </div>
-
-                <div id="project-dashboard" class="content-view hidden-content-view">
-                    <div class="dashboard-header">
-                        <h2>PROJECTS</h2>
-                        <button class="add-project-btn" onclick="addProject()">Add Project +</button>
-                    </div>
-                    <div id="projects-list">
-                        <p>Loading projects...</p>
-                    </div>
-                </div>
-
-                <div id="mindmap-editor" class="content-view hidden-content-view">
-                    <div class="mindmap-controls">
-                        <h2 id="mindmap-title">Mind Map Editor</h2>
-                        <div class="mindmap-actions">
-                             <button onclick="createNodeOnMap()" class="save-btn" title="Add New Node">Add Node</button>
-                             <button onclick="startConnectingNodes()" class="save-btn" title="Start Connector Mode">Connect</button>
-                             <button onclick="saveMindMapData()" class="save-btn" title="Save Map Data">Save Map</button>
-                        </div>
-                    </div>
-                    </div>
-            </div>
-            
-        </section>
-        
-        <div id="project-selection-popup" class="overlay" onclick="toggleProjectPopup(event)">
-            <div class="menu-list" id="popup-project-list" onclick="event.stopPropagation()">
-                <h3>Select Project</h3>
-                </div>
+    <header>
+        <div class="menu-icon">
+            &#9776; 
         </div>
+        </header>
 
+    <main>
+        <div class="content-left">
+            <h1 class="aries-title">Aries</h1>
+            <p class="aries-subtitle">King</p>
+        </div>
+        <div class="content-right">
+            <img src="goat.png" alt="Aries Ram Head" class="goat-image">
+        </div>
     </main>
-</body>
+
+    </body>
 </html>
