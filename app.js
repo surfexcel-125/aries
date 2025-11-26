@@ -10,7 +10,8 @@ const authPromise = new Promise((resolve, reject) => {
     // Timeout mechanism: If connection takes longer than 10 seconds, reject the promise
     const timeout = setTimeout(() => {
         if (!resolved) {
-            reject(new Error("Firebase connection timed out after 10 seconds. Check network and config."));
+            console.error("Firebase connection timed out after 10 seconds. Check network and config.");
+            reject(new Error("Firebase connection timed out."));
         }
     }, 10000); // 10 seconds
 
@@ -38,6 +39,7 @@ const authPromise = new Promise((resolve, reject) => {
 
 
 /* --- 1. UI INJECTION SYSTEM --- */
+// Injects the sidebar into the DOM of every page
 function injectLayout() {
     const sidebarHTML = `
     <div id="sidebar" class="sidebar">
@@ -65,10 +67,10 @@ function injectLayout() {
     }
 }
 
-/* --- 2. DATABASE HELPER FUNCTIONS (Now relying on authPromise) --- */
+/* --- 2. DATABASE HELPER FUNCTIONS (Relying on authPromise) --- */
 window.AriesDB = {
     async getProjects() {
-        // This will now wait for auth OR the 10-second timeout
+        // This line pauses execution until Firebase is ready
         await authPromise; 
         
         console.log("Firebase: Auth successful, fetching projects...");
@@ -92,6 +94,9 @@ window.AriesDB = {
     },
 
     async loadProjectData(projectId) {
+        // We ensure auth is ready before attempting to fetch sensitive data
+        await authPromise; 
+        
         const docRef = doc(db, "projects", projectId);
         const snap = await getDoc(docRef);
         if (snap.exists()) return snap.data();
