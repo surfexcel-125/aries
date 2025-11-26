@@ -1,16 +1,19 @@
-/* --- Global Styles: Setting the Stage --- */
+/* --- Global Styles --- */
 body {
     margin: 0;
     padding: 0;
-    font-family: Arial, sans-serif;
-    background-color: white; /* Plain white screen */
+    font-family: 'Montserrat', "Segoe UI", Arial, sans-serif;
+    background-color: white;
     display: flex;
     flex-direction: column; 
     min-height: 100vh; 
-    overflow-x: hidden; /* Prevents horizontal scrollbar */
+    overflow-x: hidden;
 }
 
-/* Wrapper to hold all content—NO shifting/shrinking */
+/* Typography Imports */
+@import url('https://fonts.googleapis.com/css2?family=Luckiest+Guy&family=Roboto+Slab:wght@900&family=Montserrat:wght@600;700&display=swap');
+
+/* --- Sidebar & Header Injection Styles --- */
 .page-wrapper {
     width: 100%;
     display: flex;
@@ -18,32 +21,12 @@ body {
     flex-grow: 1; 
 }
 
-/* --- Header Styles: The Black Bar (Used on both pages) --- */
-header {
-    background-color: black;
-    color: white;
-    padding: 15px 20px;
-    height: 50px; 
-    display: flex;
-    align-items: center; 
-    justify-content: flex-start; 
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-}
-
-/* --- Menu Icon Styles --- */
-.menu-icon {
-    font-size: 28px;
-    cursor: pointer;
-    user-select: none;
-    line-height: 1; 
-}
-
-/* --- Sidebar Styles (Overlay/Cover Effect) --- */
+/* Sidebar (Black Overlay) */
 .sidebar {
     height: 100%;
-    width: 0; /* Starts hidden off-screen */
-    position: fixed; /* Makes it overlay the content */
-    z-index: 100; /* Stays above other content */
+    width: 0;
+    position: fixed;
+    z-index: 200;
     top: 0;
     left: 0;
     background-color: black; 
@@ -51,347 +34,140 @@ header {
     padding-top: 60px; 
     transition: 0.3s ease-in-out; 
 }
+.sidebar.open { width: 250px; }
 
-/* Class added by JavaScript to make the sidebar appear */
-.sidebar.open {
-    width: 250px; /* The width of the sidebar when open */
-}
-
-/* Sidebar Header and Close Arrow */
 .sidebar-header {
     position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    padding: 15px 0;
+    top: 0; left: 0; width: 100%; padding: 15px 0;
 }
-
 .close-icon {
-    color: white;
-    font-size: 28px;
-    cursor: pointer;
-    line-height: 1;
-    display: inline-block;
-    padding-left: 10px; 
-    transform: rotate(90deg);
+    color: white; font-size: 28px; cursor: pointer;
+    padding-left: 10px; display: block;
 }
 
-/* --- Sidebar Button Styling (Exact Look Requested) --- */
 .sidebar-button {
-    padding: 10px 15px;
+    padding: 12px 15px;
     text-decoration: none;
     font-size: 14px;
-    
     background-color: white; 
     color: black; 
     border: 1px solid white; 
     border-radius: 8px; 
-    
     display: block; 
     margin: 10px 15px; 
     text-align: center;
-    
-    font-family: Arial, sans-serif;
-    font-weight: bold;
-    transition: background-color 0.2s, opacity 0.2s; 
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 800;
+    text-transform: uppercase;
+    transition: 0.2s; 
 }
+.sidebar-button:hover { background-color: #f0f0f0; opacity: 0.9; }
 
-.sidebar-button:hover {
-    background-color: #f0f0f0; 
-    opacity: 0.9; 
-    color: black; 
-}
-
-/* --- Dashboard Main Content Layout (index.html) --- */
-main {
-    flex-grow: 1; 
-    display: flex; 
-    justify-content: center; 
-    align-items: center; 
-    padding: 20px; 
-    gap: 50px; 
-}
-
-.content-left {
-    text-align: right; 
-    padding-right: 20px; 
-}
-
-.content-right {
-    display: flex; 
+/* Global Header */
+.topbar {
+    width: 100%;
+    background: black;
+    padding: 14px 20px;
+    display: flex;
     align-items: center;
     justify-content: center;
-    padding-left: 20px; 
+    position: relative;
+    border-bottom: 3px solid rgba(255,255,255,0.05);
+    height: 60px;
+}
+.hamburger {
+    position: absolute; left: 20px;
+    background: none; border: none; color: white;
+    font-size: 24px; cursor: pointer;
+}
+.brand {
+    color: white; font-family: 'Sitka Small', serif; 
+    font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase;
+}
+.logo {
+    position: absolute; right: 20px;
+    width: 36px; height: 36px; object-fit: contain;
 }
 
-/* --- Dashboard Text Styling (Aries King) --- */
+/* --- Dashboard (Index) Specifics --- */
+.dashboard-main {
+    flex-grow: 1; display: flex; 
+    justify-content: center; align-items: center; 
+    padding: 20px; gap: 40px;
+    flex-wrap: wrap;
+}
 .aries-title {
-    font-family: 'Luckiest Guy', cursive; 
-    font-size: 80px; 
-    margin: 0; 
-    line-height: 0.8; 
-    color: black;
+    font-family: 'Luckiest Guy', cursive; font-size: 80px; margin: 0; line-height: 0.8; color: black;
 }
-
 .aries-subtitle {
-    font-family: 'Roboto Slab', serif; 
-    font-weight: 900; 
-    font-size: 24px;
-    margin: 0;
-    color: #333;
+    font-family: 'Roboto Slab', serif; font-weight: 900; font-size: 24px; margin: 0; color: #333; text-align: right;
+}
+.goat-image { max-width: 350px; height: auto; }
+
+/* --- Projects Page Styling --- */
+.container {
+    width: 100%; max-width: 980px; margin: 30px auto;
+    border: 3px solid #0b2830; background: #fff;
+}
+.projects-bar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 18px; background: black; color: white;
+    border-bottom: 2px solid #0b2830;
+}
+.new-project-btn {
+    background: white; color: black; border: none;
+    padding: 8px 16px; border-radius: 6px; font-weight: 700; cursor: pointer;
+}
+.projects-list { padding: 22px; display: flex; flex-direction: column; gap: 15px; }
+
+.project-row {
+    border: 3px solid #0b2830; border-radius: 14px; padding: 10px;
+    transition: transform 0.1s;
+}
+.project-row:hover { transform: translateY(-2px); }
+
+.project-inner {
+    background: #dfdfdf; border-radius: 10px; padding: 15px;
+    display: flex; justify-content: space-between; align-items: center;
+}
+.project-pill {
+    background: #f3f3f3; padding: 10px 20px; border-radius: 99px;
+    border: 2px solid #4a6468; font-weight: 700; cursor: pointer;
+    text-decoration: none; color: black; display: flex; align-items: center; gap: 10px;
 }
 
-/* --- Goat Image Styling --- */
-.goat-image {
-    max-width: 350px; 
-    height: auto; 
+/* --- Modals (Consistent UI) --- */
+.modal-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+    display: none; justify-content: center; align-items: center;
+    z-index: 1000;
 }
-
-
-/* ---------------------------------------------------------------------------------- */
-/* --- New Styles for Project Manager Page (projects.html) --- */
-/* ---------------------------------------------------------------------------------- */
-
-/* Project Page Header Adjustments */
-header.project-header {
-    justify-content: space-between; 
-    padding: 15px 15px 15px 20px;
+.modal-backdrop.active { display: flex; }
+.modal-box {
+    background: white; padding: 25px; width: 400px; max-width: 90%;
+    border-radius: 12px; box-shadow: 0 20px 50px rgba(0,0,0,0.3);
 }
-
-.header-title {
-    font-size: 18px;
-    font-weight: bold;
-    margin: 0;
-    flex-grow: 1; 
-    text-align: center;
+.modal-title { font-weight: 700; font-size: 1.2rem; margin-bottom: 15px; }
+.modal-input {
+    width: 100%; padding: 10px; margin-bottom: 15px;
+    border: 2px solid #ccc; border-radius: 6px; font-family: inherit;
 }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
+.btn-primary { background: black; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold;}
+.btn-ghost { background: transparent; color: #555; border: 1px solid #ccc; padding: 10px 20px; border-radius: 6px; cursor: pointer; }
 
-/* Ram Icon Placeholder */
-.ram-icon {
-    width: 28px;
-    height: 28px;
-    background-image: url('images/goat.png'); 
-    background-size: contain;
-    background-repeat: no-repeat;
-    filter: invert(100%); 
-    margin-left: 10px;
+/* Loader */
+.loader-spinner {
+    border: 4px solid #f3f3f3; border-top: 4px solid black;
+    border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite;
+    margin: 20px auto;
 }
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-/* Main Content Area */
-.project-manager-main {
-    padding: 30px 20px;
-    display: block; 
-}
-
-.projects-container {
-    max-width: 800px; 
-    margin: 0 auto;
-    border: 1px solid black;
-}
-
-/* PROJECTS Heading and Add Project Button Row */
-.projects-header-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    background-color: black;
-    color: white;
-    padding: 10px 15px;
-}
-
-.projects-heading {
-    font-size: 14px;
-    font-weight: normal;
-    margin: 0;
-}
-
-.add-project-button {
-    background-color: white;
-    color: black;
-    border: none;
-    padding: 5px 10px;
-    border-radius: 5px;
-    font-size: 12px;
-    font-weight: bold;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-}
-
-.plus-icon {
-    font-size: 18px;
-    margin-left: 5px;
-    line-height: 1;
-}
-
-/* Project Cards Styling */
-.project-list-container {
-    padding: 15px;
-}
-
-.project-card {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    background-color: #f0f0f0; 
-    border: 1px solid #ccc;
-    border-radius: 5px;
-    padding: 10px;
-    margin-bottom: 15px;
-}
-
-.project-name-box {
-    background-color: white;
-    padding: 8px 15px;
-    border-radius: 15px;
-    border: 1px solid black;
-    font-size: 14px;
-    font-weight: bold;
-}
-
-.project-status-box {
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    font-size: 10px;
-    font-weight: bold;
-}
-
-.dropdown-box {
-    background-color: white;
-    padding: 8px 15px;
-    border-radius: 15px;
-    border: 1px solid black;
-    font-size: 14px;
-    font-weight: normal;
-}
-
-
-/* --- Optional: Responsive adjustments for phones/tablets --- */
+/* Responsive */
 @media (max-width: 768px) {
-    /* Dashboard Responsive */
-    main { flex-direction: column; gap: 20px; }
-    .content-left, .content-right { text-align: center; padding: 0; }
-    .aries-title { font-size: 60px; }
-    .aries-subtitle { font-size: 20px; }
-    .goat-image { max-width: 250px; }
-    .sidebar.open { width: 100%; } 
-
-    /* Project Manager Responsive */
-    .project-card {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 10px;
-    }
-    .project-status-box {
-        margin-top: 5px;
-    }
+    .dashboard-main { flex-direction: column-reverse; text-align: center; }
+    .aries-subtitle { text-align: center; }
+    .project-inner { flex-direction: column; gap: 10px; align-items: flex-start; }
+    .project-pill { width: 100%; justify-content: center; }
 }
-
-/* --- New Styles for Individual Project Detail Page --- */
-
-header.project-detail-header {
-    background-color: black;
-    color: white;
-    padding: 15px 15px 15px 20px;
-    height: 50px; 
-    display: flex;
-    align-items: center; 
-    justify-content: space-between; /* Spreads elements */
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-}
-
-.project-title-dropdown {
-    display: flex;
-    align-items: center;
-    font-size: 14px;
-    font-weight: bold;
-    cursor: pointer;
-    padding-left: 5px; /* Spacing from left edge */
-}
-
-.dropdown-arrow {
-    font-size: 10px;
-    margin-left: 5px;
-    transform: translateY(1px); /* Slightly lower the arrow */
-}
-
-/* Ensure the PROJECT MANAGER title is centered in the header */
-header.project-detail-header .header-title {
-    flex-grow: 1; /* Allows title to take central space */
-    text-align: center;
-    margin: 0; /* Remove default margin */
-}
-
-/* Main workspace area for the project detail page */
-.project-workspace {
-    flex-grow: 1; /* Takes up remaining vertical space */
-    padding: 20px;
-    background-color: white; /* Ensures it's a clean white board */
-    /* Add any specific styles for your tools/canvas here */
-}
-
-/* Ensure project cards are clickable links and style them */
-.project-card-link {
-    text-decoration: none; /* Remove underline from links */
-    color: inherit; /* Inherit text color */
-    display: block; /* Make the whole card a clickable block */
-    margin-bottom: 15px; /* Consistent spacing with previous cards */
-}
-
-.project-card-link:hover .project-card {
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.2); /* Subtle hover effect */
-}
-/* --- Project Switcher Dropdown Styles (New) --- */
-
-.project-dropdown-menu {
-    position: absolute;
-    top: 80px; /* Position right below the header (header height + margin) */
-    left: 10px; /* Aligned with the project name */
-    width: 250px;
-    background-color: black;
-    z-index: 90; /* Below the sidebar (100) but above content */
-    border-radius: 5px;
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
-    display: none; /* Starts hidden */
-    padding: 5px 0;
-}
-
-.project-dropdown-menu.visible {
-    display: block; /* Shown via JavaScript */
-}
-
-/* Styling for the individual project buttons inside the dropdown */
-.dropdown-project-button {
-    padding: 8px 15px;
-    text-decoration: none;
-    font-size: 14px;
-    
-    /* STYLES matching the small Project buttons: */
-    background-color: black; /* Default state */
-    color: white; 
-    border: 1px solid black; /* Matches background for initial look */
-    border-radius: 4px; 
-    
-    display: block; 
-    margin: 5px 10px; /* Spacing between buttons */
-    text-align: center;
-    
-    font-family: Arial, sans-serif;
-    font-weight: bold;
-    transition: background-color 0.2s;
-}
-
-.dropdown-project-button:hover,
-.dropdown-project-button.active {
-    background-color: white; /* White background on hover or active */
-    color: black;
-}
-/* Improve visible focus for keyboard users */
-[role="button"]:focus {
-  outline: 3px solid #ffd54f;
-  outline-offset: 2px;
-}
-
-/* Make sure project dropdown is positioned relative to viewport default */
-.project-dropdown-menu { top: auto; } /* JS will calculate exact top when opened */
