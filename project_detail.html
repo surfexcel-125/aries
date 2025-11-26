@@ -1,730 +1,932 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Workspace — Aries (Improved)</title>
-<link rel="stylesheet" href="main.css" />
-<style>
-  :root{
-    --accent:#0b74ff;
-    --muted:#6b7280;
-    --panel:#ffffffcc;
-    --bg:#ffffff;
-    --grid-color: rgba(15,23,42,0.03);
-    --node-shadow: 0 8px 24px rgba(15,23,42,0.06);
-  }
-  html,body{height:100%; margin:0; font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; background:var(--bg);}
-  .site-header{display:flex; align-items:center; gap:12px; padding:10px 14px; border-bottom:1px solid #f0f0f0; background:#fff; position:sticky; top:0; z-index:40;}
-  .site-header .title {font-weight:700;}
-  .icon-btn{background:transparent;border:0;font-size:18px;cursor:pointer;padding:6px;}
-  .toolbar { margin-left:auto; display:flex; gap:8px; align-items:center; }
-  .btn { padding:8px 12px; border-radius:8px; background:var(--accent); color:#fff; border:0; cursor:pointer; font-weight:600; }
-  .btn.ghost { background:transparent; color:var(--muted); border:1px solid #e6e6e6; }
-  .small-btn { padding:6px 8px; border-radius:8px; border:1px solid #eee; background:#fff; cursor:pointer; }
-  .zoom-ind { font-weight:700; padding:6px 8px; border-radius:8px; border:1px solid #eee; background:#fff; }
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Workspace — Aries</title>
+  <link rel="stylesheet" href="main.css" />
+  <style>
+    :root{
+      --accent:#0b74ff;
+      --muted:#6b7280;
+      --panel:#ffffffee;
+      --bg:#ffffff;
+      --grid-color:rgba(15,23,42,0.06);
+      --node-shadow:0 10px 28px rgba(15,23,42,0.08);
+    }
+    html,body{
+      height:100%;
+      margin:0;
+      font-family:Inter, system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial;
+      background:var(--bg);
+    }
 
-  /* viewport & board */
-  .viewport { position:relative; height:calc(100vh - 56px); overflow:hidden; background:var(--bg); }
-  .pan-layer { position:absolute; inset:0; touch-action:none; } /* capture gestures */
-  .board { position:absolute; left:50%; top:50%; transform-origin:0 0; will-change:transform; }
-  .canvas {
-    width:1600px; height:1000px; border-radius:10px; background:var(--bg);
-    margin:auto; position:relative; box-shadow: 0 12px 30px rgba(2,6,23,0.03); overflow:visible;
-  }
+    /* HEADER ----------------------------------------------------------------- */
+    .site-header{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      padding:10px 14px;
+      border-bottom:1px solid #f1f1f1;
+      background:#fff;
+      position:sticky;
+      top:0;
+      z-index:40;
+    }
+    .icon-btn{
+      background:transparent;
+      border:0;
+      font-size:18px;
+      cursor:pointer;
+      padding:6px;
+      border-radius:999px;
+    }
+    .icon-btn:hover{
+      background:#f3f4f6;
+    }
+    .header-title{
+      font-weight:700;
+      font-size:0.98rem;
+    }
+    .btn{
+      padding:8px 12px;
+      border-radius:8px;
+      border:0;
+      cursor:pointer;
+      font-weight:600;
+      font-size:0.9rem;
+    }
+    .btn.primary{ background:var(--accent); color:#fff; }
+    .btn.ghost{ background:transparent; color:var(--muted); border:1px solid #e5e7eb; }
 
-  /* grid overlay */
-  .grid-layer { position:absolute; inset:0; pointer-events:none; z-index:2; }
-  .grid-line { position:absolute; background:var(--grid-color); }
+    .header-right{
+      margin-left:auto;
+      display:flex;
+      align-items:center;
+      gap:8px;
+    }
+    .zoom-ind{
+      padding:6px 8px;
+      border-radius:8px;
+      border:1px solid #e5e7eb;
+      background:#fff;
+      font-weight:600;
+      font-size:0.85rem;
+    }
 
-  /* node styles */
-  .node {
-    position:absolute; min-width:160px; max-width:420px; padding:12px; border-radius:10px;
-    background:#fff; border:1px solid rgba(0,0,0,0.06); box-shadow:var(--node-shadow);
-    cursor:grab; user-select:none; z-index:10;
-  }
-  .node:active{ cursor:grabbing; }
-  .node .title { font-weight:700; margin:0 0 8px 0; font-size:1rem; }
-  .node .body { color:var(--muted); font-size:0.92rem; white-space:pre-wrap; }
-  .node .mini { position:absolute; right:8px; top:8px; display:flex; gap:6px; }
+    /* VIEWPORT & BOARD ------------------------------------------------------- */
+    .viewport{
+      position:relative;
+      height:calc(100vh - 56px);
+      overflow:hidden;
+      background:var(--bg);
+    }
+    .pan-layer{
+      position:absolute;
+      inset:0;
+      touch-action:none;
+    }
+    .board{
+      position:absolute;
+      left:50%;
+      top:50%;
+      transform-origin:0 0;
+      will-change:transform;
+    }
+    .canvas{
+      position:relative;
+      width:1600px;
+      height:1000px;
+      border-radius:12px;
+      background:#fff;
+      box-shadow:0 18px 40px rgba(15,23,42,0.08);
+      overflow:visible;
+      /* grid uses background-image, controlled from JS */
+    }
 
-  /* popup modal */
-  .modal-backdrop { position:fixed; inset:0; display:none; justify-content:center; align-items:center; background:rgba(0,0,0,0.35); z-index:1200; }
-  .modal { width:360px; background:var(--panel); border-radius:10px; padding:14px; box-shadow:0 12px 40px rgba(2,6,23,0.18); }
-  .modal h3{ margin:0 0 10px 0; }
-  .field { margin:8px 0; display:flex; flex-direction:column; gap:6px; }
-  .field input[type="text"], .field textarea, .field input[type="color"]{ padding:8px; border-radius:8px; border:1px solid #e6e6e6; }
-  .modal-actions { display:flex; justify-content:space-between; gap:8px; margin-top:12px; }
+    /* NODES ------------------------------------------------------------------ */
+    .node{
+      position:absolute;
+      min-width:170px;
+      max-width:420px;
+      padding:12px 14px;
+      border-radius:10px;
+      background:#fff;
+      border:1px solid rgba(0,0,0,0.06);
+      box-shadow:var(--node-shadow);
+      cursor:grab;
+      user-select:none;
+      z-index:5;
+    }
+    .node:active{ cursor:grabbing; }
+    .node .title{
+      margin:0 0 6px;
+      font-weight:700;
+      font-size:0.98rem;
+    }
+    .node .body{
+      margin:0;
+      font-size:0.9rem;
+      color:var(--muted);
+      white-space:pre-wrap;
+    }
+    .node .mini{
+      position:absolute;
+      right:8px;
+      top:8px;
+      display:flex;
+      gap:4px;
+    }
+    .node-shape-soft{ border-radius:16px; }
+    .node-shape-pill{ border-radius:999px; }
+    .node-shape-outline{
+      background:transparent;
+      border-style:dashed;
+    }
 
-  /* tutorial overlay (full-screen guided with arrows) */
-  .tutorial-backdrop { position:fixed; inset:0; z-index:1300; display:none; background:linear-gradient(180deg, rgba(6,11,28,0.55), rgba(6,11,28,0.55)); color:#fff; }
-  .tutorial-card { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); max-width:920px; background:transparent; text-align:left; padding:28px; }
-  .tutorial-step { background:rgba(255,255,255,0.06); padding:16px; border-radius:12px; margin-bottom:12px; border:1px solid rgba(255,255,255,0.06); }
-  .tutorial-footer { display:flex; justify-content:space-between; gap:8px; margin-top:10px; align-items:center; }
-  .tutorial-btn { padding:8px 12px; border-radius:8px; border:0; cursor:pointer; }
+    /* FLOATING TOOL PANEL ---------------------------------------------------- */
+    .floating-tools{
+      position:fixed;
+      left:14px;
+      top:62px;
+      width:220px;
+      padding:10px;
+      background:var(--panel);
+      border-radius:12px;
+      box-shadow:0 16px 40px rgba(15,23,42,0.18);
+      backdrop-filter:blur(12px);
+      z-index:50;
+      opacity:0;
+      pointer-events:none;
+      transform:translateY(-8px);
+      transition:opacity 0.16s ease, transform 0.16s ease;
+    }
+    .floating-tools.open{
+      opacity:1;
+      pointer-events:auto;
+      transform:translateY(0);
+    }
+    .floating-tools h4{
+      margin:0 0 8px;
+      font-size:0.9rem;
+    }
+    .floating-tools .tool-row{
+      display:flex;
+      flex-wrap:wrap;
+      gap:6px;
+    }
+    .floating-tools .tool-btn{
+      padding:6px 8px;
+      border-radius:8px;
+      background:#f3f4f6;
+      border:0;
+      font-size:0.8rem;
+      cursor:pointer;
+    }
 
-  /* controls panel for grid */
-  .controls-panel { position:fixed; left:16px; bottom:16px; z-index:1400; background:#fff; border-radius:12px; padding:10px; box-shadow:0 8px 30px rgba(2,6,23,0.06); }
-  .controls-panel label { font-size:0.9rem; color:var(--muted); display:block; margin-bottom:6px; }
+    /* BOTTOM ZOOM BUTTONS ---------------------------------------------------- */
+    .bottom-zoom{
+      position:fixed;
+      left:16px;
+      bottom:16px;
+      z-index:45;
+      display:flex;
+      gap:6px;
+    }
+    .zoom-btn{
+      width:34px;
+      height:34px;
+      border-radius:999px;
+      border:1px solid #e5e7eb;
+      background:#ffffff;
+      font-size:18px;
+      cursor:pointer;
+      box-shadow:0 10px 30px rgba(15,23,42,0.16);
+    }
 
-  /* responsive adjustments */
-  @media (max-width:900px){
-    .canvas{ width:1200px; height:800px; }
-    .modal { width:92%; }
-  }
+    /* GRID TOGGLE PANEL ------------------------------------------------------ */
+    .grid-panel{
+      position:fixed;
+      right:16px;
+      bottom:16px;
+      z-index:45;
+      padding:8px 10px;
+      border-radius:12px;
+      background:#fff;
+      box-shadow:0 10px 30px rgba(15,23,42,0.12);
+      font-size:0.83rem;
+      color:var(--muted);
+      display:flex;
+      gap:8px;
+      align-items:center;
+    }
+    .grid-panel input[type="number"]{
+      width:60px;
+      padding:4px 6px;
+      border-radius:8px;
+      border:1px solid #e5e7eb;
+      font-size:0.8rem;
+    }
 
-</style>
+    /* MODAL ------------------------------------------------------------------ */
+    .modal-backdrop{
+      position:fixed;
+      inset:0;
+      display:none;
+      justify-content:center;
+      align-items:center;
+      background:rgba(0,0,0,0.38);
+      z-index:1200;
+    }
+    .modal{
+      width:360px;
+      max-width:94vw;
+      background:var(--panel);
+      border-radius:12px;
+      padding:16px;
+      box-shadow:0 18px 40px rgba(15,23,42,0.3);
+    }
+    .modal h3{ margin:0 0 10px; }
+    .field{ margin:8px 0; display:flex; flex-direction:column; gap:4px; }
+    .field label{ font-size:0.8rem; color:var(--muted); }
+    .field input[type="text"],
+    .field textarea,
+    .field select,
+    .field input[type="color"]{
+      padding:8px;
+      border-radius:8px;
+      border:1px solid #e5e7eb;
+      font-size:0.9rem;
+    }
+    .modal-actions{
+      margin-top:12px;
+      display:flex;
+      justify-content:space-between;
+      gap:8px;
+    }
+
+    /* TUTORIAL OVERLAY ------------------------------------------------------- */
+    .tutorial-backdrop{
+      position:fixed;
+      inset:0;
+      background:linear-gradient(180deg,rgba(15,23,42,0.7),rgba(15,23,42,0.7));
+      color:#fff;
+      z-index:1300;
+      display:none;
+    }
+    .tutorial-card{
+      position:absolute;
+      left:50%;
+      top:50%;
+      transform:translate(-50%,-50%);
+      max-width:900px;
+      padding:24px;
+    }
+    .tutorial-step{
+      background:rgba(15,23,42,0.4);
+      border-radius:14px;
+      padding:16px;
+      border:1px solid rgba(255,255,255,0.12);
+    }
+    .tutorial-footer{
+      margin-top:10px;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:8px;
+      font-size:0.85rem;
+    }
+    .tutorial-btn{
+      padding:8px 12px;
+      border-radius:8px;
+      border:0;
+      cursor:pointer;
+      font-size:0.9rem;
+    }
+
+    @media (max-width:900px){
+      .canvas{ width:1200px; height:800px; }
+      .floating-tools{ width:190px; }
+    }
+  </style>
 </head>
 <body>
+  <!-- HEADER -->
+  <header class="site-header">
+    <button id="menuIcon" class="icon-btn" aria-label="Tools menu">☰</button>
+    <button id="backToProjects" class="btn ghost">Projects</button>
+    <div class="header-title">Workspace</div>
 
-<header class="site-header">
-  <button id="menuIcon" class="icon-btn" aria-label="Open menu">☰</button>
-  <div class="title">Workspace</div>
-
-  <div class="toolbar" role="toolbar" aria-label="Workspace toolbar">
-    <button id="addNode" class="btn">+ Node</button>
-    <button id="zoomIn" class="btn ghost">Zoom +</button>
-    <button id="zoomOut" class="btn ghost">Zoom -</button>
-    <button id="resetView" class="btn ghost">Reset</button>
-    <div id="zoomIndicator" class="zoom-ind">100%</div>
-
-    <button id="snapToggle" class="btn ghost" title="Toggle snap">Snap: ON</button>
-    <input id="gridSize" type="number" value="20" min="5" max="200" style="width:72px; padding:8px; border-radius:8px; border:1px solid #eee;" title="Grid size px">
-
-    <button id="saveBoard" class="btn">Save</button>
-    <button id="exportBtn" class="btn ghost">Export</button>
-    <label class="btn ghost" for="importFile" style="cursor:pointer;">Import</label>
-    <input id="importFile" type="file" accept="application/json" style="display:none;">
-  </div>
-</header>
-
-<main class="viewport" id="viewport">
-  <div class="pan-layer" id="panLayer" tabindex="0" aria-label="Pan and zoom layer">
-    <div id="board" class="board" aria-hidden="false">
-      <div id="canvas" class="canvas" role="application" aria-label="Whiteboard canvas">
-        <div id="grid" class="grid-layer" aria-hidden="true"></div>
-        <!-- nodes appended here -->
-      </div>
-      <!-- SVG connector layer sits on top of canvas; using absolute coords inside board -->
-      <svg id="svg" style="position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none; z-index:5;"></svg>
+    <div class="header-right">
+      <div id="zoomIndicator" class="zoom-ind">100%</div>
+      <button id="saveBoard" class="btn primary">Save</button>
+      <button id="exportBtn" class="btn ghost">Export</button>
+      <label for="importFile" class="btn ghost" style="cursor:pointer;">Import</label>
+      <input id="importFile" type="file" accept="application/json" style="display:none;">
     </div>
-  </div>
-</main>
+  </header>
 
-<!-- controls panel -->
-<div class="controls-panel" role="region" aria-label="Board options">
-  <label><strong>Grid preview</strong></label>
-  <div style="display:flex; gap:8px; align-items:center;">
-    <input id="showGrid" type="checkbox" checked /> <label for="showGrid" style="margin:0 6px;">Show grid</label>
-    <button id="centerBtn" class="tutorial-btn" style="background:#0b74ff;color:#fff;border-radius:8px;">Center</button>
-  </div>
-</div>
-
-<!-- node settings modal -->
-<div id="modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true">
-  <div class="modal" role="document">
-    <h3>Block settings</h3>
-    <div class="field"><label class="small-muted">Title</label><input id="modalTitle" type="text" /></div>
-    <div class="field"><label class="small-muted">Body</label><textarea id="modalBody" rows="4"></textarea></div>
-    <div class="field"><label class="small-muted">Background</label><input type="color" id="modalColor" value="#ffffff" /></div>
-    <div class="modal-actions">
-      <div><button id="deleteBlock" class="btn ghost">Delete</button></div>
-      <div style="display:flex; gap:8px;"><button id="cancelModal" class="btn ghost">Cancel</button><button id="saveModal" class="btn">Save</button></div>
+  <!-- FLOATING TOOL PANEL -->
+  <aside id="floatingTools" class="floating-tools" aria-hidden="true">
+    <h4>Tools</h4>
+    <div class="tool-row">
+      <button id="toolAddNode" class="tool-btn">+ Node</button>
+      <button class="tool-btn" disabled>Connector (soon)</button>
+      <button class="tool-btn" disabled>Template (soon)</button>
     </div>
-  </div>
-</div>
+  </aside>
 
-<!-- tutorial overlay (full-screen guided) -->
-<div id="tutorial" class="tutorial-backdrop" role="dialog" aria-hidden="true">
-  <div class="tutorial-card" id="tutorialCard">
-    <div class="tutorial-step" id="stepContent"></div>
-    <div class="tutorial-footer">
-      <div class="small-muted" id="tutorialProgress">Step 1 / 4</div>
-      <div style="display:flex; gap:8px;">
-        <button id="tutorialPrev" class="tutorial-btn" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.2);padding:8px 12px;border-radius:8px;">Prev</button>
-        <button id="tutorialNext" class="tutorial-btn" style="background:var(--accent);color:#fff;padding:8px 12px;border-radius:8px;">Next</button>
-        <button id="tutorialClose" class="tutorial-btn" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.2);padding:8px 12px;border-radius:8px;">Close</button>
+  <!-- MAIN WHITEBOARD -->
+  <main class="viewport" id="viewport">
+    <div class="pan-layer" id="panLayer" tabindex="0">
+      <div id="board" class="board">
+        <div id="canvas" class="canvas"></div>
       </div>
     </div>
+  </main>
+
+  <!-- BOTTOM LEFT ZOOM BUTTONS -->
+  <div class="bottom-zoom">
+    <button id="zoomOutCorner" class="zoom-btn" aria-label="Zoom out">−</button>
+    <button id="zoomInCorner" class="zoom-btn" aria-label="Zoom in">+</button>
   </div>
-</div>
 
-<footer style="display:none"></footer>
+  <!-- GRID PANEL -->
+  <div class="grid-panel">
+    <label><input id="showGrid" type="checkbox" checked> Grid</label>
+    <label>Size <input id="gridSize" type="number" value="20" min="5" max="200"></label>
+    <button id="centerBtn" class="tutorial-btn" style="background:#f3f4f6;">Center</button>
+  </div>
 
-<script src="app.js" defer></script>
-<script>
-(function(){
-  /* ---------- Config & State ---------- */
-  const canvas = document.getElementById('canvas');
-  const board = document.getElementById('board');
-  const panLayer = document.getElementById('panLayer');
-  const svg = document.getElementById('svg');
-  const gridLayer = document.getElementById('grid');
-
-  const addNodeBtn = document.getElementById('addNode');
-  const zoomInBtn = document.getElementById('zoomIn');
-  const zoomOutBtn = document.getElementById('zoomOut');
-  const resetBtn = document.getElementById('resetView');
-  const zoomIndicator = document.getElementById('zoomIndicator');
-  const saveBtn = document.getElementById('saveBoard');
-  const exportBtn = document.getElementById('exportBtn');
-  const importFile = document.getElementById('importFile');
-  const snapToggle = document.getElementById('snapToggle');
-  const gridSizeInput = document.getElementById('gridSize');
-  const showGridInput = document.getElementById('showGrid');
-  const centerBtn = document.getElementById('centerBtn');
-
-  // modal elements
-  const modal = document.getElementById('modal');
-  const modalTitle = document.getElementById('modalTitle');
-  const modalBody = document.getElementById('modalBody');
-  const modalColor = document.getElementById('modalColor');
-  const saveModalBtn = document.getElementById('saveModal');
-  const cancelModalBtn = document.getElementById('cancelModal');
-  const deleteBlockBtn = document.getElementById('deleteBlock');
-
-  // tutorial
-  const tutorial = document.getElementById('tutorial');
-  const stepContent = document.getElementById('stepContent');
-  const tutorialProgress = document.getElementById('tutorialProgress');
-  const tutorialPrev = document.getElementById('tutorialPrev');
-  const tutorialNext = document.getElementById('tutorialNext');
-  const tutorialClose = document.getElementById('tutorialClose');
-
-  // project id key
-  function getQueryParam(k){ return new URLSearchParams(location.search).get(k); }
-  const projectId = getQueryParam('id') || 'demo';
-  const storageKey = 'aries_board_v2_' + projectId;
-  const tutorialKey = 'aries_tutorial_' + projectId;
-
-  // model
-  let model = { nodes: [], links: [] }; // nodes: {id,x,y,w,h,title,body,color}
-  let selectedNode = null;
-
-  // transform state
-  let scale = 1, pan = {x:0,y:0};
-  const MIN_SCALE = 0.4, MAX_SCALE = 2.4;
-  const SCALE_STEP = 0.12;
-
-  // pointer / gesture state
-  let dragging = null; // node id
-  let dragOffset = {x:0,y:0};
-  let isPanning = false;
-  let panStart = {x:0,y:0};
-
-  // pinch-to-zoom
-  let pointers = new Map(); // id -> pointer
-  let initialPinch = null;
-
-  // snap settings
-  let snapOn = true;
-  let gridSize = Number(gridSizeInput.value) || 20;
-
-  /* ---------- Utilities ---------- */
-  function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
-  function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
-  function saveModel(){ try{ localStorage.setItem(storageKey, JSON.stringify(model)); flash('Saved'); }catch(e){} }
-  function loadModel(){ try{ const raw = localStorage.getItem(storageKey); model = raw ? JSON.parse(raw) : {nodes:[],links:[]}; }catch(e){ model = {nodes:[],links:[]}; } }
-  function flash(msg){ const el = document.createElement('div'); el.textContent = msg; Object.assign(el.style,{position:'fixed',right:'20px',bottom:'24px',background:'#0b74ff',color:'#fff',padding:'8px 12px',borderRadius:'8px',zIndex:1500}); document.body.appendChild(el); setTimeout(()=>el.remove(),1200); }
-
-  /* ---------- Grid rendering ---------- */
-  function renderGrid(){
-    gridLayer.innerHTML = '';
-    if (!showGridInput.checked) return;
-    const gs = gridSize;
-    const canvasW = canvas.offsetWidth;
-    const canvasH = canvas.offsetHeight;
-    // Create vertical and horizontal grid lines under scaling. We'll draw lines in canvas coordinate space.
-    // We'll create a single background using CSS gradients would be more efficient but dynamic approach is simple.
-    const frag = document.createDocumentFragment();
-    for (let x = 0; x <= canvasW; x += gs){
-      const div = document.createElement('div');
-      div.className = 'grid-line';
-      div.style.left = x + 'px';
-      div.style.top = '0px';
-      div.style.width = '1px';
-      div.style.height = canvasH + 'px';
-      frag.appendChild(div);
-    }
-    for (let y = 0; y <= canvasH; y += gs){
-      const div = document.createElement('div');
-      div.className = 'grid-line';
-      div.style.top = y + 'px';
-      div.style.left = '0px';
-      div.style.height = '1px';
-      div.style.width = canvasW + 'px';
-      frag.appendChild(div);
-    }
-    gridLayer.appendChild(frag);
-  }
-
-  /* ---------- Coordinate helpers ---------- */
-  // Because we transform board with translate & scale, we convert page coordinates to canvas (model) coordinates:
-  function pageToModel(clientX, clientY){
-    const canvasRect = canvas.getBoundingClientRect();
-    // Point in page relative to canvas top-left
-    const x = (clientX - canvasRect.left) / scale;
-    const y = (clientY - canvasRect.top) / scale;
-    return { x, y };
-  }
-  function modelToCssPos(x,y){
-    return { left: x + 'px', top: y + 'px' };
-  }
-
-  /* ---------- Node DOM helpers ---------- */
-  function createNodeDOM(node){
-    const el = document.createElement('div');
-    el.className = 'node';
-    el.dataset.id = node.id;
-    el.style.left = node.x + 'px';
-    el.style.top = node.y + 'px';
-    el.style.width = (node.w || 220) + 'px';
-    el.style.background = node.color || '#fff';
-    el.innerHTML = `
-      <div class="mini">
-        <button class="mini-edit" title="Edit" style="background:transparent;border:0;cursor:pointer;font-size:14px;">✎</button>
+  <!-- NODE SETTINGS MODAL -->
+  <div id="modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="modal">
+      <h3>Block settings</h3>
+      <div class="field">
+        <label for="modalTitle">Title</label>
+        <input id="modalTitle" type="text">
       </div>
-      <div class="title">${escapeHtml(node.title || 'Untitled')}</div>
-      <div class="body">${escapeHtml(node.body || '')}</div>
-    `;
-    // events
-    el.addEventListener('pointerdown', nodePointerDown);
-    el.addEventListener('dblclick', ()=> openModal(node.id));
-    el.querySelector('.mini-edit').addEventListener('click', (e)=>{ e.stopPropagation(); openModal(node.id); });
-    return el;
-  }
+      <div class="field">
+        <label for="modalBody">Body</label>
+        <textarea id="modalBody" rows="4"></textarea>
+      </div>
+      <div class="field">
+        <label for="modalColor">Background color</label>
+        <input id="modalColor" type="color" value="#ffffff">
+      </div>
+      <div class="field">
+        <label for="modalShape">Shape</label>
+        <select id="modalShape">
+          <option value="card">Card (default)</option>
+          <option value="soft">Soft rounded</option>
+          <option value="pill">Pill</option>
+          <option value="outline">Outline</option>
+        </select>
+      </div>
+      <div class="modal-actions">
+        <button id="deleteBlock" class="btn ghost">Delete</button>
+        <div style="display:flex; gap:8px;">
+          <button id="cancelModal" class="btn ghost">Cancel</button>
+          <button id="saveModal" class="btn primary">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
-  function escapeHtml(s){ if(!s) return ''; return s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+  <!-- TUTORIAL OVERLAY -->
+  <div id="tutorial" class="tutorial-backdrop" aria-hidden="true">
+    <div class="tutorial-card">
+      <div id="tutorialStep" class="tutorial-step"></div>
+      <div class="tutorial-footer">
+        <div id="tutorialProgress"></div>
+        <div style="display:flex; gap:8px;">
+          <button id="tutorialPrev" class="tutorial-btn" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.4);">Prev</button>
+          <button id="tutorialNext" class="tutorial-btn" style="background:var(--accent);color:#fff;">Next</button>
+          <button id="tutorialClose" class="tutorial-btn" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.4);">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
-  function renderNodes(){
-    // remove nodes not in model and re-add / update
-    const existing = Array.from(canvas.querySelectorAll('.node'));
-    const existingIds = new Set(existing.map(n => n.dataset.id));
-    model.nodes.forEach(n=>{
-      let el = canvas.querySelector(`.node[data-id="${n.id}"]`);
-      if (!el){
-        el = createNodeDOM(n);
-        canvas.appendChild(el);
-      } else {
-        // update
-        el.style.left = n.x + 'px';
-        el.style.top = n.y + 'px';
-        el.style.width = (n.w || 220) + 'px';
-        el.style.background = n.color || '#fff';
-        el.querySelector('.title').textContent = n.title || 'Untitled';
-        el.querySelector('.body').textContent = n.body || '';
+  <footer style="display:none;"></footer>
+
+  <!-- your global app.js -->
+  <script src="app.js" defer></script>
+
+  <!-- WORKSPACE LOGIC -->
+  <script>
+  (function(){
+    const canvas = document.getElementById('canvas');
+    const board = document.getElementById('board');
+    const panLayer = document.getElementById('panLayer');
+
+    const menuIcon = document.getElementById('menuIcon');
+    const floatingTools = document.getElementById('floatingTools');
+    const toolAddNode = document.getElementById('toolAddNode');
+    const backToProjects = document.getElementById('backToProjects');
+
+    const zoomIndicator = document.getElementById('zoomIndicator');
+    const zoomInCorner = document.getElementById('zoomInCorner');
+    const zoomOutCorner = document.getElementById('zoomOutCorner');
+    const saveBoardBtn = document.getElementById('saveBoard');
+    const exportBtn = document.getElementById('exportBtn');
+    const importFile = document.getElementById('importFile');
+
+    const showGridInput = document.getElementById('showGrid');
+    const gridSizeInput = document.getElementById('gridSize');
+    const centerBtn = document.getElementById('centerBtn');
+
+    const modal = document.getElementById('modal');
+    const modalTitle = document.getElementById('modalTitle');
+    const modalBody = document.getElementById('modalBody');
+    const modalColor = document.getElementById('modalColor');
+    const modalShape = document.getElementById('modalShape');
+    const saveModalBtn = document.getElementById('saveModal');
+    const cancelModalBtn = document.getElementById('cancelModal');
+    const deleteBlockBtn = document.getElementById('deleteBlock');
+
+    const tutorial = document.getElementById('tutorial');
+    const tutorialStep = document.getElementById('tutorialStep');
+    const tutorialProgress = document.getElementById('tutorialProgress');
+    const tutorialPrev = document.getElementById('tutorialPrev');
+    const tutorialNext = document.getElementById('tutorialNext');
+    const tutorialClose = document.getElementById('tutorialClose');
+
+    function getQueryParam(k){ return new URLSearchParams(location.search).get(k); }
+    const projectId = getQueryParam('id') || 'demo';
+    const storageKey = 'aries_workspace_v1_' + projectId;
+    const tutorialKey = 'aries_tutorial_' + projectId;
+
+    // model: nodes only for now
+    let model = { nodes: [] };
+    let selectedNodeId = null;
+
+    // transform
+    let scale = 1;
+    let pan = { x: 0, y: 0 };
+    const MIN_SCALE = 0.4, MAX_SCALE = 2.5, SCALE_STEP = 0.12;
+
+    // drag state
+    let draggingId = null;
+    let dragOffset = { x:0, y:0 };
+
+    // pan state
+    let isPanning = false;
+    let panStart = { x:0, y:0 };
+
+    // pinch state
+    const pointerMap = new Map();
+    let pinchState = null;
+
+    // snap/grid
+    let snapOn = true;
+    let gridSize = Number(gridSizeInput.value) || 20;
+
+    /* ------------ persistence ------------- */
+    function loadModel(){
+      try{
+        const raw = localStorage.getItem(storageKey);
+        model = raw ? JSON.parse(raw) : { nodes: [] };
+      }catch(e){
+        model = { nodes: [] };
       }
-      existingIds.delete(n.id);
-    });
-    // remove leftover
-    existingIds.forEach(id => {
-      const el = canvas.querySelector(`.node[data-id="${id}"]`);
-      if (el) el.remove();
-    });
-    renderLinks();
-  }
-
-  /* ---------- Link rendering (simple straight lines) ---------- */
-  function renderLinks(){
-    svg.innerHTML = '';
-    model.links.forEach(l=>{
-      const from = model.nodes.find(n=>n.id===l.from);
-      const to = model.nodes.find(n=>n.id===l.to);
-      if (!from || !to) return;
-      const line = document.createElementNS('http://www.w3.org/2000/svg','line');
-      const fx = (from.x + (from.w||220)/2) * scale;
-      const fy = (from.y + 20) * scale;
-      const tx = (to.x + (to.w||220)/2) * scale;
-      const ty = (to.y + 20) * scale;
-      line.setAttribute('x1', fx);
-      line.setAttribute('y1', fy);
-      line.setAttribute('x2', tx);
-      line.setAttribute('y2', ty);
-      line.setAttribute('stroke','#0f172a');
-      line.setAttribute('stroke-width', Math.max(1, 2*scale));
-      svg.appendChild(line);
-    });
-  }
-
-  /* ---------- Dragging & pointer handling ---------- */
-  function nodePointerDown(e){
-    e.stopPropagation();
-    const id = e.currentTarget.dataset.id;
-    dragging = id;
-    // compute offset in model coords
-    const modelPoint = pageToModel(e.clientX, e.clientY);
-    const node = model.nodes.find(n=>n.id===id);
-    dragOffset.x = modelPoint.x - (node.x || 0);
-    dragOffset.y = modelPoint.y - (node.y || 0);
-    e.currentTarget.setPointerCapture(e.pointerId);
-    e.currentTarget.addEventListener('pointermove', nodePointerMove);
-    e.currentTarget.addEventListener('pointerup', nodePointerUp);
-  }
-
-  function nodePointerMove(e){
-    if (!dragging) return;
-    const modelPoint = pageToModel(e.clientX, e.clientY);
-    let nx = modelPoint.x - dragOffset.x;
-    let ny = modelPoint.y - dragOffset.y;
-    // snap softly on drop, but while dragging we can show near-grid (soft snap)
-    if (snapOn){
-      // Soft snap: show live but don't lock (apply a small easing)
-      const gs = gridSize;
-      const rx = Math.round(nx/gs)*gs;
-      const ry = Math.round(ny/gs)*gs;
-      // ease factor (0.35) for soft feel
-      nx = nx + (rx - nx) * 0.35;
-      ny = ny + (ry - ny) * 0.35;
     }
-    const node = model.nodes.find(n=>n.id===dragging);
-    if (!node) return;
-    node.x = Math.max(0, Math.round(nx));
-    node.y = Math.max(0, Math.round(ny));
-    renderNodes();
-  }
-
-  function nodePointerUp(e){
-    const id = e.currentTarget.dataset.id;
-    const node = model.nodes.find(n=>n.id===id);
-    if (!node){ dragging = null; return; }
-    // final snap when releasing (soft or hard)
-    if (snapOn){
-      const gs = gridSize;
-      node.x = Math.round(node.x/gs) * gs;
-      node.y = Math.round(node.y/gs) * gs;
+    function saveModel(){
+      try{ localStorage.setItem(storageKey, JSON.stringify(model)); }catch(e){}
+      flash('Saved');
     }
-    // cleanup
-    try {
-      e.currentTarget.removeEventListener('pointermove', nodePointerMove);
-      e.currentTarget.removeEventListener('pointerup', nodePointerUp);
-    } catch(e){}
-    dragging = null;
-    saveModel();
-    renderNodes();
-  }
 
-  // background pointer events for panning
-  panLayer.addEventListener('pointerdown', (e)=>{
-    // ignore if starting on a node
-    if (e.target.closest('.node')) return;
-    panLayer.setPointerCapture(e.pointerId);
-    isPanning = true;
-    panStart.x = e.clientX - pan.x;
-    panStart.y = e.clientY - pan.y;
-    panLayer.addEventListener('pointermove', panMove);
-    panLayer.addEventListener('pointerup', panEnd);
-  });
-
-  function panMove(e){
-    if (!isPanning) return;
-    pan.x = e.clientX - panStart.x;
-    pan.y = e.clientY - panStart.y;
-    applyTransform();
-  }
-  function panEnd(e){
-    isPanning = false;
-    panLayer.removeEventListener('pointermove', panMove);
-    panLayer.removeEventListener('pointerup', panEnd);
-    saveModel();
-  }
-
-  /* ---------- Pinch-to-zoom (smooth) ---------- */
-  panLayer.addEventListener('pointerdown', (e)=>{
-    pointers.set(e.pointerId, e);
-    if (pointers.size === 2){
-      // start pinch
-      const pts = Array.from(pointers.values());
-      initialPinch = {
-        dist: Math.hypot(pts[0].clientX - pts[1].clientX, pts[0].clientY - pts[1].clientY),
-        scaleAtStart: scale,
-        center: { x: (pts[0].clientX + pts[1].clientX)/2, y: (pts[0].clientY + pts[1].clientY)/2 }
+    /* ------------ helpers ------------- */
+    function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+    function clamp(v,a,b){ return Math.max(a, Math.min(b,v)); }
+    function flash(msg){
+      const el = document.createElement('div');
+      el.textContent = msg;
+      Object.assign(el.style,{
+        position:'fixed',right:'20px',bottom:'24px',
+        background:'#0b74ff',color:'#fff',
+        padding:'8px 12px',borderRadius:'8px',
+        boxShadow:'0 10px 30px rgba(15,23,42,0.35)',
+        zIndex:1500,fontSize:'0.85rem'
+      });
+      document.body.appendChild(el);
+      setTimeout(()=>el.remove(),1200);
+    }
+    function pageToModel(x,y){
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: (x - rect.left) / scale,
+        y: (y - rect.top) / scale
       };
     }
-    e.target.setPointerCapture(e.pointerId);
-  });
-  panLayer.addEventListener('pointermove', (e)=>{
-    if (!pointers.has(e.pointerId)) return;
-    pointers.set(e.pointerId, e);
-    if (initialPinch && pointers.size === 2){
-      const pts = Array.from(pointers.values());
-      const dist = Math.hypot(pts[0].clientX - pts[1].clientX, pts[0].clientY - pts[1].clientY);
-      const factor = dist / initialPinch.dist;
-      // smooth scaling around pinch center
-      const newScale = clamp(initialPinch.scaleAtStart * factor, MIN_SCALE, MAX_SCALE);
-      // adjust pan so zoom focuses on pinch center
-      const center = initialPinch.center;
-      zoomAtPoint(newScale, center.x, center.y);
+    function escapeHtml(s){
+      if(!s) return '';
+      return s.replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
     }
-  });
-  panLayer.addEventListener('pointerup', (e)=>{
-    pointers.delete(e.pointerId);
-    if (pointers.size < 2) initialPinch = null;
-  });
-  panLayer.addEventListener('pointercancel', (e)=>{ pointers.delete(e.pointerId); initialPinch = null; });
 
-  /* ---------- Wheel zoom (desktop) ---------- */
-  panLayer.addEventListener('wheel', (e)=>{
-    if (e.ctrlKey || e.metaKey){
+    /* ------------ grid rendering ------------- */
+    function updateGrid(){
+      if(!showGridInput.checked){
+        canvas.style.backgroundImage = 'none';
+        return;
+      }
+      const size = gridSize;
+      canvas.style.backgroundImage =
+        `linear-gradient(to right, var(--grid-color) 1px, transparent 1px),
+         linear-gradient(to bottom, var(--grid-color) 1px, transparent 1px)`;
+      canvas.style.backgroundSize = size + 'px ' + size + 'px';
+      canvas.style.backgroundPosition = '0 0';
+    }
+
+    /* ------------ transform (zoom/pan) ------------- */
+    function applyTransform(){
+      const rect = canvas.getBoundingClientRect();
+      const tx = -rect.width/2 + pan.x;
+      const ty = -rect.height/2 + pan.y;
+      board.style.transform = `translate(${tx}px,${ty}px) scale(${scale})`;
+      zoomIndicator.textContent = Math.round(scale*100) + '%';
+    }
+    function zoomAt(newScale, clientX, clientY){
+      const before = pageToModel(clientX, clientY);
+      scale = clamp(newScale, MIN_SCALE, MAX_SCALE);
+      applyTransform();
+      const after = pageToModel(clientX, clientY);
+      // adjust pan so the point under cursor stays under cursor
+      pan.x += (after.x - before.x) * scale;
+      pan.y += (after.y - before.y) * scale;
+      applyTransform();
+    }
+
+    /* ------------ nodes ------------- */
+    function renderNodes(){
+      updateGrid();
+      const ids = new Set(model.nodes.map(n=>n.id));
+      // remove deleted
+      Array.from(canvas.querySelectorAll('.node')).forEach(el=>{
+        if(!ids.has(el.dataset.id)) el.remove();
+      });
+      // add/update
+      model.nodes.forEach(n=>{
+        let el = canvas.querySelector('.node[data-id="'+n.id+'"]');
+        if(!el){
+          el = document.createElement('div');
+          el.className = 'node';
+          el.dataset.id = n.id;
+          el.innerHTML = `
+            <div class="mini">
+              <button class="mini-edit" style="background:transparent;border:0;font-size:14px;cursor:pointer;">✎</button>
+            </div>
+            <h4 class="title"></h4>
+            <p class="body"></p>
+          `;
+          el.addEventListener('pointerdown', onNodePointerDown);
+          el.addEventListener('dblclick', ()=>openModal(n.id));
+          el.querySelector('.mini-edit').addEventListener('click', ev=>{
+            ev.stopPropagation();
+            openModal(n.id);
+          });
+          canvas.appendChild(el);
+        }
+        el.style.left = (n.x || 80) + 'px';
+        el.style.top = (n.y || 80) + 'px';
+        el.style.width = (n.w || 230) + 'px';
+        el.style.background = n.color || '#ffffff';
+        el.classList.remove('node-shape-soft','node-shape-pill','node-shape-outline');
+        if(n.shape === 'soft') el.classList.add('node-shape-soft');
+        if(n.shape === 'pill') el.classList.add('node-shape-pill');
+        if(n.shape === 'outline') el.classList.add('node-shape-outline');
+        el.querySelector('.title').textContent = n.title || 'Untitled block';
+        el.querySelector('.body').textContent = n.body || '';
+      });
+    }
+
+    function addNodeAt(x,y){
+      const id = uid();
+      const node = {
+        id,
+        x: Math.max(40, x),
+        y: Math.max(40, y),
+        w:230,
+        h:120,
+        title:'New block',
+        body:'Double-click or click ✎ to edit',
+        color:'#fffdf5',
+        shape:'card'
+      };
+      model.nodes.push(node);
+      saveModel();
+      renderNodes();
+      openModal(id);
+    }
+
+    /* ------------ node dragging ------------- */
+    function onNodePointerDown(e){
+      e.stopPropagation();
+      const el = e.currentTarget;
+      const id = el.dataset.id;
+      draggingId = id;
+      const node = model.nodes.find(n=>n.id===id);
+      const pos = pageToModel(e.clientX, e.clientY);
+      dragOffset.x = pos.x - (node.x || 0);
+      dragOffset.y = pos.y - (node.y || 0);
+      el.setPointerCapture(e.pointerId);
+      el.addEventListener('pointermove', onNodePointerMove);
+      el.addEventListener('pointerup', onNodePointerUp);
+    }
+    function onNodePointerMove(e){
+      if(!draggingId) return;
+      const pos = pageToModel(e.clientX, e.clientY);
+      let x = pos.x - dragOffset.x;
+      let y = pos.y - dragOffset.y;
+      if(snapOn){
+        const gs = gridSize;
+        const snapX = Math.round(x/gs)*gs;
+        const snapY = Math.round(y/gs)*gs;
+        x = x + (snapX - x)*0.35;
+        y = y + (snapY - y)*0.35;
+      }
+      const node = model.nodes.find(n=>n.id===draggingId);
+      if(!node) return;
+      node.x = Math.max(0, Math.round(x));
+      node.y = Math.max(0, Math.round(y));
+      renderNodes();
+    }
+    function onNodePointerUp(e){
+      const id = e.currentTarget.dataset.id;
+      const node = model.nodes.find(n=>n.id===id);
+      if(node && snapOn){
+        const gs = gridSize;
+        node.x = Math.round(node.x/gs)*gs;
+        node.y = Math.round(node.y/gs)*gs;
+      }
+      draggingId = null;
+      try{
+        e.currentTarget.removeEventListener('pointermove', onNodePointerMove);
+        e.currentTarget.removeEventListener('pointerup', onNodePointerUp);
+      }catch(err){}
+      saveModel();
+      renderNodes();
+    }
+
+    /* ------------ pan + scroll-zoom ------------- */
+    panLayer.addEventListener('pointerdown', e=>{
+      if(e.target.closest('.node')) return; // let nodes handle their own drag
+      panLayer.setPointerCapture(e.pointerId);
+      isPanning = true;
+      panStart.x = e.clientX - pan.x;
+      panStart.y = e.clientY - pan.y;
+      panLayer.addEventListener('pointermove', onPanMove);
+      panLayer.addEventListener('pointerup', onPanEnd);
+    });
+    function onPanMove(e){
+      if(!isPanning) return;
+      pan.x = e.clientX - panStart.x;
+      pan.y = e.clientY - panStart.y;
+      applyTransform();
+    }
+    function onPanEnd(e){
+      isPanning = false;
+      panLayer.removeEventListener('pointermove', onPanMove);
+      panLayer.removeEventListener('pointerup', onPanEnd);
+      saveModel();
+    }
+
+    // scroll wheel zoom (no Ctrl)
+    panLayer.addEventListener('wheel', e=>{
       e.preventDefault();
       const delta = e.deltaY > 0 ? -SCALE_STEP : SCALE_STEP;
-      const newScale = clamp(scale + delta, MIN_SCALE, MAX_SCALE);
-      zoomAtPoint(newScale, e.clientX, e.clientY);
-    }
-  }, { passive:false });
+      const newScale = scale + delta;
+      zoomAt(newScale, e.clientX, e.clientY);
+    }, { passive:false });
 
-  function zoomAtPoint(newScale, clientX, clientY){
-    // compute where the client point maps to in model coords before zoom
-    const before = pageToModel(clientX, clientY);
-    const oldScale = scale;
-    scale = newScale;
-    applyTransform();
-    const after = pageToModel(clientX, clientY);
-    // adjust pan to keep point stable
-    pan.x += (after.x - before.x) * scale;
-    pan.y += (after.y - before.y) * scale;
-    applyTransform();
-  }
-
-  /* ---------- Transform application ---------- */
-  function applyTransform(){
-    // compute translate to center board then apply pan and scale
-    const rect = canvas.getBoundingClientRect();
-    // center offset
-    const tx = -rect.width/2 + pan.x;
-    const ty = -rect.height/2 + pan.y;
-    board.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
-    // svg size sync with scaled canvas
-    svg.style.width = (rect.width * scale) + 'px';
-    svg.style.height = (rect.height * scale) + 'px';
-    svg.style.left = (board.offsetLeft) + 'px';
-    svg.style.top = (board.offsetTop) + 'px';
-    zoomIndicator.textContent = Math.round(scale*100) + '%';
-    // links re-render, grid unaffected (grid drawn in model coords)
-    renderGrid();
-    renderLinks();
-  }
-
-  /* ---------- Node creation & modal ---------- */
-  function addNodeAt(x=120,y=120){
-    const id = uid();
-    const node = { id, x, y, w:220, h:120, title:'New block', body:'Double-click to edit', color:'#fff8f0' };
-    model.nodes.push(node);
-    saveModel(); renderNodes(); openModal(id);
-  }
-
-  function openModal(id){
-    selectedNode = model.nodes.find(n=>n.id===id);
-    if (!selectedNode) return;
-    modalTitle.value = selectedNode.title || '';
-    modalBody.value = selectedNode.body || '';
-    modalColor.value = selectedNode.color || '#ffffff';
-    modal.style.display = 'flex';
-    modal.setAttribute('aria-hidden','false');
-    modalTitle.focus();
-  }
-  function closeModal(){
-    modal.style.display = 'none';
-    modal.setAttribute('aria-hidden','true');
-    selectedNode = null;
-  }
-  saveModalBtn.addEventListener('click', ()=>{
-    if (!selectedNode) return closeModal();
-    selectedNode.title = modalTitle.value.trim();
-    selectedNode.body = modalBody.value.trim();
-    selectedNode.color = modalColor.value;
-    saveModel(); renderNodes(); closeModal();
-  });
-  cancelModalBtn.addEventListener('click', closeModal);
-  deleteBlockBtn.addEventListener('click', ()=>{
-    if (!selectedNode) return closeModal();
-    if (!confirm('Delete this block?')) return;
-    model.nodes = model.nodes.filter(n=>n.id!==selectedNode.id);
-    saveModel(); renderNodes(); closeModal();
-  });
-
-  /* ---------- Save/Export/Import ---------- */
-  saveBtn.addEventListener('click', ()=> saveModel());
-  exportBtn.addEventListener('click', ()=>{
-    const data = JSON.stringify(model, null, 2);
-    const blob = new Blob([data], {type:'application/json'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = (projectId||'board') + '.board.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-  });
-  importFile.addEventListener('change', (e)=> {
-    const f = e.target.files[0]; if (!f) return;
-    const r = new FileReader();
-    r.onload = function(){ try { const parsed = JSON.parse(r.result); if (parsed.nodes) { model = parsed; saveModel(); renderNodes(); flash('Imported'); } else alert('Invalid file'); } catch(err){ alert('Invalid JSON'); } };
-    r.readAsText(f);
-  });
-
-  /* ---------- UI hooks ---------- */
-  addNodeBtn.addEventListener('click', ()=> {
-    // center-add
-    const rect = canvas.getBoundingClientRect();
-    const x = Math.max(40, Math.round((rect.width/2 - 110)));
-    const y = Math.max(40, Math.round((rect.height/2 - 60)));
-    addNodeAt(x,y);
-  });
-  zoomInBtn.addEventListener('click', ()=> {
-    const newScale = clamp(scale + SCALE_STEP, MIN_SCALE, MAX_SCALE);
-    zoomAtPoint(newScale, window.innerWidth/2, window.innerHeight/2);
-  });
-  zoomOutBtn.addEventListener('click', ()=> {
-    const newScale = clamp(scale - SCALE_STEP, MIN_SCALE, MAX_SCALE);
-    zoomAtPoint(newScale, window.innerWidth/2, window.innerHeight/2);
-  });
-  resetBtn.addEventListener('click', ()=> { scale = 1; pan = {x:0,y:0}; applyTransform(); });
-
-  snapToggle.addEventListener('click', ()=> {
-    snapOn = !snapOn;
-    snapToggle.textContent = 'Snap: ' + (snapOn ? 'ON' : 'OFF');
-  });
-  gridSizeInput.addEventListener('change', ()=> {
-    gridSize = clamp(Number(gridSizeInput.value)||20, 5, 200);
-    renderGrid();
-  });
-  showGridInput.addEventListener('change', ()=> renderGrid());
-  centerBtn.addEventListener('click', ()=> { pan = {x:0,y:0}; applyTransform(); });
-
-  /* ---------- Links interactions (placeholder) ---------- */
-  function renderLinks(){ renderLinksInternal(); }
-  function renderLinksInternal(){
-    // re-render with scale aware coords
-    svg.innerHTML = '';
-    model.links.forEach(l=>{
-      const from = model.nodes.find(n=>n.id===l.from);
-      const to = model.nodes.find(n=>n.id===l.to);
-      if (!from || !to) return;
-      const line = document.createElementNS('http://www.w3.org/2000/svg','line');
-      const fx = (from.x + (from.w||220)/2) * scale;
-      const fy = (from.y + 20) * scale;
-      const tx = (to.x + (to.w||220)/2) * scale;
-      const ty = (to.y + 20) * scale;
-      line.setAttribute('x1', fx); line.setAttribute('y1', fy);
-      line.setAttribute('x2', tx); line.setAttribute('y2', ty);
-      line.setAttribute('stroke', '#0f172a'); line.setAttribute('stroke-width', Math.max(1,2*scale));
-      svg.appendChild(line);
-    });
-  }
-
-  /* ---------- Load/Bootstrap ---------- */
-  loadModel();
-  // seed sample node if none
-  if (!model.nodes.length){
-    model.nodes.push({ id: uid(), x: 120, y: 120, w: 260, h: 120, title: 'Welcome block', body: 'Double-click to edit settings.\nUse two fingers to pinch-zoom.', color:'#fff8f0' });
-    saveModel();
-  }
-  renderGrid();
-  renderNodes();
-  applyTransform();
-
-  /* ---------- Tutorial (full-screen guided overlay) ---------- */
-  const steps = [
-    { title: 'Welcome to the Workspace', text: 'This is your whiteboard. Add blocks with +Node, drag them, and double-click a block to open settings.' },
-    { title: 'Zoom & Pan', text: 'Use pinch-to-zoom on touch, or Ctrl + mouse wheel on desktop. Drag empty space to pan.' },
-    { title: 'Snap & Grid', text: 'Toggle Snap ON/OFF and change grid spacing. Soft snap gently aligns blocks on drop.' },
-    { title: 'Save & Export', text: 'Click Save to store locally. Use Export to download the board JSON.' }
-  ];
-  let tutorialIndex = 0;
-  function showTutorial(index){
-    tutorial.style.display = 'block';
-    tutorial.setAttribute('aria-hidden','false');
-    tutorialIndex = clamp(index, 0, steps.length-1);
-    stepContent.innerHTML = `<h2 style="margin:0 0 6px 0">${steps[tutorialIndex].title}</h2><div style="opacity:0.9">${steps[tutorialIndex].text}</div>`;
-    tutorialProgress.textContent = `Step ${tutorialIndex+1} / ${steps.length}`;
-    tutorialPrev.style.visibility = tutorialIndex === 0 ? 'hidden' : 'visible';
-    tutorialNext.textContent = tutorialIndex === steps.length-1 ? 'Finish' : 'Next';
-  }
-  tutorialNext.addEventListener('click', ()=>{
-    if (tutorialIndex === steps.length-1){
-      closeTutorial();
-      return;
-    }
-    showTutorial(tutorialIndex+1);
-  });
-  tutorialPrev.addEventListener('click', ()=> showTutorial(tutorialIndex-1));
-  tutorialClose.addEventListener('click', closeTutorial);
-
-  function closeTutorial(){
-    tutorial.style.display = 'none';
-    tutorial.setAttribute('aria-hidden','true');
-    // persist that tutorial seen for this project
-    localStorage.setItem(tutorialKey, 'seen');
-  }
-
-  // auto-show tutorial if not seen yet
-  if (!localStorage.getItem(tutorialKey)){
-    showTutorial(0);
-  }
-
-  /* ---------- Persistence on unload ---------- */
-  window.addEventListener('beforeunload', ()=> saveModel() );
-
-  /* ---------- Helpers: renderNodes wrapper ---------- */
-  function renderNodes(){
-    renderGrid(); // update grid sizing
-    // create/update node doms
-    const ids = new Set(model.nodes.map(n=>n.id));
-    // remove deleted
-    Array.from(canvas.querySelectorAll('.node')).forEach(el => {
-      if (!ids.has(el.dataset.id)) el.remove();
-    });
-    model.nodes.forEach(n => {
-      let el = canvas.querySelector(`.node[data-id="${n.id}"]`);
-      if (!el) {
-        el = createNodeDOM(n);
-        canvas.appendChild(el);
-      } else {
-        el.style.left = n.x + 'px';
-        el.style.top = n.y + 'px';
-        el.style.width = (n.w||220) + 'px';
-        el.style.background = n.color || '#fff';
-        el.querySelector('.title').textContent = n.title || 'Untitled';
-        el.querySelector('.body').textContent = n.body || '';
+    /* ------------ pinch-to-zoom ------------- */
+    panLayer.addEventListener('pointerdown', e=>{
+      pointerMap.set(e.pointerId, e);
+      if(pointerMap.size === 2){
+        const arr = Array.from(pointerMap.values());
+        pinchState = {
+          dist: Math.hypot(arr[0].clientX - arr[1].clientX, arr[0].clientY - arr[1].clientY),
+          scale: scale,
+          center:{ x:(arr[0].clientX+arr[1].clientX)/2, y:(arr[0].clientY+arr[1].clientY)/2 }
+        };
       }
     });
-    renderLinksInternal();
-  }
+    panLayer.addEventListener('pointermove', e=>{
+      if(!pointerMap.has(e.pointerId)) return;
+      pointerMap.set(e.pointerId, e);
+      if(pinchState && pointerMap.size === 2){
+        const arr = Array.from(pointerMap.values());
+        const dist = Math.hypot(arr[0].clientX - arr[1].clientX, arr[0].clientY - arr[1].clientY);
+        const factor = dist / pinchState.dist;
+        const newScale = clamp(pinchState.scale * factor, MIN_SCALE, MAX_SCALE);
+        zoomAt(newScale, pinchState.center.x, pinchState.center.y);
+      }
+    });
+    ['pointerup','pointercancel'].forEach(type=>{
+      panLayer.addEventListener(type, e=>{
+        pointerMap.delete(e.pointerId);
+        if(pointerMap.size < 2) pinchState = null;
+      });
+    });
 
-  function createNodeDOM(n){
-    const el = document.createElement('div');
-    el.className = 'node';
-    el.dataset.id = n.id;
-    el.style.left = n.x + 'px';
-    el.style.top = n.y + 'px';
-    el.style.width = (n.w||220) + 'px';
-    el.style.background = n.color || '#fff';
-    el.innerHTML = `
-      <div class="mini">
-        <button class="mini-edit" title="Edit" style="background:transparent;border:0;cursor:pointer;font-size:14px;">✎</button>
-      </div>
-      <div class="title">${escapeHtml(n.title||'Untitled')}</div>
-      <div class="body">${escapeHtml(n.body||'')}</div>
-    `;
-    el.addEventListener('pointerdown', nodePointerDown);
-    el.addEventListener('dblclick', ()=> openModal(n.id));
-    el.querySelector('.mini-edit').addEventListener('click', (ev)=>{ ev.stopPropagation(); openModal(n.id); });
-    return el;
-  }
+    /* ------------ modal ------------ */
+    function openModal(id){
+      selectedNodeId = id;
+      const node = model.nodes.find(n=>n.id===id);
+      if(!node) return;
+      modalTitle.value = node.title || '';
+      modalBody.value = node.body || '';
+      modalColor.value = node.color || '#ffffff';
+      modalShape.value = node.shape || 'card';
+      modal.style.display = 'flex';
+      modal.setAttribute('aria-hidden','false');
+      modalTitle.focus();
+    }
+    function closeModal(){
+      modal.style.display = 'none';
+      modal.setAttribute('aria-hidden','true');
+      selectedNodeId = null;
+    }
+    saveModalBtn.addEventListener('click', ()=>{
+      if(!selectedNodeId) return closeModal();
+      const node = model.nodes.find(n=>n.id===selectedNodeId);
+      if(!node) return closeModal();
+      node.title = modalTitle.value.trim();
+      node.body = modalBody.value.trim();
+      node.color = modalColor.value;
+      node.shape = modalShape.value;
+      saveModel();
+      renderNodes();
+      closeModal();
+    });
+    cancelModalBtn.addEventListener('click', closeModal);
+    deleteBlockBtn.addEventListener('click', ()=>{
+      if(!selectedNodeId) return closeModal();
+      if(!confirm('Delete this block?')) return;
+      model.nodes = model.nodes.filter(n=>n.id!==selectedNodeId);
+      saveModel();
+      renderNodes();
+      closeModal();
+    });
+    modal.addEventListener('click', e=>{
+      if(e.target === modal) closeModal();
+    });
 
-  /* expose small API for debug */
-  window.__aries = { model, saveModel, loadModel, addNodeAt: ()=> addNodeAt(200,200) };
+    /* ------------ toolbar and buttons ------------ */
+    function handleAddNode(){
+      const rect = canvas.getBoundingClientRect();
+      const cx = rect.left + rect.width/2;
+      const cy = rect.top + rect.height/2;
+      const pos = pageToModel(cx, cy);
+      addNodeAt(pos.x - 100, pos.y - 40);
+    }
 
-  /* keyboard shortcuts */
-  window.addEventListener('keydown', (e)=>{
-    if ((e.ctrlKey || e.metaKey) && e.key === 's'){ e.preventDefault(); saveModel(); }
-    if (e.key === 'Escape') closeModal();
-  });
+    document.getElementById('addNode')?.addEventListener('click', handleAddNode);
+    toolAddNode.addEventListener('click', handleAddNode);
 
-  // small center & initial transform
-  function initialCenter(){
-    pan = {x:0,y:0};
-    scale = 1;
+    zoomInCorner.addEventListener('click', ()=>{
+      const newScale = scale + SCALE_STEP;
+      zoomAt(newScale, window.innerWidth/2, window.innerHeight/2);
+    });
+    zoomOutCorner.addEventListener('click', ()=>{
+      const newScale = scale - SCALE_STEP;
+      zoomAt(newScale, window.innerWidth/2, window.innerHeight/2);
+    });
+
+    saveBoardBtn.addEventListener('click', ()=> saveModel());
+    exportBtn.addEventListener('click', ()=>{
+      const data = JSON.stringify(model,null,2);
+      const blob = new Blob([data],{type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = (projectId||'board') + '.board.json';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    });
+    importFile.addEventListener('change', e=>{
+      const f = e.target.files[0];
+      if(!f) return;
+      const reader = new FileReader();
+      reader.onload = function(){
+        try{
+          const parsed = JSON.parse(reader.result);
+          if(parsed && parsed.nodes){
+            model = parsed;
+            saveModel();
+            renderNodes();
+            flash('Imported');
+          }else{
+            alert('Invalid file');
+          }
+        }catch(err){
+          alert('Invalid JSON');
+        }
+      };
+      reader.readAsText(f);
+    });
+
+    // grid + center
+    gridSizeInput.addEventListener('change', ()=>{
+      gridSize = clamp(Number(gridSizeInput.value)||20,5,200);
+      updateGrid();
+    });
+    showGridInput.addEventListener('change', ()=> updateGrid());
+    centerBtn.addEventListener('click', ()=>{
+      pan = {x:0,y:0};
+      scale = 1;
+      applyTransform();
+    });
+
+    // menu icon toggles floating tools
+    menuIcon.addEventListener('click', ()=>{
+      const isOpen = floatingTools.classList.toggle('open');
+      floatingTools.setAttribute('aria-hidden', isOpen ? 'false':'true');
+    });
+
+    // save + go back to projects
+    backToProjects.addEventListener('click', ()=>{
+      saveModel();
+      window.location.href = 'projects.html';
+    });
+
+    // keyboard
+    window.addEventListener('keydown', e=>{
+      if((e.ctrlKey || e.metaKey) && e.key.toLowerCase()==='s'){
+        e.preventDefault();
+        saveModel();
+      }
+      if(e.key === 'Escape') closeModal();
+    });
+
+    /* ------------ tutorial ------------ */
+    const tutorialSteps = [
+      {
+        title:'Welcome to your workspace',
+        text:'Add a block with the + Node button or the Tools menu. Drag blocks to rearrange your flow.'
+      },
+      {
+        title:'Zoom and pan',
+        text:'Use your mouse wheel or trackpad scroll to zoom in and out. Drag empty white space to pan around the board.'
+      },
+      {
+        title:'Grid & snapping',
+        text:'Toggle the grid and change its size from the bottom-right panel. Blocks gently snap to the grid when you drop them.'
+      },
+      {
+        title:'Edit blocks',
+        text:'Double-click a block or click ✎ to open settings. You can change title, body, color, and shape (card, soft, pill, outline).'
+      }
+    ];
+    let tutorialIndex = 0;
+
+    function showTutorial(i){
+      tutorialIndex = clamp(i,0,tutorialSteps.length-1);
+      const step = tutorialSteps[tutorialIndex];
+      tutorialStep.innerHTML = '<h2 style="margin:0 0 6px;">'+step.title+'</h2><p style="margin:0;opacity:0.95;">'+step.text+'</p>';
+      tutorialProgress.textContent = 'Step ' + (tutorialIndex+1) + ' / ' + tutorialSteps.length;
+      tutorialPrev.style.visibility = tutorialIndex===0 ? 'hidden' : 'visible';
+      tutorialNext.textContent = tutorialIndex === tutorialSteps.length-1 ? 'Finish' : 'Next';
+      tutorial.style.display = 'block';
+      tutorial.setAttribute('aria-hidden','false');
+    }
+    function closeTutorial(){
+      tutorial.style.display = 'none';
+      tutorial.setAttribute('aria-hidden','true');
+      localStorage.setItem(tutorialKey,'seen');
+    }
+    tutorialNext.addEventListener('click', ()=>{
+      if(tutorialIndex === tutorialSteps.length-1) closeTutorial();
+      else showTutorial(tutorialIndex+1);
+    });
+    tutorialPrev.addEventListener('click', ()=> showTutorial(tutorialIndex-1));
+    tutorialClose.addEventListener('click', closeTutorial);
+
+    /* ------------ bootstrap ------------ */
+    loadModel();
+    if(!model.nodes.length){
+      model.nodes.push({
+        id: uid(),
+        x:120, y:120, w:260, h:120,
+        title:'Start here',
+        body:'Scroll to zoom, drag to pan.\nAdd more blocks and design your workflow.',
+        color:'#fef9c3',
+        shape:'soft'
+      });
+      saveModel();
+    }
+    updateGrid();
+    renderNodes();
     applyTransform();
-  }
-  initialCenter();
 
-})();
-</script>
+    if(!localStorage.getItem(tutorialKey)){
+      showTutorial(0);
+    }
+
+    window.__ariesWorkspace = { model, saveModel };
+  })();
+  </script>
 </body>
 </html>
