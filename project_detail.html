@@ -3,9 +3,14 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Workspace — Aries (fix add-node on-screen)</title>
+<title>Workspace — Aries (project_detail)</title>
+<link rel="stylesheet" href="main.css" />
 <style>
-:root{--accent:#0b74ff;--muted:#6b7280;--panel:#ffffffee;--bg:#ffffff;--grid-color:rgba(15,23,42,0.04);--node-shadow:0 10px 28px rgba(15,23,42,0.08);--link-color:#0f172a;--link-selected:#ff7a59}
+:root{
+  --accent:#0b74ff; --muted:#6b7280; --panel:#ffffffee; --bg:#ffffff;
+  --grid-color:rgba(15,23,42,0.04); --node-shadow:0 10px 28px rgba(15,23,42,0.08);
+  --link-color:#0f172a; --link-selected:#ff7a59;
+}
 html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial;background:var(--bg)}
 .site-header{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #f1f1f1;background:#fff;position:sticky;top:0;z-index:40}
 .icon-btn{background:transparent;border:0;font-size:18px;cursor:pointer;padding:6px;border-radius:999px}
@@ -164,7 +169,10 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
   const deleteBlockBtn = document.getElementById('deleteBlock');
 
   /* Storage & model */
-  const storageKey = 'aries_orthogonal_v1_demo';
+  function getQueryParam(k){ return new URLSearchParams(location.search).get(k); }
+  const projectId = getQueryParam('id') || 'demo';
+  const storageKey = 'aries_orthogonal_full_' + projectId;
+
   let model = { nodes: [], links: [] }; // link: {id, from, to, fromAnchor, toAnchor, points?}
   let selectedNodeId = null;
   let selectedLinkId = null;
@@ -189,46 +197,45 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
   function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
   function flash(msg){ const el=document.createElement('div'); el.textContent=msg; Object.assign(el.style,{position:'fixed',right:'20px',bottom:'24px',background:'#0b74ff',color:'#fff',padding:'8px 12px',borderRadius:'8px',zIndex:1500}); document.body.appendChild(el); setTimeout(()=>el.remove(),1200); }
 
-  /* Robust visible -> model mapping using the displayed canvas rect.
-     This is the core fix for "add node off-screen".
-     We use canvas.getBoundingClientRect() which is the displayed rectangle on screen (after pan/zoom transforms).
-     scaleDisplayed = displayedWidth / canvasModelWidth
-     modelX = (clientX - canvasRect.left) / scaleDisplayed
-  */
+  /* ---
+     Coordinate mapping & robust add-node behavior
+     We use the displayed canvas rect (canvas.getBoundingClientRect()) to map visible/client coordinates -> model coords.
+     This ensures the new node appears inside the visible area regardless of pan/scale.
+  --- */
   function visiblePointToModel(clientX, clientY){
     const rect = canvas.getBoundingClientRect();
-    const scaleDisplayedX = rect.width / canvas.offsetWidth;
-    const scaleDisplayedY = rect.height / canvas.offsetHeight;
-    const mx = (clientX - rect.left) / (scaleDisplayedX || 1);
-    const my = (clientY - rect.top)  / (scaleDisplayedY || 1);
+    const scaleDisplayedX = rect.width / canvas.offsetWidth || 1;
+    const scaleDisplayedY = rect.height / canvas.offsetHeight || 1;
+    const mx = (clientX - rect.left) / scaleDisplayedX;
+    const my = (clientY - rect.top)  / scaleDisplayedY;
     return { x: mx, y: my };
   }
-
   function pageToModel(clientX, clientY){
-    // keep existing pageToModel for general pointer mapping (fallback)
     return visiblePointToModel(clientX, clientY);
   }
-
   function modelToPage(mx,my){
     const rect = canvas.getBoundingClientRect();
-    const scaleDisplayedX = rect.width / canvas.offsetWidth;
-    const scaleDisplayedY = rect.height / canvas.offsetHeight;
-    const px = rect.left + mx * (scaleDisplayedX || 1);
-    const py = rect.top  + my * (scaleDisplayedY || 1);
+    const scaleDisplayedX = rect.width / canvas.offsetWidth || 1;
+    const scaleDisplayedY = rect.height / canvas.offsetHeight || 1;
+    const px = rect.left + mx * scaleDisplayedX;
+    const py = rect.top  + my * scaleDisplayedY;
     return { x: px, y: py };
   }
 
   function getNodeBounds(n){ return { x: n.x, y: n.y, w: n.w || 230, h: n.h || 120 }; }
+  // compute 8 anchors for node: top[0..2], bottom[3..5], left[6], right[7]
   function computeAnchors(n){
     const b = getNodeBounds(n);
-    const xs = [ b.x + b.w*0.18, b.x + b.w*0.5, b.x + b.w*0.82 ];
+    const topY = b.y;
+    const bottomY = b.y + b.h;
+    const xs = [ b.x + b.w*0.18, b.x + b.w*0.5, b.x + b.w*0.82 ]; // slightly inset to look professional
     return [
-      { x: xs[0], y: b.y, side: 'top' },
-      { x: xs[1], y: b.y, side: 'top' },
-      { x: xs[2], y: b.y, side: 'top' },
-      { x: xs[0], y: b.y + b.h, side: 'bottom' },
-      { x: xs[1], y: b.y + b.h, side: 'bottom' },
-      { x: xs[2], y: b.y + b.h, side: 'bottom' },
+      { x: xs[0], y: topY, side: 'top' },
+      { x: xs[1], y: topY, side: 'top' },
+      { x: xs[2], y: topY, side: 'top' },
+      { x: xs[0], y: bottomY, side: 'bottom' },
+      { x: xs[1], y: bottomY, side: 'bottom' },
+      { x: xs[2], y: bottomY, side: 'bottom' },
       { x: b.x,     y: b.y + b.h/2, side: 'left' },
       { x: b.x + b.w, y: b.y + b.h/2, side: 'right' }
     ];
@@ -241,7 +248,7 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
   /* Grid */
   function updateGrid(){ if(!showGrid.checked){ canvas.style.backgroundImage='none'; return; } const size = gridSize; canvas.style.backgroundImage = `linear-gradient(to right, var(--grid-color) 1px, transparent 1px), linear-gradient(to bottom, var(--grid-color) 1px, transparent 1px)`; canvas.style.backgroundSize = size+'px '+size+'px'; }
 
-  /* Transform & SVG sync */
+  /* Transform & SVG */
   function syncSVGSize(){
     svg.setAttribute('width', canvas.offsetWidth);
     svg.setAttribute('height', canvas.offsetHeight);
@@ -250,7 +257,6 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
     svg.style.top = canvas.style.top || '0px';
   }
   function applyTransform(){
-    // keep original pan/scale transform behavior
     const tx = -canvas.offsetWidth/2 + pan.x;
     const ty = -canvas.offsetHeight/2 + pan.y;
     board.style.transform = `translate(${tx}px,${ty}px) scale(${scale})`;
@@ -259,22 +265,15 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
     renderLinks();
   }
 
+  /* zoom at pointer (uses visible mapping so point under cursor stays) */
   function zoomAt(newScale, clientX, clientY){
-    // keep point under cursor stable using displayed canvas mapping
     const before = visiblePointToModel(clientX, clientY);
     scale = clamp(newScale, MIN_SCALE, MAX_SCALE);
-    // after scale change, compute desired pan so that 'before' maps back to same client point.
-    // We'll compute displayed rect and adjust pan to match.
-    // Because applyTransform uses pan with translation before scale, we adjust pan by computing where that model point would be displayed.
-    // Use an iterative-ish but robust approach: find pan that results in the canvas rect where visiblePointToModel returns 'before' — we can compute required pan directly:
-    // compute rect center mapping: when pan changes, canvas.getBoundingClientRect changes; rather than trying to invert, we approximate by adjusting pan to keep center stable.
-    // Simpler: maintain pan so that center of viewport maps to same model center — this keeps behavior consistent.
     applyTransform();
-    // recompute pan so the same model point remains under cursor (approximate using displayed sizes)
+    // adjust pan so that point 'before' maps to same client location
     const rect = canvas.getBoundingClientRect();
     const scaleDisplayedX = rect.width / canvas.offsetWidth || 1;
     const scaleDisplayedY = rect.height / canvas.offsetHeight || 1;
-    // ensure pan adjusted so before maps to the client point
     pan.x += ((clientX - rect.left) / scaleDisplayedX) - before.x;
     pan.y += ((clientY - rect.top)  / scaleDisplayedY) - before.y;
     applyTransform();
@@ -312,15 +311,6 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
       el.style.outline = (selectedNodeId === n.id) ? '3px solid rgba(11,116,255,0.12)' : 'none';
     });
     renderLinks();
-  }
-
-  /* IMPORTANT FIX: add node using displayed canvas mapping so it ALWAYS shows on screen */
-  function handleAddNode(){
-    // center of visible viewport
-    const cx = window.innerWidth / 2;
-    const cy = window.innerHeight / 2;
-    const pos = visiblePointToModel(cx, cy);
-    addNodeAt(pos.x - 100, pos.y - 40);
   }
 
   function addNodeAt(x,y){
@@ -365,7 +355,7 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
     saveModel(); renderNodes();
   }
 
-  /* Auto-link on drop */
+  /* Auto-link on drop by nearest anchors */
   function anchorDistance(a,b){ return Math.hypot(a.x - b.x, a.y - b.y); }
   function autoLinkOnDrop(node){
     if(!node) return;
@@ -400,13 +390,78 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
   function onPanMove(e){ if(!isPanning) return; pan.x = e.clientX - panStart.x; pan.y = e.clientY - panStart.y; applyTransform(); }
   function onPanEnd(e){ isPanning = false; panLayer.removeEventListener('pointermove', onPanMove); panLayer.removeEventListener('pointerup', onPanEnd); saveModel(); }
 
-  panLayer.addEventListener('wheel', e=>{ e.preventDefault(); const delta = e.deltaY > 0 ? -SCALE_STEP : SCALE_STEP; const newScale = scale + delta; zoomAt(newScale, e.clientX, e.clientY); }, { passive:false });
+  panLayer.addEventListener('wheel', e=>{ e.preventDefault(); const delta = e.deltaY > 0 ? -SCALE_STEP : SCALE_STEP; const newScale = scale + delta; zoomAt(newScale,e.clientX,e.clientY); }, { passive:false });
 
+  // pinch
   panLayer.addEventListener('pointerdown', e=>{ pointerMap.set(e.pointerId,e); if(pointerMap.size===2){ const arr=Array.from(pointerMap.values()); pinchState={ dist: Math.hypot(arr[0].clientX-arr[1].clientX, arr[0].clientY-arr[1].clientY), scale:scale, center:{x:(arr[0].clientX+arr[1].clientX)/2,y:(arr[0].clientY+arr[1].clientY)/2} }; } e.target.setPointerCapture(e.pointerId); });
   panLayer.addEventListener('pointermove', e=>{ if(!pointerMap.has(e.pointerId)) return; pointerMap.set(e.pointerId,e); if(pinchState && pointerMap.size===2){ const arr=Array.from(pointerMap.values()); const dist=Math.hypot(arr[0].clientX-arr[1].clientX, arr[0].clientY-arr[1].clientY); const factor = dist / pinchState.dist; const newScale = clamp(pinchState.scale * factor, MIN_SCALE, MAX_SCALE); zoomAt(newScale, pinchState.center.x, pinchState.center.y); } });
   ['pointerup','pointercancel'].forEach(t=>panLayer.addEventListener(t,e=>{ pointerMap.delete(e.pointerId); if(pointerMap.size<2) pinchState=null; }));
 
-  /* Routing */
+  /* ------------ Improved orthogonal routing helpers (professional behavior) ------------ */
+
+  // Expand rect by padding
+  function expandRect(rect, pad){
+    return { left: rect.x - pad, top: rect.y - pad, right: rect.x + rect.w + pad, bottom: rect.y + rect.h + pad };
+  }
+
+  // Build node rects to avoid (exclude endpoint nodes)
+  function buildNodeRects(excludeIds = new Set(), pad = 8){
+    const rects = [];
+    model.nodes.forEach(n=>{
+      if(excludeIds.has(n.id)) return;
+      const r = getNodeBounds(n);
+      rects.push({ id: n.id, rect: expandRect(r, pad) });
+    });
+    return rects;
+  }
+
+  // Segment-rect tests
+  function segmentIntersectsRect(p1, p2, rect){
+    const minX = Math.min(p1.x, p2.x), maxX = Math.max(p1.x, p2.x);
+    const minY = Math.min(p1.y, p2.y), maxY = Math.max(p1.y, p2.y);
+    if(maxX < rect.left || minX > rect.right || maxY < rect.top || minY > rect.bottom) return false;
+    if(p1.y === p2.y){
+      if(p1.y >= rect.top && p1.y <= rect.bottom){
+        return !(maxX < rect.left || minX > rect.right);
+      }
+      return false;
+    }
+    if(p1.x === p2.x){
+      if(p1.x >= rect.left && p1.x <= rect.right){
+        return !(maxY < rect.top || minY > rect.bottom);
+      }
+      return false;
+    }
+    const edges = [
+      [{x:rect.left, y:rect.top}, {x:rect.right, y:rect.top}],
+      [{x:rect.right, y:rect.top}, {x:rect.right, y:rect.bottom}],
+      [{x:rect.right, y:rect.bottom}, {x:rect.left, y:rect.bottom}],
+      [{x:rect.left, y:rect.bottom}, {x:rect.left, y:rect.top}],
+    ];
+    for(const [e1,e2] of edges){ if(segmentsIntersect(p1,p2,e1,e2)) return true; }
+    return false;
+  }
+
+  function segmentsIntersect(a1,a2,b1,b2){
+    const orient = (p,q,r) => (q.x-p.x)*(r.y-p.y) - (q.y-p.y)*(r.x-p.x);
+    const o1 = orient(a1,a2,b1), o2 = orient(a1,a2,b2), o3 = orient(b1,b2,a1), o4 = orient(b1,b2,a2);
+    if(o1 === 0 && onSegment(a1,a2,b1)) return true;
+    if(o2 === 0 && onSegment(a1,a2,b2)) return true;
+    if(o3 === 0 && onSegment(b1,b2,a1)) return true;
+    if(o4 === 0 && onSegment(b1,b2,a2)) return true;
+    return (o1>0) !== (o2>0) && (o3>0) !== (o4>0);
+  }
+  function onSegment(p,q,r){ return Math.min(p.x,q.x) <= r.x && r.x <= Math.max(p.x,q.x) && Math.min(p.y,q.y) <= r.y && r.y <= Math.max(p.y,q.y); }
+
+  function polylineIntersectsRects(pts, rects){
+    for(let i=0;i<pts.length-1;i++){
+      const a = pts[i], b = pts[i+1];
+      for(const r of rects){ if(segmentIntersectsRect(a,b,r.rect)) return true; }
+    }
+    return false;
+  }
+
+  // Improved orthogonal routing: tests candidate paths and picks the first collision-free one
   function orthogonalRoute(aFrom, aTo){
     const sx = aFrom.x, sy = aFrom.y, tx = aTo.x, ty = aTo.y;
     const dx = Math.abs(tx - sx), dy = Math.abs(ty - sy);
@@ -419,22 +474,57 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
       const my = (sy + ty)/2;
       return [ {x:sx,y:sy}, {x:sx,y:my}, {x:tx,y:my}, {x:tx,y:ty} ];
     }
-    if((aFrom.side==='left' && aTo.side==='right') || (aFrom.side==='right' && aTo.side==='left')){
-      const mx = (sx + tx)/2;
-      return [ {x:sx,y:sy}, {x:mx,y:sy}, {x:mx,y:ty}, {x:tx,y:ty} ];
+
+    // determine from/to node ids to exclude from collision
+    const exclude = new Set();
+    let fromNodeId = null, toNodeId = null;
+    for(const n of model.nodes){
+      const b = getNodeBounds(n);
+      if(aFrom.x >= b.x && aFrom.x <= b.x + b.w && aFrom.y >= b.y && aFrom.y <= b.y + b.h) fromNodeId = n.id;
+      if(aTo.x   >= b.x && aTo.x   <= b.x + b.w && aTo.y   >= b.y && aTo.y   <= b.y + b.h) toNodeId = n.id;
     }
-    if((aFrom.side==='top' && aTo.side==='bottom') || (aFrom.side==='bottom' && aTo.side==='top')){
-      const my = (sy + ty)/2;
-      return [ {x:sx,y:sy}, {x:sx,y:my}, {x:tx,y:my}, {x:tx,y:ty} ];
-    }
+    if(fromNodeId) exclude.add(fromNodeId); if(toNodeId) exclude.add(toNodeId);
+    const rects = buildNodeRects(exclude, 8);
+
+    const candidates = [];
     const midX = (sx + tx) / 2;
+    const midY = (sy + ty) / 2;
+    // typical elbows
+    candidates.push([ {x:sx,y:sy}, {x:midX,y:sy}, {x:midX,y:ty}, {x:tx,y:ty} ]);
+    candidates.push([ {x:sx,y:sy}, {x:sx,y:midY}, {x:tx,y:midY}, {x:tx,y:ty} ]);
+    candidates.push([ {x:sx,y:sy}, {x:tx,y:sy}, {x:tx,y:ty} ]);
+    candidates.push([ {x:sx,y:sy}, {x:sx,y:ty}, {x:tx,y:ty} ]);
+
+    // offsets around extents
+    const pad = 18;
+    const left = Math.min(sx,tx) - pad;
+    const right = Math.max(sx,tx) + pad;
+    const top = Math.min(sy,ty) - pad;
+    const bottom = Math.max(sy,ty) + pad;
+    candidates.push([ {x:sx,y:sy}, {x:left,y:sy}, {x:left,y:ty}, {x:tx,y:ty} ]);
+    candidates.push([ {x:sx,y:sy}, {x:right,y:sy}, {x:right,y:ty}, {x:tx,y:ty} ]);
+    candidates.push([ {x:sx,y:sy}, {x:sx,y:top}, {x:tx,y:top}, {x:tx,y:ty} ]);
+    candidates.push([ {x:sx,y:sy}, {x:sx,y:bottom}, {x:tx,y:bottom}, {x:tx,y:ty} ]);
+
+    // fallback diagonal
+    candidates.push([ {x:sx,y:sy}, {x:tx,y:ty} ]);
+
+    for(const pts of candidates){
+      const cleanPts = [ pts[0] ];
+      for(let i=1;i<pts.length;i++){
+        const prev = cleanPts[cleanPts.length-1];
+        if(Math.hypot(prev.x - pts[i].x, prev.y - pts[i].y) > 0.5) cleanPts.push(pts[i]);
+      }
+      if(!polylineIntersectsRects(cleanPts, rects)) return cleanPts;
+    }
+    // last resort
     return [ {x:sx,y:sy}, {x:midX,y:sy}, {x:midX,y:ty}, {x:tx,y:ty} ];
   }
 
-  /* Links rendering */
+  /* ------------ Links rendering & interaction (unchanged behavior but responsive) ------------ */
   function renderLinks(){
     svg.innerHTML = '';
-    // defs
+    // defs for arrow marker
     const defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
     defs.innerHTML = `<marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="${getComputedStyle(document.documentElement).getPropertyValue('--link-color').trim()||'#0f172a'}"></path></marker>`;
     svg.appendChild(defs);
@@ -445,32 +535,45 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
       if(!fromNode || !toNode) return;
       const aFrom = computeAnchors(fromNode)[ link.fromAnchor ?? 6 ];
       const aTo   = computeAnchors(toNode)[ link.toAnchor ?? 7 ];
+
       let pts;
       if(link.points && link.points.length){
         pts = [ {x:aFrom.x, y:aFrom.y} ].concat(link.points).concat([ {x:aTo.x, y:aTo.y} ]);
       } else {
         pts = orthogonalRoute(aFrom, aTo);
       }
+
       const ptsStr = pts.map(p => `${p.x},${p.y}`).join(' ');
       const poly = document.createElementNS('http://www.w3.org/2000/svg','polyline');
-      poly.setAttribute('points', ptsStr); poly.setAttribute('fill','none');
+      poly.setAttribute('points', ptsStr);
+      poly.setAttribute('fill','none');
       poly.setAttribute('stroke', selectedLinkId===link.id ? getComputedStyle(document.documentElement).getPropertyValue('--link-selected').trim() : getComputedStyle(document.documentElement).getPropertyValue('--link-color').trim());
-      poly.setAttribute('stroke-width', '2'); poly.setAttribute('stroke-linejoin','round');
-      poly.classList.add('path-line','connector-shadow'); poly.dataset.id = link.id; poly.style.pointerEvents = 'stroke';
+      poly.setAttribute('stroke-width', Math.max(2,2));
+      poly.setAttribute('stroke-linejoin','round');
+      poly.classList.add('path-line','connector-shadow');
+      poly.dataset.id = link.id;
+      poly.style.pointerEvents = 'stroke';
       poly.addEventListener('click', e=>{ e.stopPropagation(); selectLink(link.id); });
+      poly.addEventListener('dblclick', e=>{ e.stopPropagation(); const rect = canvas.getBoundingClientRect(); const mx = (e.clientX - rect.left) / (rect.width / canvas.offsetWidth || 1); const my = (e.clientY - rect.top) / (rect.height / canvas.offsetHeight || 1); link.points = link.points || []; link.points.push({x:mx,y:my}); saveModel(); renderLinks(); });
       svg.appendChild(poly);
 
+      // endpoint handles
       const start = pts[0], end = pts[pts.length-1];
       const startHandle = document.createElementNS('http://www.w3.org/2000/svg','circle');
       startHandle.setAttribute('cx', start.x); startHandle.setAttribute('cy', start.y); startHandle.setAttribute('r',6);
-      startHandle.classList.add('endpoint-handle'); startHandle.dataset.linkId = link.id; startHandle.dataset.end = 'from';
-      enableEndpointDrag(startHandle, link, 'from'); svg.appendChild(startHandle);
+      startHandle.classList.add('endpoint-handle');
+      startHandle.dataset.linkId = link.id; startHandle.dataset.end = 'from';
+      enableEndpointDrag(startHandle, link, 'from');
+      svg.appendChild(startHandle);
 
       const endHandle = document.createElementNS('http://www.w3.org/2000/svg','circle');
       endHandle.setAttribute('cx', end.x); endHandle.setAttribute('cy', end.y); endHandle.setAttribute('r',6);
-      endHandle.classList.add('endpoint-handle'); endHandle.dataset.linkId = link.id; endHandle.dataset.end = 'to';
-      enableEndpointDrag(endHandle, link, 'to'); svg.appendChild(endHandle);
+      endHandle.classList.add('endpoint-handle');
+      endHandle.dataset.linkId = link.id; endHandle.dataset.end = 'to';
+      enableEndpointDrag(endHandle, link, 'to');
+      svg.appendChild(endHandle);
 
+      // arrow
       const prev = pts[pts.length-2] || start;
       const arrowLine = document.createElementNS('http://www.w3.org/2000/svg','line');
       arrowLine.setAttribute('x1', prev.x); arrowLine.setAttribute('y1', prev.y);
@@ -478,6 +581,7 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
       arrowLine.setAttribute('stroke','transparent'); arrowLine.setAttribute('marker-end','url(#arrow)');
       svg.appendChild(arrowLine);
 
+      // bend handles
       (link.points||[]).forEach((p,i)=>{
         const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
         c.setAttribute('cx', p.x); c.setAttribute('cy', p.y); c.setAttribute('r',7);
@@ -491,7 +595,7 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
     syncSVGSize();
   }
 
-  /* Endpoint dragging (reconnect) */
+  /* Endpoint dragging: reconnect to nearest anchor or create a custom bend point */
   function enableEndpointDrag(circleEl, link, which){
     circleEl.addEventListener('pointerdown', (e)=>{
       e.stopPropagation(); circleEl.setPointerCapture(e.pointerId);
@@ -511,7 +615,7 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
         if(snap){
           if(which === 'from'){ link.from = snap.nodeId; link.fromAnchor = snap.anchorIndex; }
           else { link.to = snap.nodeId; link.toAnchor = snap.anchorIndex; }
-          link.points = link.points && link.points.length ? link.points : null;
+          link.points = link.points || null;
         } else {
           if(!link.points) link.points = [];
           if(which === 'from'){ link.points.unshift({ x: mx, y: my }); }
@@ -524,6 +628,7 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
     });
   }
 
+  // Render preview while dragging endpoint
   function renderTemporaryLinkPreview(link, tempPoint, which){
     renderLinks();
     const fromNode = model.nodes.find(n=>n.id===link.from);
@@ -544,6 +649,7 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
     svg.appendChild(preview);
   }
 
+  // find nearest anchor to a point; returns {nodeId, anchorIndex, anchor, dist}
   function findNearestAnchor(pt, threshold){
     let best = Infinity, bestFound = null;
     model.nodes.forEach(n=>{
@@ -557,6 +663,7 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
     return null;
   }
 
+  /* Bend drag */
   function enableBendDrag(circleEl, link, index){
     circleEl.addEventListener('pointerdown', (e)=>{
       e.stopPropagation(); circleEl.setPointerCapture(e.pointerId);
@@ -599,6 +706,7 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
     selectedLinkId = null; selectedLinkLabel.textContent = 'none'; toolDeleteLink.disabled = true; saveModel(); renderLinks();
   });
 
+  // keyboard delete/backspace
   window.addEventListener('keydown', (e)=>{
     if(e.key === 'Delete' || e.key === 'Backspace'){
       if(selectedNodeId){
@@ -612,7 +720,7 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
     }
   });
 
-  /* Connector flow */
+  /* Connector tool flow */
   toolConnector.addEventListener('click', ()=> {
     connectMode = !connectMode; connectFrom = null;
     toolConnector.style.background = connectMode ? '#fdecea' : '';
@@ -658,6 +766,13 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
   deleteBlockBtn.addEventListener('click', ()=>{ if(!selectedNodeId) return closeModal(); if(!confirm('Delete this block?')) return; model.links = model.links.filter(l => l.from !== selectedNodeId && l.to !== selectedNodeId); model.nodes = model.nodes.filter(n => n.id !== selectedNodeId); saveModel(); renderNodes(); closeModal(); });
 
   /* UI actions */
+  // Add node at center of visible viewport (reliable)
+  function handleAddNode(){
+    const cx = window.innerWidth / 2;
+    const cy = window.innerHeight / 2;
+    const pos = visiblePointToModel(cx, cy);
+    addNodeAt(pos.x - 100, pos.y - 40);
+  }
   document.getElementById('addNode')?.addEventListener('click', handleAddNode);
   toolAddNode.addEventListener('click', handleAddNode);
 
@@ -667,7 +782,7 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
   saveBoardBtn.addEventListener('click', ()=> saveModel());
   backToProjects.addEventListener('click', ()=> { saveModel(); window.location.href = 'projects.html'; });
 
-  exportBtn.addEventListener('click', ()=>{ const data = JSON.stringify(model,null,2); const blob = new Blob([data],{type:'application/json'}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'board.board.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); });
+  exportBtn.addEventListener('click', ()=>{ const data = JSON.stringify(model,null,2); const blob = new Blob([data],{type:'application/json'}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = (projectId||'board') + '.board.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); });
   importFile.addEventListener('change', e=>{ const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=function(){ try{ const parsed=JSON.parse(r.result); if(parsed && parsed.nodes){ model=parsed; saveModel(); renderNodes(); flash('Imported'); } else alert('Invalid file'); } catch(err){ alert('Invalid JSON'); } }; r.readAsText(f); });
 
   showGrid.addEventListener('change', ()=> updateGrid());
@@ -676,6 +791,7 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
 
   menuIcon.addEventListener('click', ()=> { const isOpen = floatingTools.classList.toggle('open'); floatingTools.setAttribute('aria-hidden', isOpen ? 'false':'true'); });
 
+  /* Canvas click deselect */
   canvas.addEventListener('click', (e)=>{ selectedNodeId = null; selectedLinkId = null; toolDeleteNode.disabled = true; toolDeleteLink.disabled = true; selectedLinkLabel.textContent = 'none'; renderNodes(); renderLinks(); });
 
   /* Bootstrap */
