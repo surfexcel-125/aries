@@ -387,3 +387,11 @@ header.project-detail-header .header-title {
     background-color: white; /* White background on hover or active */
     color: black;
 }
+/* Improve visible focus for keyboard users */
+[role="button"]:focus {
+  outline: 3px solid #ffd54f;
+  outline-offset: 2px;
+}
+
+/* Make sure project dropdown is positioned relative to viewport default */
+.project-dropdown-menu { top: auto; } /* JS will calculate exact top when opened */
