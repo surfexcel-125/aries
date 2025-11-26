@@ -16,14 +16,42 @@
   --link-selected:#ff7a59;
 }
 html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial;background:var(--bg)}
-.site-header{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #f1f1f1;background:#fff;position:sticky;top:0;z-index:40}
+
+/* --- HEADER FIX: Use Flexbox for robust layout and spacing --- */
+.topbar {
+    display: flex;
+    align-items: center;
+    gap: 15px; /* Spacing between main items (menu, title, actions) */
+    padding: 10px 14px;
+    border-bottom: 1px solid #f1f1f1;
+    background: #fff;
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    min-height: 40px; /* Ensure space for content */
+}
+
+.header-title{
+    font-weight:700;
+    font-size:0.98rem;
+    white-space: nowrap; /* Prevent project name from wrapping */
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.header-actions{
+    margin-left:auto; 
+    display:flex; 
+    gap:10px; 
+    align-items:center;
+}
+
 .icon-btn{background:transparent;border:0;font-size:18px;cursor:pointer;padding:6px;border-radius:999px}
-.header-title{font-weight:700;font-size:0.98rem}
 .btn{padding:8px 12px;border:0;border-radius:6px;cursor:pointer;font-weight:600}
 .btn.primary{background:var(--accent);color:#fff}
 .btn.ghost{background:transparent;color:var(--muted);border:1px solid #e5e7eb}
 .btn:hover{opacity:0.9}
-.tool-btn{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12px;cursor:pointer;padding:8px;border-radius:8px;border:1px solid transparent;user-select:none;transition:all 0.1s}
+
+.tool-btn{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12px;cursor:pointer;padding:8px 12px;border-radius:8px;border:1px solid transparent;user-select:none;transition:all 0.1s}
 .tool-btn:hover{background:var(--panel)}
 .tool-btn.active{background:var(--panel);border:1px solid #e5e7eb}
 .tool-icon{font-size:20px;line-height:1}
@@ -32,37 +60,36 @@ html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe 
 /* --- CANVAS & BOARD --- */
 .canvas-wrap{flex-grow:1;overflow:hidden;position:relative; background:var(--canvas-bg);}
 #canvas{width:100%;height:100%;position:absolute;top:0;left:0;cursor:grab; background:var(--canvas-bg);}
-#board{transform-origin:top left;transition:transform 0.15s ease-out; position:relative; width:100%; height:100%;} /* Ensure board is relative */
+#board{transform-origin:top left;transition:transform 0.15s ease-out; position:relative; width:100%; height:100%;}
 #panLayer{position:absolute;top:0;left:0;width:100%;height:100%;z-index:20;cursor:grab}
 #svg{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10}
 
 /* --- NODE STYLES (WORKFLOW TYPES) --- */
 .node{
-  position:absolute; /* Crucial for moving */
+  position:absolute; /* CRITICAL: Ensures nodes can be moved independently */
   padding:16px 20px;
-  min-width:180px;
+  min-width:180px; 
   min-height:80px;
   box-shadow:var(--node-shadow);
   border-radius:12px;
   background:var(--panel);
   cursor:pointer;
-  transition:border-color 0.1s; /* Smoother transition */
+  transition:border-color 0.1s; 
   border:2px solid transparent;
-  z-index: 15; /* Below panLayer/svg */
+  z-index: 15;
   transform-origin: center center;
 }
-.node.selected{border-color:var(--accent); box-shadow:0 0 0 3px rgba(11, 116, 255, 0.3);} /* Highlight */
-.node-title{font-weight:700;font-size:1.1rem;margin-bottom:8px}
-.node-body{font-size:0.9rem;color:#374151}
+.node.selected{border-color:var(--accent); box-shadow:0 0 0 3px rgba(11, 116, 255, 0.3);}
+.node-title{font-weight:700;font-size:1.1rem;margin-bottom:8px; white-space: normal; word-break: break-word;}
+.node-body{font-size:0.9rem;color:#374151; white-space: normal; word-break: break-word;}
 
-/* Specific Node Type Visuals */
 .node-type-page { background-color: #e6f0ff !important; border-color: #0b74ff; } 
 .node-type-action { background-color: #fff8f0 !important; border-color: #ffb84d; } 
 .node-type-decision { 
   background-color: #f0fff0 !important; 
   border-color: #00a854; 
-  width: 140px; 
-  height: 140px; 
+  width: 150px; 
+  height: 150px; 
   border-radius: 4px;
   transform: rotate(45deg); 
   display: flex; 
@@ -103,12 +130,11 @@ html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe 
   font-size: 14px;
   font-weight: bold;
   pointer-events: none; 
-  /* Visual improvement for text over path */
   text-shadow: 1px 1px 0 var(--canvas-bg), -1px 1px 0 var(--canvas-bg), 1px -1px 0 var(--canvas-bg), -1px -1px 0 var(--canvas-bg);
 }
 
 
-/* --- CONTEXT MENU (NEW) --- */
+/* --- CONTEXT MENU --- */
 #contextMenu {
     position: absolute;
     background: #fff;
@@ -118,9 +144,8 @@ html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe 
     z-index: 100;
     padding: 5px 0;
     min-width: 150px;
-    display: none; /* Controlled by JS */
+    display: none;
 }
-
 .context-menu-item {
     padding: 8px 15px;
     cursor: pointer;
@@ -136,7 +161,18 @@ html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe 
 
 
 /* --- TOOLBAR & CONTROLS --- */
-#floatingTools{position:fixed;bottom:20px;right:20px;display:flex;gap:10px;background:var(--panel);padding:10px;border-radius:12px;box-shadow:0 10px 20px rgba(0,0,0,0.1);z-index:50}
+#floatingTools{
+    position:fixed;
+    bottom:20px;
+    right:20px;
+    display:flex;
+    gap:10px;
+    background:var(--panel);
+    padding:10px;
+    border-radius:12px;
+    box-shadow:0 10px 20px rgba(0,0,0,0.1);
+    z-index:50
+}
 .controls-panel{position:fixed;bottom:20px;left:20px;padding:12px;background:var(--panel);border-radius:8px;box-shadow:0 5px 15px rgba(0,0,0,0.1);z-index:50;display:flex;gap:15px;align-items:center}
 .field label{font-weight:600;display:block;margin-bottom:4px}
 .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:none;justify-content:center;align-items:center;z-index:1000}
@@ -148,8 +184,10 @@ html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe 
 
 <header class="topbar" style="background:white; color:black; border-bottom:1px solid #f1f1f1;">
     <button class="hamburger" id="menuIcon" style="color:black;">☰</button>
-    <div class="brand header-title" id="headerTitle" style="color:black;">Loading Project...</div>
-    <div style="margin-left:auto; display:flex; gap:10px; align-items:center;">
+    
+    <div class="header-title" id="headerTitle" style="color:black;">Loading Project...</div>
+    
+    <div class="header-actions">
       <button id="saveBoard" class="btn primary">Save Board</button>
       <a href="projects.html" id="backToProjects" class="btn ghost">← Projects</a>
     </div>
@@ -164,7 +202,7 @@ html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe 
           <marker id="arrowhead" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="strokeWidth" markerWidth="6" markerHeight="6" orient="auto">
             <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--link-color)" />
           </marker>
-          <marker id="arrowhead-selected" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="strokeWidth" markerWidth="6" markerHeight="6" orient="auto">
+          <marker id="arrowhead-selected" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="strokeWidth" markerHeight="6" orient="auto">
             <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--link-selected)" />
           </marker>
         </defs>
@@ -221,7 +259,7 @@ html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe 
 
 <div id="modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true">
   <div class="modal">
-    <h3>Block Settings</h3>
+    <h3>Node Settings</h3>
     <p>ID: <span id="modalProjectId" style="font-weight:bold; font-family: monospace;"></span></p>
     <div class="field"><label>Title (Appears on Node)</label><input id="modalTitle" type="text"></div>
     <div class="field"><label>Notes/Details</label><textarea id="modalBody" rows="4"></textarea></div>
