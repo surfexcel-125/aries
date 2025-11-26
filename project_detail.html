@@ -3,464 +3,408 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Workspace — Aries</title>
+  <title>Workspace — Aries (Simple Zoomable Whiteboard)</title>
   <link rel="stylesheet" href="main.css" />
   <style>
-    /* Workspace styles (self-contained) */
-    .workspace-header { display:flex; gap:12px; align-items:center; padding:12px 18px; border-bottom:1px solid #eee; background:#fff; }
-    .workspace-toolbar { display:flex; gap:8px; margin-left:auto; align-items:center; }
-    .ws-btn { padding:8px 10px; border-radius:8px; text-decoration:none; background:#1f2937; color:#fff; font-weight:600; cursor:pointer; }
-    .ws-btn.ghost { background:transparent; border:1px solid #ddd; color:inherit; }
-    .board-wrap { position:relative; height:calc(100vh - 72px); overflow:auto; background:linear-gradient(180deg,#fafafa,#fff); }
-    .board { position:relative; width:2000px; height:1400px; margin:24px; border-radius:12px; background:repeating-linear-gradient(0deg, rgba(0,0,0,0.02) 0 1px, transparent 1px 40px); box-shadow: 0 6px 20px rgba(16,24,40,0.04); }
+    :root{
+      --board-bg: #ffffff;
+      --panel-bg: rgba(255,255,255,0.95);
+      --accent: #0b74ff;
+      --muted: #6b7280;
+    }
+    body,html{height:100%; margin:0; font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;}
+    .site-header{display:flex; align-items:center; gap:12px; padding:10px 16px; border-bottom:1px solid #eee; background:#fff;}
+    .icon-btn{background:transparent;border:0;font-size:18px;cursor:pointer;padding:6px;}
+    .workspace-toolbar{margin-left:auto; display:flex; gap:8px; align-items:center;}
+    .ws-btn{padding:8px 10px;border-radius:8px;border:0;background:var(--accent);color:#fff;font-weight:600;cursor:pointer}
+    .ws-btn.ghost{background:transparent;border:1px solid #ddd;color:inherit}
+    /* Board area */
+    .board-viewport{position:relative; height:calc(100vh - 56px); overflow:hidden; background:var(--board-bg);}
+    .board-pan { position:absolute; inset:0; touch-action:none; } /* container used for panning */
+    .board { position:absolute; left:50%; top:50%; transform-origin:0 0; background:transparent; } /* we'll center by translating after sizing */
+    /* Whiteboard canvas */
+    .canvas { width:1600px; height:1000px; border-radius:8px; background:var(--board-bg); box-shadow:0 6px 20px rgba(16,24,40,0.04); margin:auto; position:relative; overflow:visible; }
+    /* node */
     .node {
       position:absolute;
-      min-width:150px;
-      max-width:320px;
+      min-width:160px;
+      max-width:360px;
       padding:10px 12px;
-      border-radius:10px;
+      border-radius:8px;
       background:#fff;
+      border:1px solid rgba(0,0,0,0.08);
       box-shadow:0 6px 18px rgba(2,6,23,0.06);
-      border:1px solid rgba(0,0,0,0.06);
       cursor:grab;
       user-select:none;
     }
-    .node:active { cursor:grabbing; }
-    .node .node-hdr { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:8px; }
-    .node .node-title { font-weight:700; font-size:0.98rem; margin:0; }
-    .node .node-body { min-height:26px; }
-    .node [contenteditable] { outline:none; }
-    .node .node-controls { display:flex; gap:6px; align-items:center; }
-    .connector-line { position:absolute; inset:0; pointer-events:none; }
-    .mode-indicator { padding:6px 8px; border-radius:8px; font-size:0.92rem; background:#ffe9b3; color:#4a2c00; border:1px solid #ffd27a; }
-    .right-panel { position: absolute; right: 24px; top: 24px; background: rgba(255,255,255,0.95); border-radius:10px; padding:8px; box-shadow:0 6px 18px rgba(2,6,23,0.07); }
-    .small-muted { font-size:0.86rem; color:#6b7280; }
-    .file-input { display:none; }
-    @media (max-width:900px) {
-      .board { width:1200px; height:1000px; }
+    .node:active{cursor:grabbing;}
+    .node .title {font-weight:700;margin:0 0 6px 0;font-size:0.98rem;}
+    .node .body {font-size:0.92rem;color:var(--muted)}
+    .node .mini-controls{position:absolute; right:8px; top:8px; display:flex; gap:6px;}
+    .mini-btn{background:transparent;border:0;cursor:pointer;font-size:14px;}
+    /* popup */
+    .modal-backdrop{position:fixed; inset:0; display:none; justify-content:center; align-items:center; background:rgba(0,0,0,0.35); z-index:1200;}
+    .modal{background:var(--panel-bg); padding:14px; border-radius:10px; width:320px; box-shadow:0 10px 30px rgba(2,6,23,0.2);}
+    .modal h3{margin:0 0 8px 0;font-size:1.05rem;}
+    .field{margin:8px 0; display:flex; flex-direction:column; gap:6px;}
+    .field input[type="text"], .field textarea, .field input[type="color"]{padding:8px;border:1px solid #ddd;border-radius:8px;}
+    .modal-actions{display:flex; justify-content:space-between; gap:10px; margin-top:12px;}
+    .small-muted{color:var(--muted); font-size:0.9rem;}
+    .zoom-indicator{padding:6px 10px;border-radius:8px;border:1px solid #eee;background:#fff; margin-left:8px; font-weight:600;}
+    /* responsive */
+    @media (max-width:720px){
+      .canvas{width:1200px;height:800px;}
+      .modal{width:90%;}
     }
   </style>
 </head>
 <body>
-  <header class="workspace-header">
+  <header class="site-header">
     <button id="menuIcon" class="icon-btn" aria-label="Open menu">☰</button>
-    <h1 id="wsTitle" style="margin:0; font-size:1.05rem;">Workspace</h1>
-
+    <strong>Workspace</strong>
     <div class="workspace-toolbar" role="toolbar" aria-label="Workspace tools">
-      <button id="addNode" class="ws-btn">+ Add Node</button>
-      <button id="connectToggle" class="ws-btn ghost">Connect</button>
-      <button id="deleteNode" class="ws-btn ghost">Delete</button>
-      <button id="clearBoard" class="ws-btn ghost">Clear</button>
-
+      <button id="addNode" class="ws-btn">+ Node</button>
+      <button id="zoomIn" class="ws-btn ghost">Zoom +</button>
+      <button id="zoomOut" class="ws-btn ghost">Zoom -</button>
+      <button id="resetView" class="ws-btn ghost">Reset</button>
+      <div class="zoom-indicator" id="zoomIndicator">100%</div>
       <button id="saveBoard" class="ws-btn">Save</button>
       <button id="exportBtn" class="ws-btn ghost">Export</button>
-      <label class="ws-btn ghost" for="importFile" style="cursor:pointer;">Import</label>
-      <input id="importFile" class="file-input" type="file" accept="application/json">
-
-      <div class="mode-indicator" id="modeIndicator" style="display:none;">Connect mode</div>
+      <label for="importFile" class="ws-btn ghost" style="cursor:pointer;">Import</label>
+      <input id="importFile" type="file" accept="application/json" style="display:none;">
     </div>
   </header>
 
-  <main class="board-wrap">
-    <div id="board" class="board" tabindex="0" aria-label="Workspace board">
-      <!-- SVG connector layer -->
-      <svg id="svgLayer" class="connector-line" xmlns="http://www.w3.org/2000/svg"></svg>
-      <!-- nodes will be appended here -->
-    </div>
+  <aside id="sidebar" class="sidebar" aria-hidden="true" style="display:none;">
+    <!-- kept minimal; app.js will toggle -->
+    <button id="closeIcon" class="icon-btn" aria-label="Close menu">✕</button>
+    <nav><a href="projects.html">Projects</a></nav>
+  </aside>
 
-    <div class="right-panel" aria-hidden="false">
-      <div class="small-muted">Tips</div>
-      <ul style="margin:8px 0 0 16px;">
-        <li>Double-click a node title or body to edit text.</li>
-        <li>Drag to move nodes. Use <strong>Connect</strong> to draw links between nodes.</li>
-        <li>Save/export to keep a copy. Import a JSON file to load.</li>
-      </ul>
+  <main class="board-viewport" id="viewport">
+    <div class="board-pan" id="panLayer" tabindex="0" aria-label="Whiteboard pan & zoom container">
+      <div id="board" class="board" aria-hidden="false">
+        <div id="canvas" class="canvas" role="application" aria-label="Whiteboard canvas"></div>
+      </div>
     </div>
   </main>
 
-  <footer style="display:none;"></footer>
+  <!-- modal -->
+  <div id="modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="modal" role="document">
+      <h3>Block settings</h3>
+      <div class="field"><label class="small-muted">Title</label><input id="modalTitle" type="text" /></div>
+      <div class="field"><label class="small-muted">Body</label><textarea id="modalBody" rows="4"></textarea></div>
+      <div class="field"><label class="small-muted">Background color</label><input id="modalColor" type="color" value="#ffffff" /></div>
+      <div class="modal-actions">
+        <div style="display:flex; gap:8px;">
+          <button id="deleteBlock" class="ws-btn ghost">Delete</button>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button id="cancelModal" class="ws-btn ghost">Cancel</button>
+          <button id="saveModal" class="ws-btn">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer style="display:none"></footer>
 
   <script src="app.js" defer></script>
 
-  <!-- Workspace logic -->
   <script>
-    (function(){
-      // Basic in-memory model with localStorage persistence by project id
-      const board = document.getElementById('board');
-      const svg = document.getElementById('svgLayer');
-      const addNodeBtn = document.getElementById('addNode');
-      const connectToggle = document.getElementById('connectToggle');
-      const deleteNodeBtn = document.getElementById('deleteNode');
-      const clearBoardBtn = document.getElementById('clearBoard');
-      const saveBoardBtn = document.getElementById('saveBoard');
-      const exportBtn = document.getElementById('exportBtn');
-      const importFile = document.getElementById('importFile');
-      const modeIndicator = document.getElementById('modeIndicator');
-      const wsTitle = document.getElementById('wsTitle');
+  (function(){
+    // Simple zoomable whiteboard with block settings modal
+    const canvas = document.getElementById('canvas');
+    const board = document.getElementById('board');
+    const panLayer = document.getElementById('panLayer');
+    const addNodeBtn = document.getElementById('addNode');
+    const zoomInBtn = document.getElementById('zoomIn');
+    const zoomOutBtn = document.getElementById('zoomOut');
+    const resetViewBtn = document.getElementById('resetView');
+    const zoomIndicator = document.getElementById('zoomIndicator');
+    const saveBoardBtn = document.getElementById('saveBoard');
+    const exportBtn = document.getElementById('exportBtn');
+    const importFile = document.getElementById('importFile');
 
-      // Get project id from query param
-      function getQueryParam(k){ return new URLSearchParams(location.search).get(k); }
-      const projectId = getQueryParam('id') || 'workspace-demo';
-      const storageKey = 'aries_board_' + projectId;
+    const modalBackdrop = document.getElementById('modal');
+    const modalTitle = document.getElementById('modalTitle');
+    const modalBody = document.getElementById('modalBody');
+    const modalColor = document.getElementById('modalColor');
+    const saveModalBtn = document.getElementById('saveModal');
+    const cancelModalBtn = document.getElementById('cancelModal');
+    const deleteBlockBtn = document.getElementById('deleteBlock');
 
-      wsTitle.textContent = 'Workspace — ' + (projectId ? projectId : 'Untitled');
+    // project id storage key
+    function getQueryParam(k){ return new URLSearchParams(location.search).get(k); }
+    const projectId = getQueryParam('id') || 'demo';
+    const storageKey = 'aries_board_simple_' + projectId;
 
-      // Model:
-      // nodes: [{id, x, y, w, h, title, body}]
-      // links: [{fromId, toId, id}]
-      let model = { nodes: [], links: [] };
-      let dragging = null;
-      let dragOffset = {x:0,y:0};
-      let connectMode = false;
-      let connectFrom = null;
-      let selectedNodeId = null;
+    // model
+    let model = { nodes: [] }; // nodes: [{id,x,y,w,h,title,body,color}]
+    let selectedNodeId = null;
 
-      function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+    // viewport transform state
+    let scale = 1;
+    let pan = { x: 0, y: 0 }; // translation in px applied to board (after centering)
+    const MIN_SCALE = 0.4, MAX_SCALE = 2.5, SCALE_STEP = 0.1;
 
-      // Load/save
-      function loadModel() {
-        try {
-          const raw = localStorage.getItem(storageKey);
-          model = raw ? JSON.parse(raw) : { nodes:[], links:[] };
-        } catch (e) { model = { nodes:[], links:[] }; }
-      }
-      function saveModel() {
-        localStorage.setItem(storageKey, JSON.stringify(model));
-        flash('Saved');
-      }
+    // dragging state
+    let draggingNode = null;
+    let dragOffset = { x:0, y:0 };
 
-      // Render
-      function clearBoardDOM() {
-        // remove nodes
-        const existing = board.querySelectorAll('.node');
-        existing.forEach(n => n.remove());
-        // clear svg
-        while(svg.firstChild) svg.removeChild(svg.firstChild);
-      }
+    // panning state
+    let isPanning = false;
+    let panStart = { x:0, y:0 };
 
-      function render() {
-        clearBoardDOM();
-        // render nodes
-        model.nodes.forEach(n => {
-          const el = createNodeElement(n);
-          board.appendChild(el);
-        });
-        // render links
-        model.links.forEach(l => drawLink(l));
-      }
+    // helpers
+    function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+    function saveModel(){ localStorage.setItem(storageKey, JSON.stringify(model)); flash('Saved'); }
+    function loadModel(){ try { const raw = localStorage.getItem(storageKey); model = raw ? JSON.parse(raw) : {nodes:[]}; } catch(e){ model = {nodes:[]}; } }
+    function flash(msg){ const el = document.createElement('div'); el.textContent = msg; Object.assign(el.style,{position:'fixed', right:'16px', bottom:'16px', background:'#0b74ff', color:'#fff', padding:'8px 12px', borderRadius:'8px', zIndex:9999}); document.body.appendChild(el); setTimeout(()=>el.remove(),1200); }
 
-      function createNodeElement(n) {
-        const el = document.createElement('div');
-        el.className = 'node';
-        el.dataset.id = n.id;
-        el.style.left = (n.x || 80) + 'px';
-        el.style.top = (n.y || 80) + 'px';
-        el.innerHTML = `
-          <div class="node-hdr">
-            <h4 class="node-title" contenteditable="true">${escapeHtml(n.title || 'New node')}</h4>
-            <div class="node-controls">
-              <button class="small-btn" data-action="connect" title="Connect">⤴</button>
-              <button class="small-btn" data-action="duplicate" title="Duplicate">⎘</button>
-              <button class="small-btn" data-action="remove" title="Remove">✕</button>
+    function updateTransform(){
+      // center the board element in the viewport, then apply pan and scale.
+      // Board's CSS positions it with left:50% top:50% so we translate it by -50% of its size first.
+      const rect = canvas.getBoundingClientRect();
+      // translate to keep center origin consistent
+      const tx = -rect.width/2 + pan.x;
+      const ty = -rect.height/2 + pan.y;
+      board.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+      zoomIndicator.textContent = Math.round(scale*100) + '%';
+      renderNodesPositions(); // nodes are positioned in model coords; rendering will reflect scale via transform
+    }
+
+    // render nodes
+    function clearNodes(){ canvas.querySelectorAll('.node').forEach(n=>n.remove()); }
+    function renderNodesPositions(){
+      // ensure nodes exist in DOM and visually match model coords
+      model.nodes.forEach(n=>{
+        let el = canvas.querySelector(`.node[data-id="${n.id}"]`);
+        if (!el) {
+          el = document.createElement('div');
+          el.className = 'node';
+          el.dataset.id = n.id;
+          // content
+          el.innerHTML = `
+            <div class="mini-controls">
+              <button class="mini-btn" title="Edit">✎</button>
             </div>
-          </div>
-          <div class="node-body" contenteditable="true">${escapeHtml(n.body || '')}</div>
-        `;
-        // events
-        el.addEventListener('pointerdown', nodePointerDown);
-        el.addEventListener('dblclick', (e)=> {
-          const t = e.target;
-          if (t && t.isContentEditable) { /* allow edit */ }
-        });
+            <div class="title" contenteditable="false"></div>
+            <div class="body" contenteditable="false"></div>
+          `;
+          // attach events
+          el.addEventListener('pointerdown', nodePointerDown);
+          el.addEventListener('dblclick', nodeDoubleClick);
+          el.querySelector('.mini-btn').addEventListener('click', (e)=>{ e.stopPropagation(); openModalForNode(n.id); });
+          canvas.appendChild(el);
+        }
+        // style & position
+        el.style.left = (n.x || 60) + 'px';
+        el.style.top = (n.y || 60) + 'px';
+        el.style.width = (n.w || 200) + 'px';
+        el.style.background = n.color || '#ffffff';
+        el.querySelector('.title').textContent = n.title || 'Untitled';
+        el.querySelector('.body').textContent = n.body || '';
+      });
+    }
 
-        // controls
-        el.querySelectorAll('[data-action]').forEach(btn => {
-          btn.addEventListener('click', (ev)=>{
-            ev.stopPropagation();
-            const act = btn.dataset.action;
-            if (act === 'remove') { removeNode(n.id); }
-            if (act === 'duplicate') { duplicateNode(n.id); }
-            if (act === 'connect') { startConnectFrom(n.id); }
-          });
-        });
+    // pointer drag for nodes
+    function nodePointerDown(e){
+      e.stopPropagation();
+      const el = e.currentTarget;
+      const id = el.dataset.id;
+      draggingNode = id;
+      const rect = el.getBoundingClientRect();
+      // adjust offset considering the current transform (scale)
+      const sx = e.clientX, sy = e.clientY;
+      dragOffset.x = (sx - rect.left);
+      dragOffset.y = (sy - rect.top);
+      el.setPointerCapture(e.pointerId);
+      el.addEventListener('pointermove', nodePointerMove);
+      el.addEventListener('pointerup', nodePointerUp);
+    }
+    function nodePointerMove(e){
+      if (!draggingNode) return;
+      const el = canvas.querySelector(`.node[data-id="${draggingNode}"]`);
+      if (!el) return;
+      const canvasRect = canvas.getBoundingClientRect();
+      // compute coordinates in canvas (model) space, need to account for board transform (scale & pan & centering)
+      // To convert screen client coords to model coords:
+      // 1) find point in board-local coords before scale/translate: use inverse transform
+      // But simpler approach: compute mouse position relative to canvas top-left in page, then transform by inverse scale and center offsets.
+      const boardRect = board.getBoundingClientRect();
+      // compute board origin after transform: board is centered at viewport center plus pan offsets; instead compute canvas left/top in page:
+      const canvasLeft = boardRect.left + (canvas.offsetLeft * scale);
+      // The above gets messy; easier: we keep node positions in unscaled canvas coordinates and place nodes by setting left/top on canvas which is child of board. 
+      // The browser applies the scale to the whole board so pointer positions need to be adjusted by scale and board offset.
+      const boardTransform = board.getBoundingClientRect();
+      const scaleInv = 1/scale;
+      // Compute mouse position relative to canvas top-left in page coordinates:
+      const mouseX = e.clientX;
+      const mouseY = e.clientY;
+      // Find canvas top-left in page coordinates:
+      const canvasRect = canvas.getBoundingClientRect();
+      const x = (mouseX - canvasRect.left) * scaleInv;
+      const y = (mouseY - canvasRect.top) * scaleInv;
+      // Subtract dragOffset scaled
+      const nodeElRect = el.getBoundingClientRect();
+      const dx = dragOffset.x * scaleInv;
+      const dy = dragOffset.y * scaleInv;
+      const modelX = x - dx;
+      const modelY = y - dy;
+      // clamp to canvas bounds
+      const nodeModel = model.nodes.find(n=>n.id===draggingNode);
+      if (!nodeModel) return;
+      nodeModel.x = Math.max(0, Math.round(modelX));
+      nodeModel.y = Math.max(0, Math.round(modelY));
+      renderNodesPositions();
+    }
+    function nodePointerUp(e){
+      const el = e.currentTarget;
+      el.removeEventListener('pointermove', nodePointerMove);
+      el.removeEventListener('pointerup', nodePointerUp);
+      draggingNode = null;
+      saveModel();
+    }
 
-        // contenteditable change commit on blur
-        const titleEl = el.querySelector('.node-title');
-        const bodyEl = el.querySelector('.node-body');
-        [titleEl, bodyEl].forEach(elem => {
-          elem.addEventListener('blur', () => {
-            const node = model.nodes.find(x => x.id === n.id);
-            if (!node) return;
-            node.title = titleEl.innerText.trim();
-            node.body = bodyEl.innerText.trim();
-            saveModel();
-            renderLinks();
-          });
-        });
+    // double click to open modal
+    function nodeDoubleClick(e){
+      e.stopPropagation();
+      const id = e.currentTarget.dataset.id;
+      openModalForNode(id);
+    }
 
-        // click selects
-        el.addEventListener('click', (ev)=> {
-          ev.stopPropagation();
-          selectNode(n.id);
-          if (connectMode) {
-            if (!connectFrom) startConnectFrom(n.id);
-            else finishConnectTo(n.id);
-          }
-        });
+    // modal management
+    let modalTargetId = null;
+    function openModalForNode(id){
+      modalTargetId = id;
+      const node = model.nodes.find(n=>n.id===id);
+      if (!node) return;
+      modalTitle.value = node.title || '';
+      modalBody.value = node.body || '';
+      modalColor.value = node.color || '#ffffff';
+      modalBackdrop.style.display = 'flex';
+      modalBackdrop.setAttribute('aria-hidden','false');
+      modalTitle.focus();
+    }
+    function closeModal(){
+      modalBackdrop.style.display = 'none';
+      modalBackdrop.setAttribute('aria-hidden','true');
+      modalTargetId = null;
+    }
+    saveModalBtn.addEventListener('click', ()=>{
+      if (!modalTargetId) return closeModal();
+      const node = model.nodes.find(n=>n.id===modalTargetId);
+      if (!node) return closeModal();
+      node.title = modalTitle.value.trim();
+      node.body = modalBody.value.trim();
+      node.color = modalColor.value;
+      saveModel(); renderNodesPositions(); closeModal();
+    });
+    cancelModalBtn.addEventListener('click', closeModal);
+    deleteBlockBtn.addEventListener('click', ()=>{
+      if (!modalTargetId) return closeModal();
+      if (!confirm('Delete this block?')) return;
+      model.nodes = model.nodes.filter(n=>n.id!==modalTargetId);
+      saveModel(); renderNodesPositions(); closeModal();
+    });
+    modalBackdrop.addEventListener('click', (e)=>{ if (e.target === modalBackdrop) closeModal(); });
 
-        return el;
-      }
+    // add node
+    addNodeBtn.addEventListener('click', ()=>{
+      const id = uid();
+      const w = 220, h = 120;
+      // place roughly at center of visible area
+      const canvasRect = canvas.getBoundingClientRect();
+      const centerX = (canvasRect.width/2) - (w/2);
+      const centerY = (canvasRect.height/2) - (h/2);
+      model.nodes.push({ id, x: Math.max(40,centerX), y: Math.max(40,centerY), w, h, title: 'New block', body: '', color:'#ffffff' });
+      saveModel(); renderNodesPositions(); openModalForNode(id);
+    });
 
-      function escapeHtml(s){ if(!s) return ''; return s.replace(/[&<>"']/g, (m)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+    // zoom controls
+    function setScale(s){
+      scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, s));
+      updateTransform();
+    }
+    zoomInBtn.addEventListener('click', ()=> setScale(scale + SCALE_STEP));
+    zoomOutBtn.addEventListener('click', ()=> setScale(scale - SCALE_STEP));
+    resetViewBtn.addEventListener('click', ()=> { scale = 1; pan = {x:0,y:0}; updateTransform(); });
 
-      // Pointer drag handlers
-      function nodePointerDown(e) {
+    // wheel zoom (Ctrl + wheel) for desktops
+    panLayer.addEventListener('wheel', (e)=>{
+      if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
-        const el = e.currentTarget;
-        const id = el.dataset.id;
-        dragging = id;
-        const rect = el.getBoundingClientRect();
-        const boardRect = board.getBoundingClientRect();
-        dragOffset.x = e.clientX - rect.left;
-        dragOffset.y = e.clientY - rect.top;
-        el.setPointerCapture(e.pointerId);
-        el.addEventListener('pointermove', nodePointerMove);
-        el.addEventListener('pointerup', nodePointerUp);
+        const delta = e.deltaY > 0 ? -SCALE_STEP : SCALE_STEP;
+        setScale(scale + delta);
       }
-      function nodePointerMove(e) {
-        if (!dragging) return;
-        const el = board.querySelector(`.node[data-id="${dragging}"]`);
-        if (!el) return;
-        const boardRect = board.getBoundingClientRect();
-        const x = e.clientX - boardRect.left - dragOffset.x;
-        const y = e.clientY - boardRect.top - dragOffset.y;
-        el.style.left = x + 'px';
-        el.style.top = y + 'px';
-      }
-      function nodePointerUp(e) {
-        const el = e.currentTarget;
-        el.removeEventListener('pointermove', nodePointerMove);
-        el.removeEventListener('pointerup', nodePointerUp);
-        const id = el.dataset.id;
-        const node = model.nodes.find(x => x.id === id);
-        if (!node) return;
-        const boardRect = board.getBoundingClientRect();
-        const rect = el.getBoundingClientRect();
-        node.x = rect.left - boardRect.left;
-        node.y = rect.top - boardRect.top;
-        saveModel();
-        dragging = null;
-        renderLinks(); // update connectors
-      }
+    }, { passive:false });
 
-      // Links
-      function drawLink(link) {
-        const from = model.nodes.find(n => n.id === link.fromId);
-        const to = model.nodes.find(n => n.id === link.toId);
-        if (!from || !to) return;
-        const line = document.createElementNS('http://www.w3.org/2000/svg','line');
-        const boardRect = board.getBoundingClientRect();
+    // panning: drag on background (not on nodes) with left button while pressing space or without? We'll allow left-drag on empty canvas.
+    let panActive = false;
+    panLayer.addEventListener('pointerdown', (e)=>{
+      // ignore pointerdown if started on a node
+      if (e.target.closest('.node')) return;
+      panActive = true;
+      panStart.x = e.clientX - pan.x;
+      panStart.y = e.clientY - pan.y;
+      panLayer.setPointerCapture(e.pointerId);
+      panLayer.addEventListener('pointermove', doPan);
+      panLayer.addEventListener('pointerup', endPan);
+    });
+    function doPan(e){
+      if (!panActive) return;
+      pan.x = e.clientX - panStart.x;
+      pan.y = e.clientY - panStart.y;
+      updateTransform();
+    }
+    function endPan(e){
+      panActive = false;
+      panLayer.removeEventListener('pointermove', doPan);
+      panLayer.removeEventListener('pointerup', endPan);
+      saveModel(); // persist pan (optional; not part of model but helpful)
+    }
 
-        const fx = (from.x || 0) + (getNodeWidth(from.id)/2);
-        const fy = (from.y || 0) + 20;
-        const tx = (to.x || 0) + (getNodeWidth(to.id)/2);
-        const ty = (to.y || 0) + 20;
+    // export/import
+    exportBtn.addEventListener('click', ()=>{
+      const data = JSON.stringify(model, null, 2);
+      const blob = new Blob([data], {type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = (projectId || 'board') + '.board.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    });
+    importFile.addEventListener('change', (e)=>{
+      const f = e.target.files[0]; if (!f) return;
+      const r = new FileReader();
+      r.onload = function(){ try { const parsed = JSON.parse(r.result); if (parsed.nodes) { model = parsed; saveModel(); renderNodesPositions(); flash('Imported'); } else alert('Invalid file'); } catch(err){ alert('Invalid JSON'); } };
+      r.readAsText(f);
+    });
 
-        line.setAttribute('x1', fx);
-        line.setAttribute('y1', fy);
-        line.setAttribute('x2', tx);
-        line.setAttribute('y2', ty);
-        line.setAttribute('stroke', '#0f172a');
-        line.setAttribute('stroke-width', '2');
-        line.setAttribute('stroke-linecap', 'round');
-        line.dataset.id = link.id;
-        svg.appendChild(line);
-      }
+    // persist on save button
+    saveBoardBtn.addEventListener('click', ()=> saveModel());
 
-      function drawTempLine(fromX,fromY,toX,toY) {
-        // remove existing temp if any
-        const existing = svg.querySelector('.temp-line');
-        if (existing) existing.remove();
-        const line = document.createElementNS('http://www.w3.org/2000/svg','line');
-        line.setAttribute('x1', fromX);
-        line.setAttribute('y1', fromY);
-        line.setAttribute('x2', toX);
-        line.setAttribute('y2', toY);
-        line.setAttribute('stroke', '#f97316');
-        line.setAttribute('stroke-width', '2');
-        line.setAttribute('stroke-dasharray','6 6');
-        line.classList.add('temp-line');
-        svg.appendChild(line);
-      }
+    // initial load & render
+    loadModel();
+    // if empty, seed a sample block for clarity
+    if (!model.nodes.length) {
+      model.nodes.push({ id: uid(), x: 120, y: 120, w:220, h:120, title:'Sample block', body:'Double-click or click ✎ to edit settings', color:'#fff8f0' });
+      saveModel();
+    }
+    updateTransform(); // positions nodes after board transform adjustments
+    renderNodesPositions();
 
-      function renderLinks() {
-        while(svg.firstChild) svg.removeChild(svg.firstChild);
-        model.links.forEach(l => drawLink(l));
-      }
+    // helper: make sure nodes re-render when window resizes
+    window.addEventListener('resize', ()=> updateTransform());
 
-      // helpers
-      function getNodeWidth(id) {
-        const el = board.querySelector(`.node[data-id="${id}"]`);
-        return el ? el.offsetWidth : 140;
-      }
+    // keyboard accessibility
+    window.addEventListener('keydown', (e)=>{
+      if (e.key === 'Escape') closeModal();
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); saveModel(); flash('Saved'); }
+    });
 
-      // Node operations
-      function addNodeAt(x=120,y=120,title='New node') {
-        const n = { id: uid(), x, y, title, body:'', w:180, h:80 };
-        model.nodes.push(n);
-        saveModel();
-        render();
-        selectNode(n.id);
-        return n;
-      }
-      function removeNode(id) {
-        model.nodes = model.nodes.filter(n => n.id !== id);
-        model.links = model.links.filter(l => l.fromId !== id && l.toId !== id);
-        saveModel();
-        render();
-      }
-      function duplicateNode(id) {
-        const orig = model.nodes.find(n => n.id === id);
-        if (!orig) return;
-        const copy = Object.assign({}, orig, { id: uid(), x: orig.x + 30, y: orig.y + 30 });
-        model.nodes.push(copy);
-        saveModel();
-        render();
-      }
-
-      // selection
-      function selectNode(id) {
-        selectedNodeId = id;
-        board.querySelectorAll('.node').forEach(n => n.classList.toggle('selected', n.dataset.id === id));
-      }
-
-      // connect mode
-      function startConnectFrom(id) {
-        connectFrom = id;
-        connectMode = true;
-        modeIndicator.style.display = 'inline-block';
-        connectToggle.classList.add('active');
-        // show temp line following mouse
-        board.addEventListener('pointermove', connectPointerMove);
-        board.addEventListener('pointerdown', connectPointerDown);
-      }
-      function finishConnectTo(id) {
-        if (!connectFrom) return;
-        if (connectFrom === id) { // ignore self link
-          cancelConnectMode();
-          return;
-        }
-        const link = { id: uid(), fromId: connectFrom, toId: id };
-        // avoid duplicates
-        const exists = model.links.some(l => l.fromId === link.fromId && l.toId === link.toId);
-        if (!exists) model.links.push(link);
-        saveModel();
-        cancelConnectMode();
-        render();
-      }
-      function cancelConnectMode() {
-        connectMode = false; connectFrom = null;
-        modeIndicator.style.display = 'none';
-        connectToggle.classList.remove('active');
-        board.removeEventListener('pointermove', connectPointerMove);
-        board.removeEventListener('pointerdown', connectPointerDown);
-        const temp = svg.querySelector('.temp-line'); if (temp) temp.remove();
-      }
-
-      function connectPointerMove(e) {
-        if (!connectFrom) return;
-        const fromNode = model.nodes.find(n => n.id === connectFrom);
-        if (!fromNode) return;
-        const fx = fromNode.x + (getNodeWidth(fromNode.id)/2);
-        const fy = fromNode.y + 20;
-        const boardRect = board.getBoundingClientRect();
-        const toX = e.clientX - boardRect.left;
-        const toY = e.clientY - boardRect.top;
-        drawTempLine(fx,fy,toX,toY);
-      }
-      function connectPointerDown(e) {
-        e.preventDefault();
-        // If clicked on empty board, cancel connect
-        if (e.target === board || e.target === svg || e.target === board.parentElement) {
-          cancelConnectMode();
-        }
-      }
-
-      // toolbar bindings
-      addNodeBtn.addEventListener('click', ()=> {
-        addNodeAt(120 + Math.random()*240, 120 + Math.random()*120, 'New node');
-      });
-      connectToggle.addEventListener('click', ()=> {
-        if (connectMode) cancelConnectMode();
-        else { connectMode = true; modeIndicator.style.display='inline-block'; connectToggle.classList.add('active'); }
-      });
-      deleteNodeBtn.addEventListener('click', ()=> {
-        if (!selectedNodeId) { alert('Select a node first by clicking it.'); return; }
-        if (!confirm('Delete selected node?')) return;
-        removeNode(selectedNodeId);
-        selectedNodeId = null;
-      });
-      clearBoardBtn.addEventListener('click', ()=> {
-        if (!confirm('Clear all nodes and links?')) return;
-        model = { nodes:[], links:[] }; saveModel(); render();
-      });
-
-      saveBoardBtn.addEventListener('click', ()=> saveModel());
-      exportBtn.addEventListener('click', ()=> {
-        const data = JSON.stringify(model, null, 2);
-        const blob = new Blob([data], {type:'application/json'});
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = (projectId||'board') + '.board.json';
-        document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-      });
-      importFile.addEventListener('change', (e)=> {
-        const f = e.target.files[0]; if (!f) return;
-        const r = new FileReader();
-        r.onload = function(){ try { const parsed = JSON.parse(r.result); if (parsed.nodes && parsed.links) { model = parsed; saveModel(); render(); flash('Imported'); } else alert('Invalid file format'); } catch (err){ alert('Invalid JSON'); } };
-        r.readAsText(f);
-      });
-
-      // click on board clears selection
-      board.addEventListener('click', (e)=> {
-        if (e.target === board || e.target === svg) selectNode(null);
-      });
-
-      // render helpers
-      function drawAll() { renderLinks(); }
-
-      // small flash message
-      function flash(msg) {
-        const el = document.createElement('div');
-        el.textContent = msg; el.style.position='fixed'; el.style.right='20px'; el.style.bottom='20px';
-        el.style.background='#0b74ff'; el.style.color='#fff'; el.style.padding='8px 12px'; el.style.borderRadius='8px';
-        el.style.boxShadow='0 8px 20px rgba(15,23,42,0.12)'; document.body.appendChild(el);
-        setTimeout(()=> el.remove(), 1400);
-      }
-
-      // initial load
-      loadModel();
-      render();
-
-      // on window resize or scroll, re-render links (positions might change)
-      window.addEventListener('resize', renderLinks);
-      board.addEventListener('scroll', renderLinks);
-
-      // keyboard support: delete key to remove selected
-      window.addEventListener('keydown', (e)=>{
-        if (e.key === 'Delete' || e.key === 'Backspace') {
-          if (selectedNodeId) { if (confirm('Delete selected node?')) removeNode(selectedNodeId); }
-        }
-        if (e.key === 'Escape') { cancelConnectMode(); }
-      });
-
-      // expose minimal API for debugging
-      window.__aries_board = {
-        getModel: ()=> model,
-        save: saveModel,
-        load: ()=> { loadModel(); render(); }
-      };
-    })();
+    // expose debug API
+    window.__aries_simple = { model, saveModel, loadModel, setScale: (s)=>setScale(s) };
+  })();
   </script>
 </body>
 </html>
