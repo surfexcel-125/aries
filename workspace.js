@@ -1,4 +1,4 @@
-/* workspace.js — updated to use in-page modal for link labels and header fixes
+/* workspace.js — updated click-ignore fix so inspector interactions don't clear selection
    Overwrite your existing workspace.js with this file.
 */
 (function(){
@@ -77,7 +77,7 @@
       return { x: node.x, y: node.y + h/2 };
     }
 
-    // render (same as before)
+    // render
     function clearNodes() { document.querySelectorAll('.node').forEach(n=>n.remove()); }
     function renderNodes() {
       clearNodes();
@@ -323,7 +323,7 @@
       markDirty(); renderNodes();
     });
 
-    // link draw - uses in-page modal instead of prompt
+    // link draw - uses in-page modal (project_detail.html exposes requestTransitionLabel)
     function startLinkDraw(e, sourceId) {
       e.stopPropagation();
       const src = model.nodes.find(n=>n.id===sourceId);
@@ -338,7 +338,6 @@
       if (targetEl && linkDraw) {
         const targetId = targetEl.id.replace('node-','');
         if (targetId !== linkDraw.sourceId) {
-          // show in-page modal (global helper from project_detail.html)
           try {
             const label = await window.requestTransitionLabel('Next');
             if (label !== null && label !== '') {
@@ -377,7 +376,7 @@
       }
     }
 
-    // rest of handlers (pan, drag, keyboard) same as earlier code
+    // rest of handlers (pan, drag etc.)
     function nodeContext(e, nodeId) {
       e.preventDefault();
       setSelectedNodesFromClick(nodeId, e);
@@ -455,7 +454,7 @@
       }
     }
 
-    // keyboard and delete handlers
+    // keyboard
     function onKey(e) {
       if ((e.key === 'Delete' || e.key === 'Backspace')) {
         if (selectedNodes.size > 0) {
@@ -582,14 +581,30 @@
       applyTransform();
     }
 
-    // global click to clear selections
+    // Previously we cleared selection on any click outside nodes/links.
+    // Now ignore clicks inside inspector, header, controls, floating tools, context menu, modals.
     document.addEventListener('click', (e)=> {
-      if (!e.target.closest('.node') && !e.target.closest('.link-path')) {
-        selectedNodes.clear(); selectedLinkId = null;
-        toolDeleteNode.disabled = true; toolDeleteLink.disabled = true;
-        document.getElementById('contextMenu').style.display = 'none';
-        renderNodes(); renderLinks(); updateInspector();
+      const target = e.target;
+      // If click is inside a node or a link, ignore here (handled elsewhere)
+      if (target.closest('.node') || target.closest('.link-path')) return;
+
+      // If click is inside the inspector or UI panels, don't clear selection
+      if (target.closest('#inspector')
+          || target.closest('.topbar')
+          || target.closest('.header-actions')
+          || target.closest('#floatingTools')
+          || target.closest('.controls-panel')
+          || target.closest('#contextMenu')
+          || target.closest('.modal-backdrop')
+          || target.closest('.modal-card')) {
+        return;
       }
+
+      // Otherwise clear selections as before
+      selectedNodes.clear(); selectedLinkId = null;
+      toolDeleteNode.disabled = true; toolDeleteLink.disabled = true;
+      document.getElementById('contextMenu').style.display = 'none';
+      renderNodes(); renderLinks(); updateInspector();
     });
 
     // save binding
