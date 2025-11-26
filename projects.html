@@ -1,159 +1,282 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Projects — Aries</title>
-  <link rel="stylesheet" href="main.css">
-  <style>
-    /* Status Pill Styles (copied from previous projects.html styles for completeness) */
-    .status-pill {
-        background: #f3f3f3; 
-        padding: 6px 14px; 
-        border-radius: 99px;
-        border: 2px solid #4a6468; 
-        font-weight: 700; 
-        cursor: pointer;
-        text-decoration: none; 
-        color: black; 
-        display: inline-block;
-        font-size: 12px;
-    }
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Workspace — Aries Workflow Mapper</title>
+<link rel="stylesheet" href="main.css" />
+<style>
+/* --- BASE STYLES --- */
+:root{
+  --accent:#0b74ff; --muted:#6b7280; --panel:#ffffffee; --bg:#ffffff;
+  --canvas-bg: #f5f5f5; /* Light gray background for contrast */
+  --grid-color:rgba(15,23,42,0.08); 
+  --node-shadow:0 5px 15px rgba(15,23,42,0.1);
+  --link-color:#4b5563; 
+  --link-selected:#ff7a59;
+}
+html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial;background:var(--bg)}
+.site-header{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #f1f1f1;background:#fff;position:sticky;top:0;z-index:40}
+.icon-btn{background:transparent;border:0;font-size:18px;cursor:pointer;padding:6px;border-radius:999px}
+.header-title{font-weight:700;font-size:0.98rem}
+.btn{padding:8px 12px;border:0;border-radius:6px;cursor:pointer;font-weight:600}
+.btn.primary{background:var(--accent);color:#fff}
+.btn.ghost{background:transparent;color:var(--muted);border:1px solid #e5e7eb}
+.btn:hover{opacity:0.9}
+/* Fix for button arrangement and padding */
+.tool-btn{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:4px;
+    font-size:12px;
+    cursor:pointer;
+    padding:8px 12px; /* Increased padding */
+    border-radius:8px;
+    border:1px solid transparent;
+    user-select:none;
+    transition:all 0.1s
+}
+.tool-btn:hover{background:var(--panel)}
+.tool-btn.active{background:var(--panel);border:1px solid #e5e7eb}
+.tool-icon{font-size:20px;line-height:1}
+.tool-btn.disabled{opacity:0.5;pointer-events:none}
 
-    /* New: Explicit initial loading screen style */
-    #initialLoader {
-        text-align: center;
-        padding: 50px;
-        font-size: 1.2rem;
-        color: #666;
-    }
-  </style>
+/* --- CANVAS & BOARD --- */
+.canvas-wrap{flex-grow:1;overflow:hidden;position:relative; background:var(--canvas-bg);}
+#canvas{width:100%;height:100%;position:absolute;top:0;left:0;cursor:grab; background:var(--canvas-bg);}
+#board{transform-origin:top left;transition:transform 0.15s ease-out; position:relative; width:100%; height:100%;}
+#panLayer{position:absolute;top:0;left:0;width:100%;height:100%;z-index:20;cursor:grab}
+#svg{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10}
+
+/* --- NODE STYLES (WORKFLOW TYPES) --- */
+.node{
+  position:absolute; 
+  padding:16px 20px;
+  min-width:180px; /* Ensure content is not collapsed */
+  min-height:80px;
+  box-shadow:var(--node-shadow);
+  border-radius:12px;
+  background:var(--panel);
+  cursor:pointer;
+  transition:border-color 0.1s; 
+  border:2px solid transparent;
+  z-index: 15;
+  transform-origin: center center;
+}
+.node.selected{border-color:var(--accent); box-shadow:0 0 0 3px rgba(11, 116, 255, 0.3);}
+.node-title{font-weight:700;font-size:1.1rem;margin-bottom:8px; white-space: normal; word-break: break-word;}
+.node-body{font-size:0.9rem;color:#374151; white-space: normal; word-break: break-word;}
+
+/* Specific Node Type Visuals */
+.node-type-page { background-color: #e6f0ff !important; border-color: #0b74ff; } 
+.node-type-action { background-color: #fff8f0 !important; border-color: #ffb84d; } 
+.node-type-decision { 
+  background-color: #f0fff0 !important; 
+  border-color: #00a854; 
+  /* Fixed size for the diamond base */
+  width: 150px; 
+  height: 150px; 
+  border-radius: 4px;
+  transform: rotate(45deg); 
+  display: flex; 
+  justify-content: center; 
+  align-items: center;
+  padding: 0;
+}
+/* Crucial fix: Rotate content back so text is readable */
+.node-type-decision > * {
+  transform: rotate(-45deg); 
+  text-align: center;
+  max-width: 90%;
+}
+
+
+/* --- ANCHOR & LINK STYLES --- */
+.anchor {
+  position:absolute;
+  width: 12px;
+  height: 12px;
+  border-radius:50%;
+  background: var(--accent); 
+  border: 2px solid white;
+  opacity:0;
+  transition:opacity 0.1s;
+  pointer-events:auto;
+  z-index:30;
+}
+.node:hover .anchor{opacity:1;}
+.output-anchor {
+    top: 50%;
+    right: -6px; 
+    transform: translateY(-50%);
+    cursor: crosshair;
+}
+
+.link-label {
+  fill: var(--link-color);
+  font-size: 14px;
+  font-weight: bold;
+  pointer-events: none; 
+  text-shadow: 1px 1px 0 var(--canvas-bg), -1px 1px 0 var(--canvas-bg), 1px -1px 0 var(--canvas-bg), -1px -1px 0 var(--canvas-bg);
+}
+
+
+/* --- CONTEXT MENU --- */
+#contextMenu {
+    position: absolute;
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 100;
+    padding: 5px 0;
+    min-width: 150px;
+    display: none;
+}
+
+.context-menu-item {
+    padding: 8px 15px;
+    cursor: pointer;
+    font-size: 14px;
+    display: block;
+}
+.context-menu-item:hover {
+    background: #f0f0f0;
+}
+.context-menu-item.danger {
+    color: #e53e3e;
+}
+
+
+/* --- TOOLBAR & CONTROLS --- */
+#floatingTools{
+    position:fixed;
+    bottom:20px;
+    right:20px;
+    display:flex;
+    gap:10px;
+    background:var(--panel);
+    padding:10px;
+    border-radius:12px;
+    box-shadow:0 10px 20px rgba(0,0,0,0.1);
+    z-index:50
+}
+.controls-panel{position:fixed;bottom:20px;left:20px;padding:12px;background:var(--panel);border-radius:8px;box-shadow:0 5px 15px rgba(0,0,0,0.1);z-index:50;display:flex;gap:15px;align-items:center}
+.field label{font-weight:600;display:block;margin-bottom:4px}
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:none;justify-content:center;align-items:center;z-index:1000}
+.modal-backdrop[aria-hidden="false"]{display:flex}
+.modal{background:#fff;padding:25px;width:400px;max-width:90%;border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,0.3)}
+</style>
 </head>
 <body>
 
-  <header class="topbar">
-    <button class="hamburger">☰</button>
-    <div class="brand">PROJECT MANAGER</div>
-    <img src="images/goat.png" class="logo">
-  </header>
+<header class="topbar" style="background:white; color:black; border-bottom:1px solid #f1f1f1;">
+    <button class="hamburger" id="menuIcon" style="color:black;">☰</button>
+    <div class="brand header-title" id="headerTitle" style="color:black;">Loading Project...</div>
+    <div style="margin-left:auto; display:flex; gap:10px; align-items:center;">
+      <button id="saveBoard" class="btn primary">Save Board</button>
+      <a href="projects.html" id="backToProjects" class="btn ghost">← Projects</a>
+    </div>
+</header>
 
-  <div class="page-wrapper">
-    <div class="container">
-      <div class="projects-bar">
-        <h2 style="margin:0; font-family:'Sitka Small'; letter-spacing:1px;">MY PROJECTS</h2>
-        <button id="openNewProjectModal" class="new-project-btn">+ NEW PROJECT</button>
-      </div>
 
-      <div id="projectsList" class="projects-list" style="display:none;">
-        </div>
-      
-      <div id="initialLoader">
-        <div class="loader-spinner"></div>
-        <p>Connecting to Aries Cloud... Please wait.</p>
-      </div>
+<div class="canvas-wrap">
+  <div id="canvas">
+    <div id="board">
+      <svg id="svg">
+        <defs>
+          <marker id="arrowhead" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="strokeWidth" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--link-color)" />
+          </marker>
+          <marker id="arrowhead-selected" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="strokeWidth" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--link-selected)" />
+          </marker>
+        </defs>
+      </svg>
+    </div>
+    <div id="panLayer"></div>
+  </div>
+</div>
 
-      <div id="noProjects" style="display:none; padding:40px; text-align:center; color:#666;">
-        No projects found. Start by creating one!
-      </div>
+
+<div id="floatingTools" role="toolbar" aria-label="Workflow Tools">
+  <button id="toolAddPage" class="tool-btn" data-type="page" aria-label="Add Web Page Node">
+    <span class="tool-icon">📄</span>
+    <span>Page</span>
+  </button>
+  <button id="toolAddAction" class="tool-btn" data-type="action" aria-label="Add User Action Node">
+    <span class="tool-icon">🛠️</span>
+    <span>Action</span>
+  </button>
+  <button id="toolAddDecision" class="tool-btn" data-type="decision" aria-label="Add Decision Node">
+    <span class="tool-icon">❓</span>
+    <span>Decision</span>
+  </button>
+  <div style="width:1px;height:30px;background:#e5e7eb;margin:0 5px;"></div>
+  <button id="toolDeleteNode" class="tool-btn disabled" disabled aria-label="Delete Selected Node">
+    <span class="tool-icon">🗑️</span>
+    <span>Delete Node</span>
+  </button>
+  <button id="toolDeleteLink" class="tool-btn disabled" disabled aria-label="Delete Selected Link">
+    <span class="tool-icon">✂️</span>
+    <span>Delete Link</span>
+  </button>
+</div>
+
+
+<div class="controls-panel">
+  <div class="field">
+    <button id="zoomOutCorner" class="icon-btn" aria-label="Zoom Out" style="font-size:24px; color:#333;">-</button>
+    <span id="zoomIndicator" style="font-weight:600; width:50px; text-align:center;">100%</span>
+    <button id="zoomInCorner" class="icon-btn" aria-label="Zoom In" style="font-size:24px; color:#333;">+</button>
+  </div>
+  <div class="field">
+    <label><input id="showGrid" type="checkbox" checked> Grid</label>
+    <label>Size <input id="gridSize" type="number" value="25" min="5" max="200"></label>
+    <button id="centerBtn" class="tutorial-btn" style="background:#f3f4f6;">Center</button>
+  </div>
+</div>
+
+<div id="contextMenu" style="display: none;">
+    <div class="context-menu-item" id="contextEdit">Edit Node</div>
+    <div class="context-menu-item danger" id="contextDelete">Delete Node</div>
+</div>
+
+
+<div id="modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="modal">
+    <h3>Node Settings</h3>
+    <p>ID: <span id="modalProjectId" style="font-weight:bold; font-family: monospace;"></span></p>
+    <div class="field"><label>Title (Appears on Node)</label><input id="modalTitle" type="text"></div>
+    <div class="field"><label>Notes/Details</label><textarea id="modalBody" rows="4"></textarea></div>
+    <div class="modal-actions" style="display:flex;justify-content:space-between;margin-top:20px">
+      <button id="deleteBlock" class="btn ghost">Delete Node</button>
+      <div style="display:flex;gap:8px"><button id="cancelModal" class="btn ghost">Cancel</button><button id="saveModal" class="btn primary">Save Changes</button></div>
     </div>
   </div>
-
-  <div id="newProjectModal" class="modal-backdrop">
-      <div class="modal-box">
-          <div class="modal-title">Create New Project</div>
-          <input type="text" id="projectNameInput" class="modal-input" placeholder="e.g. Website Redesign">
-          <div class="modal-actions">
-              <button id="cancelProjectBtn" class="btn-ghost">Cancel</button>
-              <button id="confirmProjectBtn" class="btn-primary">Create</button>
-          </div>
-      </div>
-  </div>
-
-  <script type="module">
-    import './app.js'; 
-
-    const listEl = document.getElementById('projectsList');
-    const initialLoader = document.getElementById('initialLoader');
-    const modal = document.getElementById('newProjectModal');
-    const input = document.getElementById('projectNameInput');
-    const confirmBtn = document.getElementById('confirmProjectBtn');
-    
-    // Helper to render a single project row
-    function createProjectRow(p) {
-        const row = document.createElement('div');
-        row.className = 'project-row';
-        row.innerHTML = `
-            <div class="project-inner">
-                <a href="project_detail.html?id=${p.id}" class="project-pill project-name-pill">
-                    <img src="images/goat.png" style="width:30px; border-radius:4px;">
-                    ${p.name}
-                </a>
-                <div>
-                    STATUS: 
-                    <button class="status-pill" data-project-id="${p.id}">${p.status || 'Active'}</button>
-                </div>
-            </div>
-        `;
-        return row;
-    }
-
-    // 1. Load Projects
-    async function loadProjects() {
-        try {
-            // This is the line that will pause until app.js resolves the Firebase auth
-            const projects = await window.AriesDB.getProjects();
-            
-            initialLoader.style.display = 'none'; // Hide the loading message
-            listEl.style.display = 'flex'; // Show the project list
-            listEl.innerHTML = ''; // Clear any loading content
-            
-            if(projects.length === 0) {
-                document.getElementById('noProjects').style.display = 'block';
-                return;
-            }
-            document.getElementById('noProjects').style.display = 'none';
-
-            projects.forEach(p => listEl.appendChild(createProjectRow(p)));
-            
-        } catch (error) {
-            console.error("Failed to load projects:", error);
-            initialLoader.innerHTML = '<p style="color:red;">Error connecting to Aries Cloud. Check your console (F12) for network errors.</p>';
-            listEl.style.display = 'none';
-        }
-    }
-
-    // Start loading immediately after DOM is ready
-    document.addEventListener('DOMContentLoaded', loadProjects);
+</div>
 
 
-    // Modal Logic (New Project Creation)
-    document.getElementById('openNewProjectModal').onclick = () => {
-        modal.classList.add('active');
-        input.focus();
-    };
-    
-    document.getElementById('cancelProjectBtn').onclick = () => modal.classList.remove('active');
-    modal.addEventListener('click', (e) => { 
-        if (e.target === modal) modal.classList.remove('active');
-    });
+<script type="module" src="firebase-config.js"></script>
+<script type="module" src="app.js"></script>
 
-    confirmBtn.onclick = async () => {
-        const name = input.value.trim();
-        if(!name) return;
-        
-        confirmBtn.textContent = "Creating...";
-        confirmBtn.disabled = true;
-        
-        const newId = await window.AriesDB.createProject(name);
-        
-        if (newId) {
-            window.location.href = `project_detail.html?id=${newId}`;
-        } else {
-            alert("Error creating project. Please try again.");
-            confirmBtn.textContent = "Create";
-            confirmBtn.disabled = false;
-        }
-    };
-  </script>
+<script type="module">
+  function getProjectIdFromUrl() {
+      const urlParams = new URLSearchParams(window.location.search);
+      return urlParams.get('id');
+  }
+
+  window.currentProjectId = getProjectIdFromUrl(); 
+  
+  if (!window.currentProjectId) {
+      alert("Error: No Project ID found in URL. Returning to Projects.");
+      window.location.href = "projects.html";
+  } else {
+    document.getElementById('headerTitle').textContent = `Workflow: ${window.currentProjectId.substring(0, 5)}...`;
+  }
+</script>
+
+<script src="workspace.js" defer></script>
 </body>
 </html>
