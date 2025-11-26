@@ -56,7 +56,7 @@
     let activeModalNode = null;
     let gridSize = parseInt(gridSizeInput.value) || 25;
     let linkDraw = null; 
-    let highestZIndex = 15; // Starting Z-index for nodes
+    let highestZIndex = 15; 
 
     
     // --- Utility Functions ---
@@ -86,9 +86,14 @@
     function updateGrid() {
       gridSize = parseInt(gridSizeInput.value) || 25;
       if (showGrid.checked) {
+        // Correctly calculate background position to follow pan/zoom
+        const bgSize = `${gridSize * transform.scale}px ${gridSize * transform.scale}px`;
+        const bgPosX = transform.x % (gridSize * transform.scale);
+        const bgPosY = transform.y % (gridSize * transform.scale);
+        
         canvas.style.backgroundImage = `linear-gradient(to right, var(--grid-color) 1px, transparent 1px), linear-gradient(to bottom, var(--grid-color) 1px, transparent 1px)`;
-        canvas.style.backgroundSize = `${gridSize * transform.scale}px ${gridSize * transform.scale}px`;
-        canvas.style.backgroundPosition = `${transform.x % (gridSize * transform.scale)}px ${transform.y % (gridSize * transform.scale)}px`;
+        canvas.style.backgroundSize = bgSize;
+        canvas.style.backgroundPosition = `${bgPosX}px ${bgPosY}px`;
       } else {
         canvas.style.backgroundImage = 'none';
       }
@@ -130,9 +135,11 @@
             const data = await window.AriesDB.loadProjectData(projectId);
             
             if (data) {
-                if (headerTitle) headerTitle.textContent = data.name || `Project: ${projectId.substring(0, 5)}...`;
+                if (headerTitle) headerTitle.textContent = data.name || `Workflow: ${projectId.substring(0, 5)}...`;
                 model.nodes = data.nodes || [];
                 model.links = data.links || [];
+                // Re-calculate highest Z-index from loaded nodes
+                highestZIndex = model.nodes.reduce((max, node) => Math.max(max, node.zIndex || 15), 15);
             } else {
                 seedInitialModel(); 
             }
@@ -160,17 +167,19 @@
       const el = document.getElementById(`node-${node.id}`);
       if (!el) return { x: node.x, y: node.y }; 
 
+      // Use el.offsetWidth/Height for the current rendered size
       const width = el.offsetWidth / transform.scale;
       const height = el.offsetHeight / transform.scale;
       
       let ax, ay;
       
+      // Node position is top-left
       if (node.type === 'decision') {
-          // For decision nodes, connect to the left/right points of the diamond
+          // Anchors at the diamond's left/right points
           ax = isTarget ? node.x : node.x + width;
           ay = node.y + height / 2;
       } else {
-          // For card-like nodes, connect to the right/left edges at the center
+          // Anchors at the card's left/right edges
           ax = isTarget ? node.x : node.x + width;
           ay = node.y + height / 2;
       }
@@ -179,6 +188,7 @@
     }
 
     function renderNodes() {
+      // Clear all existing nodes
       document.querySelectorAll('.node').forEach(n => n.remove());
 
       model.nodes.forEach(node => {
@@ -186,9 +196,10 @@
         el.className = `node node-type-${node.type} ${node.id === selectedNodeId ? 'selected' : ''}`;
         el.id = `node-${node.id}`;
         
+        // Position relative to the board
         el.style.left = `${node.x}px`;
         el.style.top = `${node.y}px`;
-        el.style.zIndex = node.zIndex || 15; // Use stored zIndex
+        el.style.zIndex = node.zIndex || 15; // Apply Z-index from model
         
         // Decision nodes have fixed size defined in CSS
         if (node.type !== 'decision') {
@@ -217,18 +228,20 @@
     function renderLinks() {
       svg.innerHTML = ''; 
       
-      // Add temporary link path first if drawing
+      // Add temporary link path first if drawing (Connector Feedback)
       if (linkDraw) {
         const tempPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         
-        // Use a simple straight line for temporary drawing
         const p1 = { x: linkDraw.x, y: linkDraw.y };
         const p2 = { x: linkDraw.currentX, y: linkDraw.currentY };
-        const pathData = `M${p1.x} ${p1.y} L${p2.x} ${p2.y}`;
         
+        // Use a slight Bezier curve for smoother temporary line
+        const midX = (p1.x + p2.x) / 2;
+        const pathData = `M${p1.x} ${p1.y} C${midX} ${p1.y}, ${midX} ${p2.y}, ${p2.x} ${p2.y}`;
+
         tempPath.setAttribute('d', pathData);
         tempPath.setAttribute('stroke', 'var(--accent)');
-        tempPath.setAttribute('stroke-dasharray', '5,5');
+        tempPath.setAttribute('stroke-dasharray', '8, 8');
         tempPath.setAttribute('stroke-width', 3);
         tempPath.setAttribute('fill', 'none');
         tempPath.id = 'temp-link';
@@ -271,7 +284,7 @@
           selectedNodeId = null;
           toolDeleteLink.disabled = false;
           toolDeleteNode.disabled = true;
-          contextMenu.style.display = 'none'; // Hide context menu
+          contextMenu.style.display = 'none'; 
           renderNodes(); 
           renderLinks(); 
         });
@@ -280,7 +293,6 @@
         
         // Add Link Label Text
         if (link.label) {
-            // Find the midpoint of the path
             const midX = (p1.x + p2.x) / 2;
             const midY = (p1.y + p2.y) / 2;
             
@@ -299,13 +311,15 @@
     // --- Interaction Handlers ---
 
     function addNodeAt(x, y, type) {
-      // Small offset to prevent perfect stacking on creation
-      const offset = model.nodes.length * 10 % 50; 
+      // Improved randomization to prevent initial stacking
+      const randOffset = Math.floor(Math.random() * 8) * gridSize / 4; 
       
       const snappedCoords = {
-        x: Math.round((x + offset) / gridSize) * gridSize,
-        y: Math.round((y + offset) / gridSize) * gridSize
+        x: Math.round((x + randOffset) / gridSize) * gridSize,
+        y: Math.round((y + randOffset) / gridSize) * gridSize
       };
+      
+      highestZIndex++; // Ensure new node is on top
       
       const defaults = { 
         id: uid(), 
@@ -314,7 +328,7 @@
         w: 220, 
         h: 100, 
         type: type,
-        zIndex: 15
+        zIndex: highestZIndex
       };
       let newNode;
       
@@ -324,7 +338,7 @@
         newNode = { ...defaults, title: 'User Action', body: 'Button Click or Input' };
         newNode.w = 180;
       } else if (type === 'decision') {
-        newNode = { ...defaults, title: 'Decision', body: 'Is X True?', w: 140, h: 140 };
+        newNode = { ...defaults, title: 'Decision', body: 'Is X True?', w: 150, h: 150 }; // Match CSS size
       }
       
       model.nodes.push(newNode);
@@ -334,48 +348,49 @@
     
     function startLinkDraw(e, sourceId) {
         e.stopPropagation(); 
-        const nodeEl = document.getElementById(`node-${sourceId}`);
-        
-        // Get the anchor position in board space
         const anchorPos = getAnchor(findNode(sourceId));
         
         linkDraw = { 
             sourceId: sourceId, 
             x: anchorPos.x, 
             y: anchorPos.y, 
-            currentX: anchorPos.x, // Initial current position is the anchor
+            currentX: anchorPos.x,
             currentY: anchorPos.y
         };
         panLayer.style.cursor = 'crosshair';
     }
     
     function handleContextMenu(e, nodeId) {
-        e.preventDefault(); // Prevent default browser context menu
+        e.preventDefault(); 
         
         selectedNodeId = nodeId;
+        selectedLinkId = null;
         toolDeleteNode.disabled = false;
-        renderNodes(); 
+        toolDeleteLink.disabled = true;
+        renderNodes(); // Update selection status
 
+        // Display menu at cursor position
         contextMenu.style.left = `${e.clientX}px`;
         contextMenu.style.top = `${e.clientY}px`;
         contextMenu.style.display = 'block';
         
-        // Attach actions to context menu buttons
         contextEdit.onclick = () => { contextMenu.style.display = 'none'; openNodeModal(findNode(nodeId)); };
         contextDelete.onclick = () => { contextMenu.style.display = 'none'; deleteSelectedNode(); };
     }
 
 
     function handleNodeMouseDown(e, nodeId) {
-      e.stopPropagation(); // Stop propagation to prevent panLayer mousedown
-      contextMenu.style.display = 'none'; // Hide context menu
+      if(e.button !== 0) return; // Only handle left clicks for drag
+
+      e.stopPropagation(); 
+      contextMenu.style.display = 'none';
 
       selectedNodeId = nodeId;
       selectedLinkId = null;
       toolDeleteNode.disabled = false;
       toolDeleteLink.disabled = true;
       
-      // Move node to front (z-index fix)
+      // Move node to front (z-index fix for stacking)
       const node = findNode(nodeId);
       if (node) {
         highestZIndex++;
@@ -441,15 +456,16 @@
           
           const el = document.getElementById(`node-${node.id}`);
           if (el) {
+            // CRUCIAL: Update DOM element position live during drag
             el.style.left = `${node.x}px`;
             el.style.top = `${node.y}px`;
           }
-          renderLinks(); 
+          renderLinks(); // Re-render links to follow the node
         }
       } else if (linkDraw) {
           linkDraw.currentX = cursorX;
           linkDraw.currentY = cursorY;
-          renderLinks(); 
+          renderLinks(); // Re-render links to show the temporary line
       }
     }
 
@@ -483,13 +499,13 @@
       
       if (dragInfo) {
           if (dragInfo.mode === 'node') {
-            // Snap node to grid and save
+            // Apply snap-to-grid after the drag is complete and save
             const node = findNode(dragInfo.nodeId);
             if (node) {
               node.x = Math.round(node.x / gridSize) * gridSize;
               node.y = Math.round(node.y / gridSize) * gridSize;
             }
-            renderNodes();
+            renderNodes(); // Re-render to finalize snapped position
             triggerSave();
           }
           dragInfo = null;
@@ -529,12 +545,22 @@
             triggerSave();
         }
     }
+
+    function deleteSelectedLink() {
+        if (selectedLinkId) {
+            model.links = model.links.filter(l => l.id !== selectedLinkId);
+            selectedLinkId = null;
+            toolDeleteLink.disabled = true;
+            renderLinks();
+            triggerSave();
+        }
+    }
     
     // --- Event Listeners ---
 
     if (saveBoardBtn) saveBoardBtn.addEventListener('click', saveModel);
     
-    // New Node Tool Listeners
+    // Node Tool Listeners
     if (toolAddPage) toolAddPage.addEventListener('click', () => addNodeAt(200, 200, 'page'));
     if (toolAddAction) toolAddAction.addEventListener('click', () => addNodeAt(200, 200, 'action'));
     if (toolAddDecision) toolAddDecision.addEventListener('click', () => addNodeAt(200, 200, 'decision'));
@@ -550,7 +576,7 @@
         
         // Hide context menu on background click
         canvas.addEventListener('mousedown', () => contextMenu.style.display = 'none');
-        // Prevent default context menu everywhere
+        // Prevent default context menu everywhere unless on a node
         document.addEventListener('contextmenu', (e) => {
             if (!e.target.closest('.node')) e.preventDefault();
         });
