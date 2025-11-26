@@ -5,6 +5,21 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Projects — Aries</title>
   <link rel="stylesheet" href="main.css">
+  <style>
+    /* Status Pill Styles (copied from previous projects.html styles for completeness) */
+    .status-pill {
+        background: #f3f3f3; 
+        padding: 6px 14px; 
+        border-radius: 99px;
+        border: 2px solid #4a6468; 
+        font-weight: 700; 
+        cursor: pointer;
+        text-decoration: none; 
+        color: black; 
+        display: inline-block;
+        font-size: 12px;
+    }
+  </style>
 </head>
 <body>
 
@@ -43,45 +58,65 @@
   </div>
 
   <script type="module">
-    // We import nothing here because app.js exposes window.AriesDB
+    // Import app.js to ensure layout injection and DB helpers are available
     import './app.js'; 
 
     const listEl = document.getElementById('projectsList');
     const modal = document.getElementById('newProjectModal');
     const input = document.getElementById('projectNameInput');
+    const confirmBtn = document.getElementById('confirmProjectBtn');
     
-    // 1. Load Projects
-    async function load() {
-        listEl.innerHTML = '<div class="loader-spinner"></div>';
+    // Helper to render a single project row
+    function createProjectRow(p) {
+        const row = document.createElement('div');
+        row.className = 'project-row';
+        row.innerHTML = `
+            <div class="project-inner">
+                <a href="project_detail.html?id=${p.id}" class="project-pill project-name-pill">
+                    <img src="images/goat.png" style="width:30px; border-radius:4px;">
+                    ${p.name}
+                </a>
+                <div>
+                    STATUS: 
+                    <button class="status-pill" data-project-id="${p.id}">${p.status || 'Active'}</button>
+                </div>
+            </div>
+        `;
+        return row;
+    }
+
+    // 1. Load Projects - This function is now the main entry point
+    async function loadProjects() {
         const projects = await window.AriesDB.getProjects();
         
-        listEl.innerHTML = '';
+        listEl.innerHTML = ''; // Clear spinner
+        
         if(projects.length === 0) {
             document.getElementById('noProjects').style.display = 'block';
             return;
         }
         document.getElementById('noProjects').style.display = 'none';
 
-        projects.forEach(p => {
-            const row = document.createElement('div');
-            row.className = 'project-row';
-            row.innerHTML = `
-                <div class="project-inner">
-                    <a href="project_detail.html?id=${p.id}" class="project-pill">
-                        <img src="images/goat.png" style="width:30px; border-radius:4px;">
-                        ${p.name}
-                    </a>
-                    <div style="font-size:12px; font-weight:bold; color:#0b2830;">
-                        STATUS: <span style="border:2px solid #0b2830; padding:4px 8px; border-radius:10px;">${p.status || 'ACTIVE'}</span>
-                    </div>
-                </div>
-            `;
-            listEl.appendChild(row);
-        });
+        projects.forEach(p => listEl.appendChild(createProjectRow(p)));
+        
+        // Add event listeners for status pills here if needed for status dropdown logic
     }
 
     // 2. Event Listeners
-    window.addEventListener('auth-ready', load); // Wait for login
+    // Use an IIFE and run loadProjects immediately. 
+    // The AriesDB functions in app.js wait for auth implicitly, so we still ensure data consistency, 
+    // but the UI update starts as soon as the DOM is ready, improving perceived performance.
+    
+    // We only wait for auth-ready if the user isn't already logged in (checked in app.js).
+    // The load will be quick if the user is already authenticated.
+    window.addEventListener('auth-ready', loadProjects); 
+    
+    // If the browser session is already authenticated, we don't wait for the event,
+    // we start loading right away to minimize the delay.
+    if(window.currentUser) {
+        loadProjects();
+    }
+
 
     // Modal Logic
     document.getElementById('openNewProjectModal').onclick = () => {
@@ -90,16 +125,27 @@
     };
     
     document.getElementById('cancelProjectBtn').onclick = () => modal.classList.remove('active');
+    modal.addEventListener('click', (e) => { // Close if clicking outside the modal box
+        if (e.target === modal) modal.classList.remove('active');
+    });
 
-    document.getElementById('confirmProjectBtn').onclick = async () => {
+    confirmBtn.onclick = async () => {
         const name = input.value.trim();
         if(!name) return;
         
-        document.getElementById('confirmProjectBtn').textContent = "Creating...";
+        confirmBtn.textContent = "Creating...";
+        confirmBtn.disabled = true;
+        
         const newId = await window.AriesDB.createProject(name);
         
-        // Redirect to the workspace
-        window.location.href = `project_detail.html?id=${newId}`;
+        // Redirect to the workspace upon successful creation
+        if (newId) {
+            window.location.href = `project_detail.html?id=${newId}`;
+        } else {
+            alert("Error creating project. Please try again.");
+            confirmBtn.textContent = "Create";
+            confirmBtn.disabled = false;
+        }
     };
   </script>
 </body>
