@@ -1,17 +1,18 @@
 /* workspace.js — full replacement
-   Behavior changes:
-   - pointer->board mapping using board.getBoundingClientRect()
-   - anchors computed from DOM offsets
-   - parallel-link displacement
-   - label prompt shown AFTER link creation (user can cancel to remove)
-   - inspector click-ignore and typing protections
+   - Orthogonal (right-angle) routing for links (orderly paths)
+   - Parallel-link separation so multiple links fan out neatly
+   - Small rounded corners for aesthetics
+   - Anchors computed from DOM offsets (robust)
+   - Preview follows cursor exactly (client->board mapping)
+   - Label prompt AFTER link creation (cancel removes link)
+   - Inspector clicking / typing protections preserved
 */
 (function(){
   function ready() {
     const projectId = window.currentProjectId;
     if (!projectId) { console.error("Missing projectId"); return; }
 
-    // DOM references
+    // DOM refs
     const canvas = document.getElementById('canvas');
     const board = document.getElementById('board');
     const svg = document.getElementById('svg');
@@ -53,7 +54,7 @@
     const autosizeBtn = document.getElementById('autosizeBtn');
     const clearAllBtn = document.getElementById('clearAllBtn');
 
-    // state
+    // app state
     let model = { nodes: [], links: [] };
     let transform = { x: 0, y: 0, scale: 1 };
     let selectedNodes = new Set();
@@ -70,20 +71,17 @@
     const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
     const gridSize = () => parseInt(gridSizeInput.value || 25);
 
-    // Convert clientX/clientY to board coordinates reliably
+    // screen <-> board coordinate mapping (board.getBoundingClientRect)
     function screenToBoard(sx, sy) {
       const rect = board.getBoundingClientRect();
-      // Subtract board's screen origin then divide by scale to get board-space coordinates
-      const x = (sx - rect.left) / transform.scale;
-      const y = (sy - rect.top) / transform.scale;
-      return { x, y };
+      return { x: (sx - rect.left) / transform.scale, y: (sy - rect.top) / transform.scale };
     }
     function boardToScreen(bx, by) {
       const rect = board.getBoundingClientRect();
       return { x: rect.left + bx * transform.scale, y: rect.top + by * transform.scale };
     }
 
-    // typing detector (to avoid accidental delete)
+    // typing detection (to avoid accidental delete when editing)
     function isTyping() {
       try {
         const ae = document.activeElement;
@@ -96,7 +94,7 @@
       } catch (e) { return false; }
     }
 
-    // Anchor calculation from DOM offsets (preferred), fallback to model coords
+    // anchor calculation — prefer DOM offsets, fallback to model coords
     function getAnchor(node, isTarget=false) {
       const el = document.getElementById(`node-${node.id}`);
       if (el) {
@@ -104,21 +102,20 @@
         const top = el.offsetTop;
         const w = el.offsetWidth;
         const h = el.offsetHeight;
-        if (!isTarget) return { x: left + w, y: top + (h/2) };
-        return { x: left, y: top + (h/2) };
+        return isTarget ? { x: left, y: top + h/2 } : { x: left + w, y: top + h/2 };
       }
       const w = (node.w !== undefined) ? node.w : 220;
       const h = (node.h !== undefined) ? node.h : 100;
-      if (!isTarget) return { x: node.x + w, y: node.y + (h/2) };
-      return { x: node.x, y: node.y + (h/2) };
+      return isTarget ? { x: node.x, y: node.y + h/2 } : { x: node.x + w, y: node.y + h/2 };
     }
 
-    // render nodes
+    // small escape helper
     function escapeHtml(str) {
       if (str == null) return '';
       return String(str).replace(/[&<>"']/g, function(m){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])});
     }
 
+    // clear nodes and render nodes
     function clearNodes() { document.querySelectorAll('.node').forEach(n=>n.remove()); }
 
     function renderNodes() {
@@ -149,26 +146,101 @@
       updateInspector();
     }
 
-    // render links (with preview and parallel separation)
+    // ---------------------------
+    // ORTHOGONAL ROUTING
+    // ---------------------------
+    // Compute an orthogonal path between start and end (board coords).
+    // We produce a polyline: start -> midX,start -> midX,end -> end
+    // Then apply a small offset perpendicular to the main direction for parallel links.
+    function orthogonalPath(start, end, offsetX=0, offsetY=0, cornerRadius=10) {
+      // apply offset first
+      const s = { x: start.x + offsetX, y: start.y + offsetY };
+      const e = { x: end.x + offsetX, y: end.y + offsetY };
+
+      // if horizontal distance is small, route vertically first
+      const dx = Math.abs(e.x - s.x);
+      const dy = Math.abs(e.y - s.y);
+      let midX, midY;
+      if (dx > dy) {
+        // horizontal major: center split on X
+        midX = s.x + (e.x - s.x)/2;
+        // path points: s -> (midX, s.y) -> (midX, e.y) -> e
+        const p1 = { x: midX, y: s.y };
+        const p2 = { x: midX, y: e.y };
+        return polyToPath([s, p1, p2, e], cornerRadius);
+      } else {
+        // vertical major: center split on Y
+        midY = s.y + (e.y - s.y)/2;
+        const p1 = { x: s.x, y: midY };
+        const p2 = { x: e.x, y: midY };
+        return polyToPath([s, p1, p2, e], cornerRadius);
+      }
+    }
+
+    // Convert polyline points to SVG path with small rounded corners using cubic bezier.
+    // points = array of {x,y}. cornerRadius in px (board coords).
+    function polyToPath(points, cornerRadius) {
+      if (!points || points.length < 2) return '';
+      const r = Math.max(0, cornerRadius || 0);
+      let d = `M ${points[0].x} ${points[0].y}`;
+      for (let i = 1; i < points.length; i++) {
+        const prev = points[i-1];
+        const cur = points[i];
+        const next = points[i+1];
+        // If next exists and corner radius > 0, we create a rounded corner between prev->cur->next
+        if (next && r > 0) {
+          // direction vectors
+          const vx = cur.x - prev.x;
+          const vy = cur.y - prev.y;
+          const nx = next.x - cur.x;
+          const ny = next.y - cur.y;
+          // compute incoming length and outgoing length
+          const inLen = Math.sqrt(vx*vx + vy*vy) || 1;
+          const outLen = Math.sqrt(nx*nx + ny*ny) || 1;
+          // clamp radius by half min segment length
+          const rad = Math.min(r, inLen/2, outLen/2);
+          // unit vectors
+          const ux = vx / inLen, uy = vy / inLen;
+          const ox = nx / outLen, oy = ny / outLen;
+          // corner start and end
+          const csx = cur.x - ux * rad;
+          const csy = cur.y - uy * rad;
+          const cex = cur.x + ox * rad;
+          const cey = cur.y + oy * rad;
+          // line to corner start, then quadratic/cubic to corner end
+          d += ` L ${csx} ${csy}`;
+          // use quadratic bezier Q control-point = cur
+          d += ` Q ${cur.x} ${cur.y}, ${cex} ${cey}`;
+        } else {
+          // no rounding (last segment)
+          d += ` L ${cur.x} ${cur.y}`;
+        }
+      }
+      return d;
+    }
+
+    // renderLinks: builds orthogonal path for each link and separates parallels
     function renderLinks() {
       while (svg.firstChild) svg.removeChild(svg.firstChild);
 
-      // dashed preview while drawing
+      // preview while drawing (dashed)
       if (linkDraw) {
         const p = document.createElementNS('http://www.w3.org/2000/svg','path');
         const a = { x: linkDraw.x, y: linkDraw.y };
         const b = { x: linkDraw.currentX, y: linkDraw.currentY };
-        const midX = (a.x + b.x)/2;
-        const d = `M${a.x} ${a.y} C ${midX} ${a.y}, ${midX} ${b.y}, ${b.x} ${b.y}`;
+        // simple orthogonal preview between a and b (no parallel offset)
+        const d = orthogonalPath(a, b, 0, 0, 6);
         p.setAttribute('d', d);
         p.setAttribute('stroke', 'var(--accent)');
         p.setAttribute('stroke-width', 3);
         p.setAttribute('fill', 'none');
         p.setAttribute('stroke-dasharray','6,6');
+        p.setAttribute('stroke-linecap','round');
+        p.setAttribute('stroke-linejoin','round');
         svg.appendChild(p);
       }
 
-      // group links by directional pair to separate parallels
+      // bucket links by directional pair so parallels share bucket
       const pairs = {};
       model.links.forEach(link => {
         const key = `${link.source}::${link.target}`;
@@ -185,16 +257,19 @@
         const t = model.nodes.find(n => n.id === link.target);
         if (!s || !t) return;
 
+        // base anchors (board coords)
         const p1 = getAnchor(s, false);
         const p2 = getAnchor(t, true);
 
+        // compute perpendicular normal (for offset) based on main direction between anchors
         const dx = p2.x - p1.x;
         const dy = p2.y - p1.y;
-        const length = Math.sqrt(dx*dx + dy*dy) || 1;
-        const nx = -dy / length;
-        const ny = dx / length;
+        const len = Math.sqrt(dx*dx + dy*dy) || 1;
+        const nx = -dy / len;
+        const ny = dx / len;
 
-        const baseGap = 18;
+        // parallel spacing: spread around center
+        const baseGap = 18; // adjust to taste
         const idx = (link._parallelIndex !== undefined) ? link._parallelIndex : 0;
         const count = (link._parallelCount !== undefined) ? link._parallelCount : 1;
         const middle = (count - 1) / 2;
@@ -202,15 +277,8 @@
         const offsetX = nx * offset;
         const offsetY = ny * offset;
 
-        const start = { x: p1.x + offsetX, y: p1.y + offsetY };
-        const end   = { x: p2.x + offsetX, y: p2.y + offsetY };
-
-        const cpDist = Math.max(40, Math.abs(p2.x - p1.x) * 0.35);
-        const c1x = start.x + cpDist;
-        const c1y = start.y;
-        const c2x = end.x - cpDist;
-        const c2y = end.y;
-        const d = `M${start.x} ${start.y} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${end.x} ${end.y}`;
+        // generate an orthogonal path with the calculated offset and slight corner rounding
+        const d = orthogonalPath(p1, p2, offsetX, offsetY, 10);
 
         const path = document.createElementNS('http://www.w3.org/2000/svg','path');
         const isSel = selectedLinkId === link.id;
@@ -218,10 +286,13 @@
         path.setAttribute('stroke', isSel ? 'var(--link-selected)' : 'var(--link-color)');
         path.setAttribute('stroke-width', 3);
         path.setAttribute('fill', 'none');
+        path.setAttribute('stroke-linecap','round');
+        path.setAttribute('stroke-linejoin','round');
         path.setAttribute('marker-end', `url(#${isSel ? 'arrowhead-selected' : 'arrowhead'})`);
         path.classList.add('link-path');
         path.id = `link-${link.id}`;
         path.style.cursor = 'pointer';
+
         path.addEventListener('click', e => {
           e.stopPropagation();
           selectedLinkId = link.id;
@@ -233,12 +304,13 @@
 
         svg.appendChild(path);
 
+        // label: place at midpoint of polyline visually — naive approach: midpoint of start/end
         if (link.label) {
-          const midX = (start.x + end.x)/2;
-          const midY = (start.y + end.y)/2;
+          // compute screen position of a point halfway along board coords and convert to svg coords
+          const midBoard = { x: (p1.x + p2.x)/2 + offsetX, y: (p1.y + p2.y)/2 + offsetY };
           const text = document.createElementNS('http://www.w3.org/2000/svg','text');
-          text.setAttribute('x', midX);
-          text.setAttribute('y', midY - 6);
+          text.setAttribute('x', midBoard.x);
+          text.setAttribute('y', midBoard.y - 8);
           text.setAttribute('class','link-label');
           text.setAttribute('text-anchor','middle');
           text.textContent = link.label;
@@ -277,7 +349,7 @@
       } catch(e){ /* ignore */ }
     }
 
-    // model ops
+    // model ops — add/save/load
     function addNodeAt(x,y,type,opts={}) {
       const s = gridSize();
       const nx = Math.round(x / s) * s;
@@ -401,7 +473,7 @@
       markDirty(); renderNodes();
     });
 
-    // LINK DRAWING
+    // link drawing: start
     function startLinkDraw(e, sourceId) {
       e.stopPropagation();
       const src = model.nodes.find(n=>n.id===sourceId);
@@ -411,52 +483,46 @@
       canvas.style.cursor = 'crosshair';
     }
 
-    // finalize: create link immediately (no modal blocking), then open label modal.
+    // finalize: create link first, then label prompt, cancel removes link
     async function finalizeLinkIfPossible(evt) {
       if (!linkDraw) { linkDraw = null; canvas.style.cursor = 'default'; renderLinks(); return; }
 
-      // compute release client coords and board coords
       const clientX = (evt && evt.clientX) || (window._lastMouse && window._lastMouse.clientX) || 0;
       const clientY = (evt && evt.clientY) || (window._lastMouse && window._lastMouse.clientY) || 0;
       const boardPt = screenToBoard(clientX, clientY);
 
-      // element at point
       const elementAt = document.elementFromPoint(clientX, clientY);
       const targetEl = elementAt ? elementAt.closest('.node') : null;
 
       if (targetEl) {
         const targetId = targetEl.id.replace('node-','');
         if (targetId !== linkDraw.sourceId) {
-          // verify boardPt is inside the target element bounding box (offsetLeft/Top measured in board-space)
           const left = targetEl.offsetLeft;
           const top = targetEl.offsetTop;
           const w = targetEl.offsetWidth;
           const h = targetEl.offsetHeight;
           const inside = boardPt.x >= left && boardPt.x <= (left + w) && boardPt.y >= top && boardPt.y <= (top + h);
           if (inside) {
-            // create link first (so user sees it), with empty label
+            // create link immediately (empty label)
             const newLink = { id: uid('l'), source: linkDraw.sourceId, target: targetId, label: '' };
             model.links.push(newLink);
             markDirty();
             renderLinks();
 
-            // Now ask for label — if user cancels, remove the link
+            // then ask for label — if canceled, remove
             try {
               const label = (window.requestTransitionLabel && typeof window.requestTransitionLabel === 'function')
                               ? await window.requestTransitionLabel('Next')
                               : window.prompt('Enter transition label (e.g., Next, Success):', 'Next');
               if (label !== null && label !== '') {
-                // apply label and re-render
                 const linkObj = model.links.find(l => l.id === newLink.id);
                 if (linkObj) { linkObj.label = label.trim(); markDirty(); renderLinks(); }
               } else {
-                // user cancelled or empty => remove the link we just added
                 model.links = model.links.filter(l => l.id !== newLink.id);
                 renderLinks();
               }
             } catch (err) {
               console.error('Label modal error', err);
-              // if error, remove link to be safe
               model.links = model.links.filter(l => l.id !== newLink.id);
               renderLinks();
             }
@@ -464,17 +530,14 @@
         }
       }
 
-      // Reset preview state
       linkDraw = null;
       canvas.style.cursor = 'default';
       renderLinks();
     }
 
-    // mouse up handling
+    // mouse up
     function onUp(e) {
-      if (linkDraw) {
-        finalizeLinkIfPossible(e);
-      }
+      if (linkDraw) finalizeLinkIfPossible(e);
 
       if (dragInfo) {
         if (dragInfo.mode === 'node') {
@@ -492,7 +555,7 @@
       }
     }
 
-    // context menu & inspector open
+    // context menu
     function nodeContext(e, nodeId) {
       e.preventDefault();
       setSelectedNodesFromClick(nodeId, e);
@@ -506,6 +569,7 @@
       document.getElementById('contextEdit').onclick = ()=> { cm.style.display='none'; openNodeInspector(model.nodes.find(n=>n.id===nodeId)); };
       document.getElementById('contextDelete').onclick = ()=> { cm.style.display='none'; deleteSelectedNode(nodeId); };
     }
+
     function openNodeInspector(node) {
       selectedNodes.clear();
       selectedNodes.add(node.id);
@@ -520,9 +584,7 @@
       if (e.button !== 0) return;
       e.stopPropagation();
       document.getElementById('contextMenu').style.display = 'none';
-      if (!selectedNodes.has(nodeId)) {
-        setSelectedNodesFromClick(nodeId, e);
-      }
+      if (!selectedNodes.has(nodeId)) setSelectedNodesFromClick(nodeId, e);
       selectedLinkId = null;
       const startPositions = {};
       Array.from(selectedNodes).forEach(id => {
@@ -543,7 +605,7 @@
       canvas.style.cursor = 'grabbing';
     }
 
-    // store last mouse to help finalize when event not passed
+    // store last mouse
     window._lastMouse = { clientX: 0, clientY: 0 };
 
     function onMove(e) {
@@ -578,7 +640,7 @@
       }
     }
 
-    // keyboard with typing protection
+    // keyboard handling
     function onKey(e) {
       if (isTyping()) return;
       if ((e.key === 'Delete' || e.key === 'Backspace')) {
@@ -636,7 +698,7 @@
     showGrid && showGrid.addEventListener('change', applyTransform);
     gridSizeInput && gridSizeInput.addEventListener('change', applyTransform);
 
-    // export/import
+    // import/export handling
     document.addEventListener('workspace:importJson', (ev) => {
       const payload = ev.detail;
       if (!payload) return;
@@ -724,7 +786,7 @@
       renderNodes(); renderLinks(); updateInspector();
     });
 
-    // save binding
+    // save
     saveBoardBtn && saveBoardBtn.addEventListener('click', saveModel);
 
     // initial load
@@ -733,7 +795,7 @@
     // keyboard
     document.addEventListener('keydown', onKey);
 
-    // expose small API for debugging
+    // debug API
     window._wf = { model, renderNodes, saveModel, zoomToFit, autoResizeBoard };
   }
 
