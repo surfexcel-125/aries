@@ -1,6 +1,5 @@
-/* workspace.js — updated to support inspector toggle and robust header layout
-   - Compatible with the project_detail.html above.
-   - Keeps previous features: multi-select, connectors, save/load, export/import, zoom/pan.
+/* workspace.js — updated to use in-page modal for link labels and header fixes
+   Overwrite your existing workspace.js with this file.
 */
 (function(){
   function ready() {
@@ -78,7 +77,7 @@
       return { x: node.x, y: node.y + h/2 };
     }
 
-    // render
+    // render (same as before)
     function clearNodes() { document.querySelectorAll('.node').forEach(n=>n.remove()); }
     function renderNodes() {
       clearNodes();
@@ -174,7 +173,6 @@
       zoomIndicator && (zoomIndicator.textContent = `${Math.round(transform.scale*100)}%`);
       updateGrid();
       renderLinks();
-      // repaint UI to avoid ghosting
       requestAnimationFrame(() => { repaintUI(); });
     }
     function updateGrid() {
@@ -189,7 +187,7 @@
       canvas.style.backgroundPosition = `${ox}px ${oy}px`;
     }
 
-    // repaint helper to avoid ghosted header/buttons after transforms
+    // repaint helper
     function repaintUI() {
       try {
         const uiEls = document.querySelectorAll('.topbar, .header-actions, #floatingTools, .controls-panel, .header-title');
@@ -325,7 +323,7 @@
       markDirty(); renderNodes();
     });
 
-    // link draw
+    // link draw - uses in-page modal instead of prompt
     function startLinkDraw(e, sourceId) {
       e.stopPropagation();
       const src = model.nodes.find(n=>n.id===sourceId);
@@ -335,12 +333,56 @@
       canvas.style.cursor = 'crosshair';
     }
 
+    async function finalizeLinkIfPossible(evt) {
+      const targetEl = evt.target.closest('.node');
+      if (targetEl && linkDraw) {
+        const targetId = targetEl.id.replace('node-','');
+        if (targetId !== linkDraw.sourceId) {
+          // show in-page modal (global helper from project_detail.html)
+          try {
+            const label = await window.requestTransitionLabel('Next');
+            if (label !== null && label !== '') {
+              model.links.push({ id: uid('l'), source: linkDraw.sourceId, target: targetId, label: label.trim() });
+              markDirty();
+            }
+          } catch(e) {
+            console.error('Label modal error', e);
+          }
+        }
+      }
+      linkDraw = null;
+      canvas.style.cursor = 'default';
+      renderLinks();
+    }
+
+    // override onUp to call finalizeLinkIfPossible
+    function onUp(e) {
+      if (linkDraw) {
+        finalizeLinkIfPossible(e);
+      }
+
+      if (dragInfo) {
+        if (dragInfo.mode === 'node') {
+          const s = gridSize();
+          for (let id of Object.keys(dragInfo.startPositions)) {
+            const n = model.nodes.find(x=>x.id===id);
+            if (!n) continue;
+            n.x = Math.round(n.x / s) * s;
+            n.y = Math.round(n.y / s) * s;
+          }
+          markDirty(); renderNodes();
+        }
+        dragInfo = null;
+        canvas.style.cursor = 'default';
+      }
+    }
+
+    // rest of handlers (pan, drag, keyboard) same as earlier code
     function nodeContext(e, nodeId) {
       e.preventDefault();
       setSelectedNodesFromClick(nodeId, e);
       contextMenuAt(e.clientX, e.clientY, nodeId);
     }
-
     function contextMenuAt(x,y,nodeId) {
       const cm = document.getElementById('contextMenu');
       cm.style.left = `${x}px`;
@@ -354,13 +396,11 @@
       selectedNodes.clear();
       selectedNodes.add(node.id);
       updateInspector();
-      // show inspector if hidden
       if (inspector && inspector.classList.contains('hidden')) {
         inspector.classList.remove('hidden'); inspector.classList.add('visible');
       }
     }
 
-    // node drag / pan
     function handleNodeDown(e, nodeId) {
       if (e.button !== 0) return;
       e.stopPropagation();
@@ -415,41 +455,7 @@
       }
     }
 
-    function onUp(e) {
-      if (linkDraw) {
-        const targetEl = e.target.closest('.node');
-        if (targetEl) {
-          const targetId = targetEl.id.replace('node-','');
-          if (targetId !== linkDraw.sourceId) {
-            const label = prompt("Enter transition label (e.g., Next, Success):","Next");
-            if (label !== null) {
-              model.links.push({ id: uid('l'), source: linkDraw.sourceId, target: targetId, label: label.trim() });
-              markDirty();
-            }
-          }
-        }
-        linkDraw = null;
-        canvas.style.cursor = 'default';
-        renderLinks();
-      }
-
-      if (dragInfo) {
-        if (dragInfo.mode === 'node') {
-          const s = gridSize();
-          for (let id of Object.keys(dragInfo.startPositions)) {
-            const n = model.nodes.find(x=>x.id===id);
-            if (!n) continue;
-            n.x = Math.round(n.x / s) * s;
-            n.y = Math.round(n.y / s) * s;
-          }
-          markDirty(); renderNodes();
-        }
-        dragInfo = null;
-        canvas.style.cursor = 'default';
-      }
-    }
-
-    // keyboard
+    // keyboard and delete handlers
     function onKey(e) {
       if ((e.key === 'Delete' || e.key === 'Backspace')) {
         if (selectedNodes.size > 0) {
@@ -508,7 +514,7 @@
     showGrid && showGrid.addEventListener('change', applyTransform);
     gridSizeInput && gridSizeInput.addEventListener('change', applyTransform);
 
-    // export/import logic: import via event dispatched from project_detail.html
+    // export/import logic
     document.addEventListener('workspace:importJson', (ev) => {
       const payload = ev.detail;
       if (!payload) return;
@@ -526,7 +532,6 @@
     autosizeBtn && autosizeBtn.addEventListener('click', autoResizeBoard);
     clearAllBtn && clearAllBtn.addEventListener('click', ()=> { if (confirm('Clear entire board?')) { model.nodes=[]; model.links=[]; selectedNodes.clear(); markDirty(); renderNodes(); }});
 
-    // download JSON
     function downloadJSON() {
       const payload = { nodes: model.nodes, links: model.links, exportedAt: new Date().toISOString(), projectId };
       const data = JSON.stringify(payload, null, 2);
@@ -539,7 +544,6 @@
       URL.revokeObjectURL(url);
     }
 
-    // autosize board
     function autoResizeBoard() {
       if (model.nodes.length === 0) { board.style.width = '1200px'; board.style.height = '900px'; return; }
       const pad = 140;
@@ -588,7 +592,7 @@
       }
     });
 
-    // save shortcut binding (also exposed button)
+    // save binding
     saveBoardBtn && saveBoardBtn.addEventListener('click', saveModel);
 
     // initial load
