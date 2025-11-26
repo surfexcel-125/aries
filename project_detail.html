@@ -3,8 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Workspace — Aries (orthogonal anchors)</title>
-<link rel="stylesheet" href="main.css" />
+<title>Workspace — Aries (orthogonal anchors) — Fixed</title>
 <style>
 :root{
   --accent:#0b74ff; --muted:#6b7280; --panel:#ffffffee; --bg:#ffffff;
@@ -98,7 +97,6 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
     <div id="panLayer" class="pan-layer" tabindex="0">
       <div id="board" class="board">
         <div id="canvas" class="canvas"></div>
-        <!-- SVG inside the board so transform applies equally to nodes and connections -->
         <svg id="svg" class="link-layer" xmlns="http://www.w3.org/2000/svg"></svg>
       </div>
     </div>
@@ -172,7 +170,6 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
   function getQueryParam(k){ return new URLSearchParams(location.search).get(k); }
   const projectId = getQueryParam('id') || 'demo';
   const storageKey = 'aries_orthogonal_v1_' + projectId;
-  const tutorialKey = 'aries_tutorial_' + projectId;
 
   let model = { nodes: [], links: [] }; // link: {id, from, to, fromAnchor, toAnchor, points?}
   let selectedNodeId = null;
@@ -198,27 +195,35 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
   function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
   function flash(msg){ const el=document.createElement('div'); el.textContent=msg; Object.assign(el.style,{position:'fixed',right:'20px',bottom:'24px',background:'#0b74ff',color:'#fff',padding:'8px 12px',borderRadius:'8px',zIndex:1500}); document.body.appendChild(el); setTimeout(()=>el.remove(),1200); }
 
-  /* Coordinate mapping
-     Board transform: translate(tx,ty) scale(scale) where
-     tx = -canvas.width/2 + pan.x
-     ty = -canvas.height/2 + pan.y
-     We need to convert page (client) coords -> model coords (canvas space)
-  */
+  /* Robust page <-> model mapping using the board's computed transform matrix (DOMMatrix) */
   function pageToModel(clientX, clientY){
-    const boardRect = board.getBoundingClientRect();
-    // convert page -> board local (unscaled) coords
-    const localX = (clientX - boardRect.left) / scale;
-    const localY = (clientY - boardRect.top)  / scale;
-    // board local origin corresponds to model origin offset by (-canvas.width/2 + pan.x, -canvas.height/2 + pan.y)
-    const mx = localX + (canvas.offsetWidth/2) - pan.x/scale;
-    const my = localY + (canvas.offsetHeight/2) - pan.y/scale;
-    return { x: mx, y: my };
+    const rect = board.getBoundingClientRect();
+    // point relative to board's top-left (page space)
+    const px = clientX - rect.left;
+    const py = clientY - rect.top;
+    // get computed transform matrix (maps board-local -> page)
+    const style = getComputedStyle(board);
+    let matrix;
+    try { matrix = new DOMMatrixReadOnly(style.transform); } catch(e) { matrix = new DOMMatrix(); }
+    // invert to map page -> board-local
+    const inv = matrix.inverse();
+    const local = inv.transformPoint(new DOMPoint(px, py));
+    // board-local -> model coords: board was translated by (-canvas.width/2 + pan.x, -canvas.height/2 + pan.y)
+    const modelX = local.x + (canvas.offsetWidth/2) - pan.x;
+    const modelY = local.y + (canvas.offsetHeight/2) - pan.y;
+    return { x: modelX, y: modelY };
   }
-  function modelToPage(mx,my){
-    const boardRect = board.getBoundingClientRect();
-    const localX = (mx - (canvas.offsetWidth/2) + pan.x/scale) * scale;
-    const localY = (my - (canvas.offsetHeight/2) + pan.y/scale) * scale;
-    return { x: boardRect.left + localX, y: boardRect.top + localY };
+  function modelToPage(mx, my){
+    // model coords -> local coords inside board
+    const localX = mx - (canvas.offsetWidth/2) + pan.x;
+    const localY = my - (canvas.offsetHeight/2) + pan.y;
+    // apply board's computed matrix to get page coords
+    const style = getComputedStyle(board);
+    let matrix;
+    try { matrix = new DOMMatrixReadOnly(style.transform); } catch(e) { matrix = new DOMMatrix(); }
+    const pt = matrix.transformPoint(new DOMPoint(localX, localY));
+    const rect = board.getBoundingClientRect();
+    return { x: rect.left + pt.x, y: rect.top + pt.y };
   }
 
   function getNodeBounds(n){ return { x: n.x, y: n.y, w: n.w || 230, h: n.h || 120 }; }
@@ -265,16 +270,15 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
     renderLinks();
   }
 
+  /* zoom at client point */
   function zoomAt(newScale, clientX, clientY){
-    // keep the point under the cursor fixed
     const before = pageToModel(clientX, clientY);
     scale = clamp(newScale, MIN_SCALE, MAX_SCALE);
-    // after recalculating transform, compute model coordinate under cursor
     applyTransform();
     const after = pageToModel(clientX, clientY);
-    // Adjust pan so the same model point stays under the cursor
-    pan.x += (before.x - after.x) * scale;
-    pan.y += (before.y - after.y) * scale;
+    // adjust pan so the model point under the cursor remains the same on screen
+    pan.x += (before.x - after.x);
+    pan.y += (before.y - after.y);
     applyTransform();
   }
 
@@ -309,10 +313,10 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
       el.querySelector('.body').textContent = n.body||'';
       el.style.outline = (selectedNodeId === n.id) ? '3px solid rgba(11,116,255,0.12)' : 'none';
     });
-    // ensure connectors update immediately when nodes move
-    renderLinks();
+    renderLinks(); // ensure following anchors update immediately
   }
 
+  /* Add node at model coords */
   function addNodeAt(x,y){
     const id = uid();
     const node = { id, x:Math.max(40,Math.round(x)), y:Math.max(40,Math.round(y)), w:230, h:120, title:'New block', body:'Double-click or click ✎ to edit', color:'#fffdf5', shape:'card' };
@@ -343,8 +347,7 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
     const node = model.nodes.find(n=>n.id===draggingId);
     if(!node) return;
     node.x = Math.max(0, Math.round(x)); node.y = Math.max(0, Math.round(y));
-    // update display and connectors live
-    renderNodes();
+    renderNodes(); // endpoints follow anchors live
   }
   function onNodePointerUp(e){
     const id = e.currentTarget.dataset.id;
@@ -356,7 +359,7 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
     saveModel(); renderNodes();
   }
 
-  /* Auto-link on drop by nearest anchors */
+  /* Auto-link on drop by nearest anchors (keeps the chosen anchor indices) */
   function anchorDistance(a,b){ return Math.hypot(a.x - b.x, a.y - b.y); }
   function autoLinkOnDrop(node){
     if(!node) return;
@@ -399,12 +402,12 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
     zoomAt(newScale, e.clientX, e.clientY);
   }, { passive:false });
 
-  // pinch handlers
+  // pinch handlers (touch)
   panLayer.addEventListener('pointerdown', e=>{ pointerMap.set(e.pointerId,e); if(pointerMap.size===2){ const arr=Array.from(pointerMap.values()); pinchState={ dist: Math.hypot(arr[0].clientX-arr[1].clientX, arr[0].clientY-arr[1].clientY), scale:scale, center:{x:(arr[0].clientX+arr[1].clientX)/2,y:(arr[0].clientY+arr[1].clientY)/2} }; } e.target.setPointerCapture(e.pointerId); });
   panLayer.addEventListener('pointermove', e=>{ if(!pointerMap.has(e.pointerId)) return; pointerMap.set(e.pointerId,e); if(pinchState && pointerMap.size===2){ const arr=Array.from(pointerMap.values()); const dist=Math.hypot(arr[0].clientX-arr[1].clientX,arr[0].clientY-arr[1].clientY); const factor = dist / pinchState.dist; const newScale = clamp(pinchState.scale * factor, MIN_SCALE, MAX_SCALE); zoomAt(newScale, pinchState.center.x, pinchState.center.y); } });
   ['pointerup','pointercancel'].forEach(t=>panLayer.addEventListener(t,e=>{ pointerMap.delete(e.pointerId); if(pointerMap.size<2) pinchState=null; }));
 
-  /* Routing */
+  /* ROUTING: orthogonal route */
   function orthogonalRoute(aFrom, aTo){
     const sx = aFrom.x, sy = aFrom.y, tx = aTo.x, ty = aTo.y;
     const dx = Math.abs(tx - sx), dy = Math.abs(ty - sy);
@@ -429,7 +432,7 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
     return [ {x:sx,y:sy}, {x:midX,y:sy}, {x:midX,y:ty}, {x:tx,y:ty} ];
   }
 
-  /* Links: render as orthogonal paths, re-calc endpoints from anchors each render */
+  /* Links: render as orthogonal paths, with endpoint handles */
   function renderLinks(){
     svg.innerHTML = '';
     const defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
@@ -441,6 +444,7 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
       const fromNode = model.nodes.find(n=>n.id===link.from);
       const toNode = model.nodes.find(n=>n.id===link.to);
       if(!fromNode || !toNode) return;
+
       const anchorsFrom = computeAnchors(fromNode);
       const anchorsTo   = computeAnchors(toNode);
       const aFrom = anchorsFrom[ link.fromAnchor ?? 6 ];
@@ -507,20 +511,19 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
     syncSVGSize();
   }
 
-  /* Endpoint dragging */
+  /* Endpoint dragging: allows reconnecting to nearest anchor on drop */
   function enableEndpointDrag(circleEl, link, which){
-    let dragging = false;
     circleEl.addEventListener('pointerdown', (e)=>{
-      e.stopPropagation(); dragging = true; circleEl.setPointerCapture(e.pointerId);
+      e.stopPropagation(); circleEl.setPointerCapture(e.pointerId);
       const onMove = (ev)=>{
-        const rect2 = canvas.getBoundingClientRect();
-        const mx = (ev.clientX - rect2.left) / scale;
-        const my = (ev.clientY - rect2.top) / scale;
+        const rect = canvas.getBoundingClientRect();
+        const mx = (ev.clientX - rect.left) / scale;
+        const my = (ev.clientY - rect.top) / scale;
         circleEl.setAttribute('cx', mx); circleEl.setAttribute('cy', my);
         renderTemporaryLinkPreview(link, {x:mx,y:my}, which);
       };
       const onUp = (ev)=>{
-        dragging = false; circleEl.releasePointerCapture(ev.pointerId); document.removeEventListener('pointermove', onMove); document.removeEventListener('pointerup', onUp);
+        circleEl.releasePointerCapture(ev.pointerId); document.removeEventListener('pointermove', onMove); document.removeEventListener('pointerup', onUp);
         const rect3 = canvas.getBoundingClientRect();
         const mx = (ev.clientX - rect3.left) / scale;
         const my = (ev.clientY - rect3.top) / scale;
@@ -528,7 +531,6 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
         if(snap){
           if(which === 'from'){ link.from = snap.nodeId; link.fromAnchor = snap.anchorIndex; }
           else { link.to = snap.nodeId; link.toAnchor = snap.anchorIndex; }
-          // keep custom in-between points but endpoints remain anchors
           link.points = link.points && link.points.length ? link.points : null;
         } else {
           if(!link.points) link.points = [];
@@ -542,6 +544,7 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
     });
   }
 
+  // temporary visual preview while dragging endpoint
   function renderTemporaryLinkPreview(link, tempPoint, which){
     renderLinks();
     const fromNode = model.nodes.find(n=>n.id===link.from);
@@ -566,6 +569,7 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
     svg.appendChild(preview);
   }
 
+  // find nearest anchor to a point; returns {nodeId, anchorIndex, anchor, dist}
   function findNearestAnchor(pt, threshold){
     let best = Infinity, bestFound = null;
     model.nodes.forEach(n=>{
@@ -579,11 +583,10 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
     return null;
   }
 
-  /* Bend drag */
+  /* Bend point dragging (for custom link.points) */
   function enableBendDrag(circleEl, link, index){
-    let dragging = false;
     circleEl.addEventListener('pointerdown', (e)=>{
-      e.stopPropagation(); dragging = true; circleEl.setPointerCapture(e.pointerId);
+      e.stopPropagation(); circleEl.setPointerCapture(e.pointerId);
       const onMove = (ev)=>{
         const rect = canvas.getBoundingClientRect();
         const mx = (ev.clientX - rect.left) / scale;
@@ -591,7 +594,7 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
         link.points[index] = { x: mx, y: my }; renderLinks();
       };
       const onUp = (ev)=>{
-        dragging = false; circleEl.releasePointerCapture(ev.pointerId); document.removeEventListener('pointermove', onMove); document.removeEventListener('pointerup', onUp); saveModel();
+        circleEl.releasePointerCapture(ev.pointerId); document.removeEventListener('pointermove', onMove); document.removeEventListener('pointerup', onUp); saveModel();
       };
       document.addEventListener('pointermove', onMove);
       document.addEventListener('pointerup', onUp);
@@ -636,7 +639,7 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
     }
   });
 
-  /* Connector flow */
+  /* Connector tool flow */
   toolConnector.addEventListener('click', ()=> {
     connectMode = !connectMode; connectFrom = null;
     toolConnector.style.background = connectMode ? '#fdecea' : '';
@@ -682,9 +685,8 @@ svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-eve
   deleteBlockBtn.addEventListener('click', ()=>{ if(!selectedNodeId) return closeModal(); if(!confirm('Delete this block?')) return; model.links = model.links.filter(l => l.from !== selectedNodeId && l.to !== selectedNodeId); model.nodes = model.nodes.filter(n => n.id !== selectedNodeId); saveModel(); renderNodes(); closeModal(); });
 
   /* UI actions */
-  // Add node at current viewport center (visible screen center)
+  // Add node at current viewport center (visible screen)
   function handleAddNode(){
-    // use the center of the viewport (window) as screen point, convert to model coords
     const cx = window.innerWidth / 2;
     const cy = window.innerHeight / 2;
     const pos = pageToModel(cx, cy);
