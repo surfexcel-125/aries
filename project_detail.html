@@ -3,14 +3,17 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Workspace — Aries (project_detail)</title>
+<title>Workspace — Aries Workflow Mapper</title>
 <link rel="stylesheet" href="main.css" />
 <style>
-/* NOTE: Keeping all existing styles for your workspace design */
+/* --- BASE STYLES --- */
 :root{
   --accent:#0b74ff; --muted:#6b7280; --panel:#ffffffee; --bg:#ffffff;
-  --grid-color:rgba(15,23,42,0.04); --node-shadow:0 10px 28px rgba(15,23,42,0.08);
-  --link-color:#0f172a; --link-selected:#ff7a59;
+  --canvas-bg: #f5f5f5; /* NEW: Light gray background for contrast */
+  --grid-color:rgba(15,23,42,0.08); /* Darker grid for visibility */
+  --node-shadow:0 5px 15px rgba(15,23,42,0.1);
+  --link-color:#4b5563; /* Darker link color */
+  --link-selected:#ff7a59;
 }
 html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial;background:var(--bg)}
 .site-header{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #f1f1f1;background:#fff;position:sticky;top:0;z-index:40}
@@ -25,23 +28,86 @@ html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe 
 .tool-btn.active{background:var(--panel);border:1px solid #e5e7eb}
 .tool-icon{font-size:20px;line-height:1}
 .tool-btn.disabled{opacity:0.5;pointer-events:none}
-.canvas-wrap{flex-grow:1;overflow:hidden;position:relative}
-#canvas{width:100%;height:100%;position:absolute;top:0;left:0;cursor:grab}
+
+/* --- CANVAS & BOARD --- */
+.canvas-wrap{flex-grow:1;overflow:hidden;position:relative; background:var(--canvas-bg);}
+#canvas{width:100%;height:100%;position:absolute;top:0;left:0;cursor:grab; background:var(--canvas-bg);}
 #board{transform-origin:top left;transition:transform 0.15s ease-out}
 #panLayer{position:absolute;top:0;left:0;width:100%;height:100%;z-index:20;cursor:grab}
 #svg{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10}
+
+/* --- NODE STYLES (NEW WORKFLOW TYPES) --- */
 .node{position:absolute;padding:16px 20px;min-width:180px;min-height:80px;box-shadow:var(--node-shadow);border-radius:12px;background:var(--panel);cursor:pointer;transition:all 0.15s;border:2px solid transparent}
-.node.soft{border-radius:20px}
-.node.pill{border-radius:999px}
-.node.outline{background:transparent;border:2px solid #333;box-shadow:none}
 .node.selected{border-color:var(--accent)}
 .node-title{font-weight:700;font-size:1.1rem;margin-bottom:8px}
 .node-body{font-size:0.9rem;color:#374151}
-.anchor{position:absolute;width:10px;height:10px;border-radius:50%;background:var(--link-selected);opacity:0;transition:opacity 0.1s;pointer-events:auto;z-index:30}
-.node:hover .anchor{opacity:1}
+
+/* Specific Node Type Visuals */
+.node-type-page { background-color: #e6f0ff !important; border-color: #0b74ff; } /* Light Blue Page */
+.node-type-action { background-color: #fff8f0 !important; border-color: #ffb84d; } /* Light Yellow Action */
+.node-type-decision { 
+  background-color: #f0fff0 !important; 
+  border-color: #00a854; /* Light Green Decision */
+  /* Diamond Shape Transformation */
+  width: 140px; 
+  height: 140px; 
+  border-radius: 4px;
+  transform: rotate(45deg); 
+  display: flex; 
+  justify-content: center; 
+  align-items: center;
+  padding: 0;
+}
+.node-type-decision > * {
+  transform: rotate(-45deg); /* Rotate content back */
+  text-align: center;
+  max-width: 90%;
+}
+.node-type-decision .node-title, .node-type-decision .node-body {
+    white-space: normal;
+    word-break: break-word;
+}
+
+
+/* --- ANCHOR & LINK STYLES --- */
+.anchor {
+  position:absolute;
+  width: 12px;
+  height: 12px;
+  border-radius:50%;
+  background: var(--accent); /* Blue for connection */
+  border: 2px solid white;
+  opacity:0;
+  transition:opacity 0.1s;
+  pointer-events:auto;
+  z-index:30;
+}
+.node:hover .anchor{opacity:1;}
+/* Output anchor always on the right */
+.output-anchor {
+    top: 50%;
+    right: -6px; /* Half of anchor width */
+    transform: translateY(-50%);
+    cursor: crosshair;
+}
+/* Input anchor for link drawing helper (optional, can be center) */
+.input-anchor {
+    top: 50%;
+    left: -6px;
+    transform: translateY(-50%);
+}
+
+.link-label {
+  fill: var(--link-color);
+  font-size: 14px;
+  font-weight: bold;
+  text-shadow: 0 0 5px var(--canvas-bg), 0 0 5px var(--canvas-bg); /* Ensure visibility */
+  pointer-events: none; 
+}
+
+
+/* --- TOOLBAR & CONTROLS --- */
 #floatingTools{position:fixed;bottom:20px;right:20px;display:flex;gap:10px;background:var(--panel);padding:10px;border-radius:12px;box-shadow:0 10px 20px rgba(0,0,0,0.1);z-index:50}
-#floatingTools button{background:var(--panel)}
-#floatingTools.open{display:flex}
 .controls-panel{position:fixed;bottom:20px;left:20px;padding:12px;background:var(--panel);border-radius:8px;box-shadow:0 5px 15px rgba(0,0,0,0.1);z-index:50;display:flex;gap:15px;align-items:center}
 .field label{font-weight:600;display:block;margin-bottom:4px}
 .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:none;justify-content:center;align-items:center;z-index:1000}
@@ -64,22 +130,36 @@ html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe 
 <div class="canvas-wrap">
   <div id="canvas">
     <div id="board">
-      <svg id="svg"></svg>
+      <svg id="svg">
+        <defs>
+          <marker id="arrowhead" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="strokeWidth" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--link-color)" />
+          </marker>
+          <marker id="arrowhead-selected" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="strokeWidth" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--link-selected)" />
+          </marker>
+        </defs>
+      </svg>
     </div>
     <div id="panLayer"></div>
   </div>
 </div>
 
 
-<div id="floatingTools" role="toolbar" aria-label="Workspace Tools">
-  <button id="toolAddNode" class="tool-btn" aria-label="Add New Node">
-    <span class="tool-icon">+</span>
-    <span>Node</span>
+<div id="floatingTools" role="toolbar" aria-label="Workflow Tools">
+  <button id="toolAddPage" class="tool-btn" data-type="page" aria-label="Add Web Page Node">
+    <span class="tool-icon">📄</span>
+    <span>Page</span>
   </button>
-  <button id="toolConnector" class="tool-btn" aria-label="Connect Nodes" disabled>
-    <span class="tool-icon">🔗</span>
-    <span>Connect</span>
+  <button id="toolAddAction" class="tool-btn" data-type="action" aria-label="Add User Action Node">
+    <span class="tool-icon">🛠️</span>
+    <span>Action</span>
   </button>
+  <button id="toolAddDecision" class="tool-btn" data-type="decision" aria-label="Add Decision Node">
+    <span class="tool-icon">❓</span>
+    <span>Decision</span>
+  </button>
+  <div style="width:1px;height:30px;background:#e5e7eb;margin:0 5px;"></div>
   <button id="toolDeleteNode" class="tool-btn disabled" disabled aria-label="Delete Selected Node">
     <span class="tool-icon">🗑️</span>
     <span>Delete Node</span>
@@ -99,7 +179,7 @@ html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe 
   </div>
   <div class="field">
     <label><input id="showGrid" type="checkbox" checked> Grid</label>
-    <label>Size <input id="gridSize" type="number" value="20" min="5" max="200"></label>
+    <label>Size <input id="gridSize" type="number" value="25" min="5" max="200"></label>
     <button id="centerBtn" class="tutorial-btn" style="background:#f3f4f6;">Center</button>
   </div>
 </div>
@@ -107,16 +187,13 @@ html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe 
 
 <div id="modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true">
   <div class="modal">
-    <h3>Block settings</h3>
-    <div class="field"><label>Title</label><input id="modalTitle" type="text"></div>
-    <div class="field"><label>Body</label><textarea id="modalBody" rows="4"></textarea></div>
-    <div class="field"><label>Color</label><input id="modalColor" type="color" value="#ffffff"></div>
-    <div class="field"><label>Shape</label>
-      <select id="modalShape"><option value="card">Card</option><option value="soft">Soft</option><option value="pill">Pill</option><option value="outline">Outline</option></select>
-    </div>
-    <div class="modal-actions" style="display:flex;justify-content:space-between;margin-top:12px">
-      <button id="deleteBlock" class="btn ghost">Delete</button>
-      <div style="display:flex;gap:8px"><button id="cancelModal" class="btn ghost">Cancel</button><button id="saveModal" class="btn primary">Save</button></div>
+    <h3>Block Settings</h3>
+    <p>Project: <span id="modalProjectId" style="font-weight:bold;"></span></p>
+    <div class="field"><label>Title (Appears on Node)</label><input id="modalTitle" type="text"></div>
+    <div class="field"><label>Notes/Details</label><textarea id="modalBody" rows="4"></textarea></div>
+    <div class="modal-actions" style="display:flex;justify-content:space-between;margin-top:20px">
+      <button id="deleteBlock" class="btn ghost">Delete Node</button>
+      <div style="display:flex;gap:8px"><button id="cancelModal" class="btn ghost">Cancel</button><button id="saveModal" class="btn primary">Save Changes</button></div>
     </div>
   </div>
 </div>
@@ -131,18 +208,16 @@ html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe 
       return urlParams.get('id');
   }
 
-  // Set the project ID globally so workspace.js can access it
   window.currentProjectId = getProjectIdFromUrl(); 
   
-  // Basic check and redirect if ID is missing
   if (!window.currentProjectId) {
       alert("Error: No Project ID found in URL. Returning to Projects.");
       window.location.href = "projects.html";
   } else {
-    // Optionally update the header now
-    document.getElementById('headerTitle').textContent = `Project ${window.currentProjectId.substring(0, 5)}...`;
+    document.getElementById('headerTitle').textContent = `Workflow: ${window.currentProjectId.substring(0, 5)}...`;
   }
 </script>
+
 <script src="workspace.js" defer></script>
 </body>
 </html>
