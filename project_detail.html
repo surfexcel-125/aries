@@ -3,73 +3,77 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Workspace — Aries (with Connectors)</title>
+<title>Workspace — Aries (connectors editable)</title>
 <link rel="stylesheet" href="main.css" />
 <style>
   :root{
-    --accent:#0b74ff;
-    --muted:#6b7280;
-    --panel:#ffffffee;
-    --bg:#ffffff;
-    --grid-color:rgba(15,23,42,0.06);
-    --node-shadow:0 10px 28px rgba(15,23,42,0.08);
-    --link-color:#0f172a;
-    --link-selected:#ff7a59;
+    --accent:#0b74ff; --muted:#6b7280; --panel:#ffffffee; --bg:#ffffff;
+    --grid-color:rgba(15,23,42,0.04); --node-shadow:0 10px 28px rgba(15,23,42,0.08);
+    --link-color:#0f172a; --link-selected:#ff7a59;
   }
-  html,body{height:100%; margin:0; font-family:Inter, system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial; background:var(--bg);}
-  .site-header{display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid #f1f1f1; background:#fff; position:sticky; top:0; z-index:40;}
-  .icon-btn{background:transparent; border:0; font-size:18px; cursor:pointer; padding:6px; border-radius:999px;}
-  .icon-btn:hover{background:#f3f4f6;}
-  .header-title{font-weight:700; font-size:0.98rem;}
-  .btn{padding:8px 12px; border-radius:8px; border:0; cursor:pointer; font-weight:600; font-size:0.9rem;}
-  .btn.primary{ background:var(--accent); color:#fff; }
-  .btn.ghost{ background:transparent; color:var(--muted); border:1px solid #e5e7eb; }
+  html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial;background:var(--bg);}
+  .site-header{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #f1f1f1;background:#fff;position:sticky;top:0;z-index:40;}
+  .icon-btn{background:transparent;border:0;font-size:18px;cursor:pointer;padding:6px;border-radius:999px;}
+  .header-title{font-weight:700;font-size:0.98rem}
+  .btn{padding:8px 12px;border-radius:8px;border:0;cursor:pointer;font-weight:600;font-size:0.9rem}
+  .btn.primary{background:var(--accent);color:#fff}
+  .btn.ghost{background:transparent;color:var(--muted);border:1px solid #e5e7eb}
+  .header-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+  .zoom-ind{padding:6px 8px;border-radius:8px;border:1px solid #e5e7eb;background:#fff;font-weight:600;font-size:0.85rem}
 
-  .header-right{ margin-left:auto; display:flex; align-items:center; gap:8px; }
-  .zoom-ind{ padding:6px 8px; border-radius:8px; border:1px solid #e5e7eb; background:#fff; font-weight:600; font-size:0.85rem; }
+  /* viewport & board */
+  .viewport{position:relative;height:calc(100vh - 56px);overflow:hidden;background:var(--bg)}
+  .pan-layer{position:absolute;inset:0;touch-action:none}
+  .board{position:absolute;left:50%;top:50%;transform-origin:0 0;will-change:transform}
+  /* make canvas visually simple — remove box-shadow/fixed rectangle look */
+  .canvas{position:relative;width:2000px;height:1400px;background:transparent;border-radius:0;margin:0;overflow:visible}
+  /* grid uses background-image on canvas */
 
-  .viewport{ position:relative; height:calc(100vh - 56px); overflow:hidden; background:var(--bg); }
-  .pan-layer{ position:absolute; inset:0; touch-action:none; }
-  .board{ position:absolute; left:50%; top:50%; transform-origin:0 0; will-change:transform; }
-  .canvas{ position:relative; width:1600px; height:1000px; border-radius:12px; background:#fff; box-shadow:0 18px 40px rgba(15,23,42,0.08); overflow:visible; }
+  /* nodes */
+  .node{position:absolute;min-width:160px;max-width:420px;padding:12px 14px;border-radius:10px;background:#fff;border:1px solid rgba(0,0,0,0.06);box-shadow:var(--node-shadow);cursor:grab;user-select:none;z-index:8}
+  .node:active{cursor:grabbing}
+  .node .title{margin:0 0 6px;font-weight:700;font-size:0.98rem}
+  .node .body{margin:0;font-size:0.9rem;color:var(--muted);white-space:pre-wrap}
+  .node .mini{position:absolute;right:8px;top:8px;display:flex;gap:6px}
+  .node-shape-soft{border-radius:16px}
+  .node-shape-pill{border-radius:999px}
+  .node-shape-outline{background:transparent;border-style:dashed}
 
-  .node{ position:absolute; min-width:170px; max-width:420px; padding:12px 14px; border-radius:10px; background:#fff; border:1px solid rgba(0,0,0,0.06); box-shadow:var(--node-shadow); cursor:grab; user-select:none; z-index:5; }
-  .node:active{ cursor:grabbing; }
-  .node .title{ margin:0 0 6px; font-weight:700; font-size:0.98rem; }
-  .node .body{ margin:0; font-size:0.9rem; color:var(--muted); white-space:pre-wrap; }
-  .node .mini{ position:absolute; right:8px; top:8px; display:flex; gap:4px; }
-  .node-shape-soft{ border-radius:16px; }
-  .node-shape-pill{ border-radius:999px; }
-  .node-shape-outline{ background:transparent; border-style:dashed; }
+  /* floating tools */
+  .floating-tools{position:fixed;left:14px;top:62px;width:240px;padding:10px;background:var(--panel);border-radius:12px;box-shadow:0 16px 40px rgba(15,23,42,0.18);backdrop-filter:blur(8px);z-index:50;opacity:0;pointer-events:none;transform:translateY(-8px);transition:opacity .16s,transform .16s}
+  .floating-tools.open{opacity:1;pointer-events:auto;transform:none}
+  .tool-row{display:flex;flex-wrap:wrap;gap:6px}
+  .tool-btn{padding:6px 8px;border-radius:8px;background:#f3f4f6;border:0;font-size:0.85rem;cursor:pointer}
 
-  .floating-tools{ position:fixed; left:14px; top:62px; width:240px; padding:10px; background:var(--panel); border-radius:12px; box-shadow:0 16px 40px rgba(15,23,42,0.18); backdrop-filter:blur(10px); z-index:50; opacity:0; pointer-events:none; transform:translateY(-8px); transition:opacity 0.16s ease, transform 0.16s ease; }
-  .floating-tools.open{ opacity:1; pointer-events:auto; transform:translateY(0); }
-  .floating-tools h4{ margin:0 0 8px; font-size:0.9rem; }
-  .tool-row{ display:flex; flex-wrap:wrap; gap:6px; }
-  .tool-btn{ padding:6px 8px; border-radius:8px; background:#f3f4f6; border:0; font-size:0.8rem; cursor:pointer; }
+  /* bottom zoom */
+  .bottom-zoom{position:fixed;left:16px;bottom:16px;z-index:45;display:flex;gap:6px}
+  .zoom-btn{width:34px;height:34px;border-radius:999px;border:1px solid #e5e7eb;background:#fff;font-size:18px;cursor:pointer;box-shadow:0 10px 30px rgba(15,23,42,0.16)}
 
-  .bottom-zoom{ position:fixed; left:16px; bottom:16px; z-index:45; display:flex; gap:6px; }
-  .zoom-btn{ width:34px; height:34px; border-radius:999px; border:1px solid #e5e7eb; background:#ffffff; font-size:18px; cursor:pointer; box-shadow:0 10px 30px rgba(15,23,42,0.16); }
+  /* grid panel */
+  .grid-panel{position:fixed;right:16px;bottom:16px;z-index:45;padding:8px 10px;border-radius:12px;background:#fff;box-shadow:0 10px 30px rgba(15,23,42,0.12);font-size:0.83rem;color:var(--muted);display:flex;gap:8px;align-items:center}
+  .grid-panel input[type="number"]{width:60px;padding:4px 6px;border-radius:8px;border:1px solid #e5e7eb;font-size:0.8rem}
 
-  .grid-panel{ position:fixed; right:16px; bottom:16px; z-index:45; padding:8px 10px; border-radius:12px; background:#fff; box-shadow:0 10px 30px rgba(15,23,42,0.12); font-size:0.83rem; color:var(--muted); display:flex; gap:8px; align-items:center; }
-  .grid-panel input[type="number"]{ width:60px; padding:4px 6px; border-radius:8px; border:1px solid #e5e7eb; font-size:0.8rem; }
+  /* modal */
+  .modal-backdrop{position:fixed;inset:0;display:none;justify-content:center;align-items:center;background:rgba(0,0,0,0.38);z-index:1200}
+  .modal{width:380px;max-width:94vw;background:var(--panel);border-radius:12px;padding:16px;box-shadow:0 18px 40px rgba(15,23,42,0.3)}
+  .field{margin:8px 0;display:flex;flex-direction:column;gap:4px}
+  .field input[type="text"],.field textarea,.field select,.field input[type="color"]{padding:8px;border-radius:8px;border:1px solid #e5e7eb;font-size:0.9rem}
 
-  .modal-backdrop{ position:fixed; inset:0; display:none; justify-content:center; align-items:center; background:rgba(0,0,0,0.38); z-index:1200; }
-  .modal{ width:360px; max-width:94vw; background:var(--panel); border-radius:12px; padding:16px; box-shadow:0 18px 40px rgba(15,23,42,0.3); }
-  .field{ margin:8px 0; display:flex; flex-direction:column; gap:4px; }
-  .field input[type="text"], .field textarea, .field select, .field input[type="color"]{ padding:8px; border-radius:8px; border:1px solid #e5e7eb; font-size:0.9rem; }
+  /* tutorial */
+  .tutorial-backdrop{position:fixed;inset:0;background:linear-gradient(180deg,rgba(15,23,42,0.7),rgba(15,23,42,0.7));color:#fff;z-index:1300;display:none}
+  .tutorial-card{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);max-width:900px;padding:24px}
+  .tutorial-step{background:rgba(15,23,42,0.4);border-radius:14px;padding:16px;border:1px solid rgba(255,255,255,0.12)}
+  .tutorial-footer{margin-top:10px;display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:0.85rem}
+  .tutorial-btn{padding:8px 12px;border-radius:8px;border:0;cursor:pointer;font-size:0.9rem}
 
-  .tutorial-backdrop{ position:fixed; inset:0; background:linear-gradient(180deg,rgba(15,23,42,0.7),rgba(15,23,42,0.7)); color:#fff; z-index:1300; display:none; }
-  .tutorial-card{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); max-width:900px; padding:24px; }
-  .tutorial-step{ background:rgba(15,23,42,0.4); border-radius:14px; padding:16px; border:1px solid rgba(255,255,255,0.12); }
-  .tutorial-footer{ margin-top:10px; display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:0.85rem; }
-  .tutorial-btn{ padding:8px 12px; border-radius:8px; border:0; cursor:pointer; font-size:0.9rem; }
+  /* svg link styles + handles */
+  svg.link-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:6}
+  .link-line{stroke:var(--link-color);stroke-width:2;stroke-linecap:round;fill:none;pointer-events:stroke}
+  .link-line.selected{stroke:var(--link-selected);stroke-width:3}
+  .handle{fill:#fff;stroke:#0b74ff;stroke-width:2;cursor:pointer;pointer-events:auto}
+  .hidden{display:none}
 
-  svg.link-line{ position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none; z-index:3; }
-  svg.link-line line{ stroke:var(--link-color); stroke-width:2; stroke-linecap:round; }
-  svg.link-line line.selected{ stroke:var(--link-selected); stroke-width:3; }
-
-  @media (max-width:900px){ .canvas{ width:1200px; height:800px; } .floating-tools{ width:190px; } }
+  @media (max-width:900px){.canvas{width:1400px;height:1000px}.floating-tools{width:190px}}
 </style>
 </head>
 <body>
@@ -92,16 +96,16 @@
       <button id="toolAddNode" class="tool-btn">+ Node</button>
       <button id="toolConnector" class="tool-btn">Connector</button>
       <button id="toolDeleteLink" class="tool-btn" disabled>Delete Link</button>
-      <button class="tool-btn" disabled>Template</button>
+      <button id="toolDeleteNode" class="tool-btn" disabled>Delete Node</button>
     </div>
-    <div style="margin-top:10px; font-size:0.9rem; color:var(--muted);">Selected link: <span id="selectedLinkLabel">none</span></div>
+    <div style="margin-top:10px;font-size:0.9rem;color:var(--muted)">Selected link: <span id="selectedLinkLabel">none</span></div>
   </aside>
 
-  <main class="viewport" id="viewport">
-    <div class="pan-layer" id="panLayer" tabindex="0">
+  <main class="viewport">
+    <div id="panLayer" class="pan-layer" tabindex="0">
       <div id="board" class="board">
         <div id="canvas" class="canvas"></div>
-        <svg id="svgLayer" class="link-line" xmlns="http://www.w3.org/2000/svg"></svg>
+        <svg id="svg" class="link-layer" xmlns="http://www.w3.org/2000/svg"></svg>
       </div>
     </div>
   </main>
@@ -120,21 +124,15 @@
   <div id="modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true">
     <div class="modal">
       <h3>Block settings</h3>
-      <div class="field"><label for="modalTitle">Title</label><input id="modalTitle" type="text"></div>
-      <div class="field"><label for="modalBody">Body</label><textarea id="modalBody" rows="4"></textarea></div>
-      <div class="field"><label for="modalColor">Background color</label><input id="modalColor" type="color" value="#ffffff"></div>
-      <div class="field"><label for="modalShape">Shape</label><select id="modalShape">
-        <option value="card">Card (default)</option>
-        <option value="soft">Soft rounded</option>
-        <option value="pill">Pill</option>
-        <option value="outline">Outline</option>
-      </select></div>
-      <div class="modal-actions">
+      <div class="field"><label>Title</label><input id="modalTitle" type="text"></div>
+      <div class="field"><label>Body</label><textarea id="modalBody" rows="4"></textarea></div>
+      <div class="field"><label>Color</label><input id="modalColor" type="color" value="#ffffff"></div>
+      <div class="field"><label>Shape</label>
+        <select id="modalShape"><option value="card">Card</option><option value="soft">Soft</option><option value="pill">Pill</option><option value="outline">Outline</option></select>
+      </div>
+      <div class="modal-actions" style="display:flex;justify-content:space-between;margin-top:12px">
         <button id="deleteBlock" class="btn ghost">Delete</button>
-        <div style="display:flex; gap:8px;">
-          <button id="cancelModal" class="btn ghost">Cancel</button>
-          <button id="saveModal" class="btn primary">Save</button>
-        </div>
+        <div style="display:flex;gap:8px"><button id="cancelModal" class="btn ghost">Cancel</button><button id="saveModal" class="btn primary">Save</button></div>
       </div>
     </div>
   </div>
@@ -144,10 +142,10 @@
       <div id="tutorialStep" class="tutorial-step"></div>
       <div class="tutorial-footer">
         <div id="tutorialProgress"></div>
-        <div style="display:flex; gap:8px;">
-          <button id="tutorialPrev" class="tutorial-btn" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.4);">Prev</button>
-          <button id="tutorialNext" class="tutorial-btn" style="background:var(--accent);color:#fff;">Next</button>
-          <button id="tutorialClose" class="tutorial-btn" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.4);">Close</button>
+        <div style="display:flex;gap:8px">
+          <button id="tutorialPrev" class="tutorial-btn" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.4)">Prev</button>
+          <button id="tutorialNext" class="tutorial-btn" style="background:var(--accent);color:#fff">Next</button>
+          <button id="tutorialClose" class="tutorial-btn" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.4)">Close</button>
         </div>
       </div>
     </div>
@@ -156,17 +154,18 @@
 <script src="app.js" defer></script>
 <script>
 (function(){
-  /* Elements */
+  // Elements
   const canvas = document.getElementById('canvas');
   const board = document.getElementById('board');
   const panLayer = document.getElementById('panLayer');
-  const svgLayer = document.getElementById('svgLayer');
+  const svg = document.getElementById('svg');
 
   const menuIcon = document.getElementById('menuIcon');
   const floatingTools = document.getElementById('floatingTools');
   const toolAddNode = document.getElementById('toolAddNode');
   const toolConnector = document.getElementById('toolConnector');
   const toolDeleteLink = document.getElementById('toolDeleteLink');
+  const toolDeleteNode = document.getElementById('toolDeleteNode');
   const selectedLinkLabel = document.getElementById('selectedLinkLabel');
 
   const backToProjects = document.getElementById('backToProjects');
@@ -177,7 +176,7 @@
   const zoomInCorner = document.getElementById('zoomInCorner');
   const zoomOutCorner = document.getElementById('zoomOutCorner');
 
-  const showGridInput = document.getElementById('showGrid');
+  const showGrid = document.getElementById('showGrid');
   const gridSizeInput = document.getElementById('gridSize');
   const centerBtn = document.getElementById('centerBtn');
 
@@ -197,78 +196,63 @@
   const tutorialNext = document.getElementById('tutorialNext');
   const tutorialClose = document.getElementById('tutorialClose');
 
+  // Storage keys
   function getQueryParam(k){ return new URLSearchParams(location.search).get(k); }
   const projectId = getQueryParam('id') || 'demo';
-  const storageKey = 'aries_workspace_links_' + projectId;
+  const storageKey = 'aries_workspace_links_v2_' + projectId;
   const tutorialKey = 'aries_tutorial_' + projectId;
 
-  /* Model */
-  let model = { nodes: [], links: [] }; // link: {id, from, to}
+  // Model: nodes and links, links can have points array for polyline
+  let model = { nodes: [], links: [] };
   let selectedNodeId = null;
   let selectedLinkId = null;
 
-  /* Transform state */
-  let scale = 1;
-  let pan = { x: 0, y: 0 };
-  const MIN_SCALE = 0.4, MAX_SCALE = 2.5, SCALE_STEP = 0.12;
+  // Transform
+  let scale = 1, pan = {x:0,y:0};
+  const MIN_SCALE = 0.35, MAX_SCALE = 2.6, SCALE_STEP = 0.12;
 
-  /* Dragging */
-  let draggingId = null;
-  let dragOffset = { x:0, y:0 };
+  // Dragging
+  let draggingId = null; let dragOffset = {x:0,y:0};
 
-  /* Panning */
-  let isPanning = false;
-  let panStart = { x:0, y:0 };
+  // Panning
+  let isPanning = false, panStart = {x:0,y:0};
 
-  /* Pinch */
-  const pointerMap = new Map();
-  let pinchState = null;
+  // Pinch
+  const pointerMap = new Map(); let pinchState = null;
 
-  /* Connect mode */
-  let connectMode = false;
-  let connectFrom = null;
+  // Connect mode
+  let connectMode = false, connectFrom = null;
 
-  /* Snap/grid */
-  let snapOn = true;
-  let gridSize = Number(gridSizeInput.value) || 20;
+  // Snap/grid
+  let snapOn = true, gridSize = Number(gridSizeInput.value) || 20;
 
-  /* ---------- Helpers ---------- */
+  /* Utilities */
   function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
-  function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
-  function pageToModel(x,y){
-    const rect = canvas.getBoundingClientRect();
-    return { x: (x - rect.left) / scale, y: (y - rect.top) / scale };
-  }
-  function flash(msg){
-    const el = document.createElement('div');
-    el.textContent = msg;
-    Object.assign(el.style,{position:'fixed',right:'20px',bottom:'24px',background:'#0b74ff',color:'#fff',padding:'8px 12px',borderRadius:'8px',zIndex:1500});
-    document.body.appendChild(el); setTimeout(()=>el.remove(),1200);
+  function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+  function flash(msg){ const el=document.createElement('div'); el.textContent=msg; Object.assign(el.style,{position:'fixed',right:'20px',bottom:'24px',background:'#0b74ff',color:'#fff',padding:'8px 12px',borderRadius:'8px',zIndex:1500}); document.body.appendChild(el); setTimeout(()=>el.remove(),1200); }
+  function pageToModel(x,y){ const rect = canvas.getBoundingClientRect(); return { x:(x-rect.left)/scale, y:(y-rect.top)/scale }; }
+  function modelToSvgPoint(mx,my){ // returns SVG coordinates scaled
+    return { x: mx*scale, y: my*scale };
   }
   function escapeHtml(s){ if(!s) return ''; return s.replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 
-  /* ---------- Persistence ---------- */
-  function loadModel(){
-    try{ const raw = localStorage.getItem(storageKey); model = raw ? JSON.parse(raw) : { nodes: [], links: [] }; }catch(e){ model = { nodes: [], links: [] }; }
-  }
+  /* Persistence */
+  function loadModel(){ try{ const raw = localStorage.getItem(storageKey); model = raw ? JSON.parse(raw) : {nodes:[],links:[]}; }catch(e){ model={nodes:[],links:[]}; } }
   function saveModel(){ try{ localStorage.setItem(storageKey, JSON.stringify(model)); }catch(e){} flash('Saved'); }
 
-  /* ---------- Grid ---------- */
+  /* Grid */
   function updateGrid(){
-    if(!showGridInput.checked){ canvas.style.backgroundImage = 'none'; return; }
-    const size = gridSize;
-    canvas.style.backgroundImage = `linear-gradient(to right, var(--grid-color) 1px, transparent 1px), linear-gradient(to bottom, var(--grid-color) 1px, transparent 1px)`;
-    canvas.style.backgroundSize = size + 'px ' + size + 'px';
-    canvas.style.backgroundPosition = '0 0';
+    if(!showGrid.checked){ canvas.style.backgroundImage='none'; return; }
+    const size = gridSize; canvas.style.backgroundImage = `linear-gradient(to right, var(--grid-color) 1px, transparent 1px), linear-gradient(to bottom, var(--grid-color) 1px, transparent 1px)`; canvas.style.backgroundSize = size+'px '+size+'px';
   }
 
-  /* ---------- Transform / Zoom ---------- */
+  /* Transform */
   function applyTransform(){
     const rect = canvas.getBoundingClientRect();
     const tx = -rect.width/2 + pan.x;
     const ty = -rect.height/2 + pan.y;
     board.style.transform = `translate(${tx}px,${ty}px) scale(${scale})`;
-    zoomIndicator.textContent = Math.round(scale*100) + '%';
+    zoomIndicator.textContent = Math.round(scale*100)+'%';
     renderLinks();
   }
   function zoomAt(newScale, clientX, clientY){
@@ -281,17 +265,16 @@
     applyTransform();
   }
 
-  /* ---------- Nodes ---------- */
+  /* Nodes */
   function createNodeDOM(n){
     const el = document.createElement('div');
     el.className = 'node';
     el.dataset.id = n.id;
-    el.style.left = n.x + 'px';
-    el.style.top = n.y + 'px';
-    el.style.width = (n.w || 230) + 'px';
-    el.style.background = n.color || '#fff';
-    el.innerHTML = `<div class="mini"><button class="mini-edit" style="background:transparent;border:0;font-size:14px;cursor:pointer;">✎</button></div><div class="title"></div><div class="body"></div>`;
+    el.style.left = n.x+'px'; el.style.top = n.y+'px';
+    el.style.width = (n.w||220)+'px'; el.style.background = n.color||'#fff';
+    el.innerHTML = `<div class="mini"><button class="mini-edit" style="background:transparent;border:0;font-size:14px;cursor:pointer">✎</button></div><div class="title"></div><div class="body"></div>`;
     el.addEventListener('pointerdown', onNodePointerDown);
+    el.addEventListener('click', (e)=>{ e.stopPropagation(); selectNode(n.id); if(connectMode){ nodeClickForConnect(n.id); }});
     el.addEventListener('dblclick', ()=> openModal(n.id));
     el.querySelector('.mini-edit').addEventListener('click', ev=>{ ev.stopPropagation(); openModal(n.id); });
     return el;
@@ -300,365 +283,354 @@
   function renderNodes(){
     updateGrid();
     const ids = new Set(model.nodes.map(n=>n.id));
-    Array.from(canvas.querySelectorAll('.node')).forEach(el => { if(!ids.has(el.dataset.id)) el.remove(); });
+    Array.from(canvas.querySelectorAll('.node')).forEach(el=>{ if(!ids.has(el.dataset.id)) el.remove(); });
     model.nodes.forEach(n=>{
-      let el = canvas.querySelector(`.node[data-id="${n.id}"]`);
+      let el = canvas.querySelector('.node[data-id="'+n.id+'"]');
       if(!el){ el = createNodeDOM(n); canvas.appendChild(el); }
-      el.style.left = n.x + 'px';
-      el.style.top = n.y + 'px';
-      el.style.width = (n.w||230) + 'px';
-      el.style.background = n.color || '#fff';
+      el.style.left = n.x+'px'; el.style.top = n.y+'px'; el.style.width = (n.w||220)+'px'; el.style.background = n.color||'#fff';
       el.classList.remove('node-shape-soft','node-shape-pill','node-shape-outline');
-      if(n.shape === 'soft') el.classList.add('node-shape-soft');
-      if(n.shape === 'pill') el.classList.add('node-shape-pill');
-      if(n.shape === 'outline'){ el.classList.add('node-shape-outline'); el.style.background = 'transparent'; }
-      el.querySelector('.title').textContent = n.title || 'Untitled';
-      el.querySelector('.body').textContent = n.body || '';
+      if(n.shape==='soft') el.classList.add('node-shape-soft');
+      if(n.shape==='pill') el.classList.add('node-shape-pill');
+      if(n.shape==='outline'){ el.classList.add('node-shape-outline'); el.style.background='transparent'; }
+      el.querySelector('.title').textContent = n.title||'Untitled';
+      el.querySelector('.body').textContent = n.body||'';
+      // outline selected node
+      el.style.outline = (selectedNodeId === n.id) ? '3px solid rgba(11,116,255,0.12)' : 'none';
     });
     renderLinks();
   }
 
   function addNodeAt(x,y){
     const id = uid();
-    const node = { id, x: Math.max(40, x), y: Math.max(40, y), w:230, h:120, title:'New block', body:'Double-click to edit', color:'#fffdf5', shape:'card' };
-    model.nodes.push(node);
-    saveModel(); renderNodes(); openModal(id);
+    const node = { id, x:Math.max(40,x), y:Math.max(40,y), w:230, h:120, title:'New block', body:'Double-click or click ✎ to edit', color:'#fffdf5', shape:'card' };
+    model.nodes.push(node); saveModel(); renderNodes(); openModal(id);
   }
 
-  /* ---------- Node dragging ---------- */
+  /* Node drag */
   function onNodePointerDown(e){
     e.stopPropagation();
-    const el = e.currentTarget;
-    const id = el.dataset.id;
+    const el = e.currentTarget; const id = el.dataset.id;
     draggingId = id;
     const node = model.nodes.find(n=>n.id===id);
-    const pos = pageToModel(e.clientX, e.clientY);
-    dragOffset.x = pos.x - (node.x || 0);
-    dragOffset.y = pos.y - (node.y || 0);
+    const pos = pageToModel(e.clientX,e.clientY);
+    dragOffset.x = pos.x - (node.x||0);
+    dragOffset.y = pos.y - (node.y||0);
     el.setPointerCapture(e.pointerId);
     el.addEventListener('pointermove', onNodePointerMove);
     el.addEventListener('pointerup', onNodePointerUp);
   }
   function onNodePointerMove(e){
     if(!draggingId) return;
-    const pos = pageToModel(e.clientX, e.clientY);
-    let x = pos.x - dragOffset.x;
-    let y = pos.y - dragOffset.y;
+    const pos = pageToModel(e.clientX,e.clientY);
+    let x = pos.x - dragOffset.x; let y = pos.y - dragOffset.y;
     if(snapOn){
-      const gs = gridSize;
-      const snapX = Math.round(x/gs)*gs;
-      const snapY = Math.round(y/gs)*gs;
-      x = x + (snapX - x)*0.35;
-      y = y + (snapY - y)*0.35;
+      const gs = gridSize; const snapX = Math.round(x/gs)*gs; const snapY = Math.round(y/gs)*gs;
+      x = x + (snapX - x)*0.35; y = y + (snapY - y)*0.35;
     }
     const node = model.nodes.find(n=>n.id===draggingId);
     if(!node) return;
-    node.x = Math.max(0, Math.round(x));
-    node.y = Math.max(0, Math.round(y));
+    node.x = Math.max(0, Math.round(x)); node.y = Math.max(0, Math.round(y));
     renderNodes();
   }
   function onNodePointerUp(e){
     const id = e.currentTarget.dataset.id;
     const node = model.nodes.find(n=>n.id===id);
-    if(node && snapOn){
-      const gs = gridSize;
-      node.x = Math.round(node.x/gs)*gs;
-      node.y = Math.round(node.y/gs)*gs;
-    }
+    if(node && snapOn){ const gs = gridSize; node.x = Math.round(node.x/gs)*gs; node.y = Math.round(node.y/gs)*gs; }
+    // automatic linking on drop
+    autoLinkOnDrop(node);
     draggingId = null;
     try{ e.currentTarget.removeEventListener('pointermove', onNodePointerMove); e.currentTarget.removeEventListener('pointerup', onNodePointerUp); }catch(err){}
-    saveModel();
-    renderNodes();
+    saveModel(); renderNodes();
   }
 
-  /* ---------- Pan & Scroll zoom ---------- */
+  /* Auto-link on drop: if node edges touch or are very close, create link */
+  function rectDistance(a,b){
+    // returns minimal edge distance between rect a and b (a,b have x,y,w,h)
+    const ax2 = a.x + (a.w||230), ay2 = a.y + (a.h||120);
+    const bx2 = b.x + (b.w||230), by2 = b.y + (b.h||120);
+    const dx = Math.max(0, Math.max(b.x - ax2, a.x - bx2));
+    const dy = Math.max(0, Math.max(b.y - ay2, a.y - by2));
+    return Math.hypot(dx,dy);
+  }
+  function autoLinkOnDrop(node){
+    if(!node) return;
+    const threshold = 10; // px distance to consider 'touching'
+    model.nodes.forEach(other=>{
+      if(other.id === node.id) return;
+      const d = rectDistance(node, other);
+      if(d <= threshold){
+        // create link if not exist in either direction (we'll create directed from node -> other)
+        const exists = model.links.some(l => (l.from === node.id && l.to === other.id) || (l.from === other.id && l.to === node.id));
+        if(!exists){
+          model.links.push({ id: uid(), from: node.id, to: other.id, points: null }); // straight by default
+        }
+      }
+    });
+  }
+
+  /* Pan & zoom (scroll zoom, pinch) */
   panLayer.addEventListener('pointerdown', e=>{
     if(e.target.closest('.node')) return;
     panLayer.setPointerCapture(e.pointerId);
-    isPanning = true;
-    panStart.x = e.clientX - pan.x;
-    panStart.y = e.clientY - pan.y;
-    panLayer.addEventListener('pointermove', onPanMove);
-    panLayer.addEventListener('pointerup', onPanEnd);
+    isPanning = true; panStart.x = e.clientX - pan.x; panStart.y = e.clientY - pan.y;
+    panLayer.addEventListener('pointermove', onPanMove); panLayer.addEventListener('pointerup', onPanEnd);
   });
   function onPanMove(e){ if(!isPanning) return; pan.x = e.clientX - panStart.x; pan.y = e.clientY - panStart.y; applyTransform(); }
   function onPanEnd(e){ isPanning = false; panLayer.removeEventListener('pointermove', onPanMove); panLayer.removeEventListener('pointerup', onPanEnd); saveModel(); }
 
-  panLayer.addEventListener('wheel', e=>{
-    e.preventDefault();
-    const delta = e.deltaY > 0 ? -SCALE_STEP : SCALE_STEP;
-    const newScale = scale + delta;
-    zoomAt(newScale, e.clientX, e.clientY);
-  }, { passive:false });
+  panLayer.addEventListener('wheel', e=>{ e.preventDefault(); const delta = e.deltaY > 0 ? -SCALE_STEP : SCALE_STEP; const newScale = scale + delta; zoomAt(newScale,e.clientX,e.clientY); }, { passive:false });
 
-  /* ---------- Pinch-to-zoom ---------- */
-  panLayer.addEventListener('pointerdown', e=>{
-    pointerMap.set(e.pointerId, e);
-    if(pointerMap.size === 2){
-      const arr = Array.from(pointerMap.values());
-      pinchState = { dist: Math.hypot(arr[0].clientX - arr[1].clientX, arr[0].clientY - arr[1].clientY), scale: scale, center:{ x:(arr[0].clientX+arr[1].clientX)/2, y:(arr[0].clientY+arr[1].clientY)/2 } };
-    }
-    e.target.setPointerCapture(e.pointerId);
-  });
-  panLayer.addEventListener('pointermove', e=>{
-    if(!pointerMap.has(e.pointerId)) return;
-    pointerMap.set(e.pointerId, e);
-    if(pinchState && pointerMap.size === 2){
-      const arr = Array.from(pointerMap.values());
-      const dist = Math.hypot(arr[0].clientX - arr[1].clientX, arr[0].clientY - arr[1].clientY);
-      const factor = dist / pinchState.dist;
-      const newScale = clamp(pinchState.scale * factor, MIN_SCALE, MAX_SCALE);
-      zoomAt(newScale, pinchState.center.x, pinchState.center.y);
-    }
-  });
-  ['pointerup','pointercancel'].forEach(type => {
-    panLayer.addEventListener(type, e=>{ pointerMap.delete(e.pointerId); if(pointerMap.size < 2) pinchState = null; });
-  });
+  // pinch
+  panLayer.addEventListener('pointerdown', e=>{ pointerMap.set(e.pointerId,e); if(pointerMap.size===2){ const arr=Array.from(pointerMap.values()); pinchState={ dist: Math.hypot(arr[0].clientX-arr[1].clientX, arr[0].clientY-arr[1].clientY), scale:scale, center:{x:(arr[0].clientX+arr[1].clientX)/2,y:(arr[0].clientY+arr[1].clientY)/2} }; } e.target.setPointerCapture(e.pointerId); });
+  panLayer.addEventListener('pointermove', e=>{ if(!pointerMap.has(e.pointerId)) return; pointerMap.set(e.pointerId,e); if(pinchState && pointerMap.size===2){ const arr=Array.from(pointerMap.values()); const dist=Math.hypot(arr[0].clientX-arr[1].clientX,arr[0].clientY-arr[1].clientY); const factor = dist / pinchState.dist; const newScale = clamp(pinchState.scale * factor, MIN_SCALE, MAX_SCALE); zoomAt(newScale, pinchState.center.x, pinchState.center.y); } });
+  ['pointerup','pointercancel'].forEach(t=>panLayer.addEventListener(t,e=>{ pointerMap.delete(e.pointerId); if(pointerMap.size<2) pinchState=null; }));
 
-  /* ---------- Connectors ---------- */
-  function setConnectMode(on){
-    connectMode = !!on;
-    connectFrom = null;
-    toolConnector.classList.toggle('active', connectMode);
-    toolConnector.style.background = connectMode ? '#fdecea' : ''; // visual hint
-    if(connectMode) flash('Connector: click source node, then target node.');
-  }
-  toolConnector.addEventListener('click', ()=> { setConnectMode(!connectMode); });
-
-  // when clicking a node while connect mode: set from or create link
-  function nodeClickForConnect(id){
-    if(!connectMode) return;
-    if(!connectFrom){ connectFrom = id; flash('Source selected — click target node'); highlightNode(connectFrom, true); return; }
-    if(connectFrom === id){ // cancel if same node
-      highlightNode(connectFrom, false);
-      connectFrom = null; return;
-    }
-    // create link (prevent duplicates)
-    const exists = model.links.some(l => l.from === connectFrom && l.to === id);
-    if(!exists){
-      const link = { id: uid(), from: connectFrom, to: id };
-      model.links.push(link);
-      saveModel();
-      renderLinks();
-    } else {
-      flash('Link already exists');
-    }
-    // cleanup
-    highlightNode(connectFrom, false);
-    connectFrom = null;
-    setConnectMode(false);
-  }
-
-  function highlightNode(id, on){
-    const el = canvas.querySelector(`.node[data-id="${id}"]`);
-    if(!el) return;
-    el.style.outline = on ? '3px solid rgba(11,116,255,0.12)' : 'none';
-  }
-
-  /* ---------- Link rendering & interaction ---------- */
+  /* Links rendering & handles */
   function renderLinks(){
     // clear svg
-    while(svgLayer.firstChild) svgLayer.removeChild(svgLayer.firstChild);
-    // compute svg size to cover scaled canvas (we will use board transform, but coordinates are in model space multiplied by scale)
-    const rect = canvas.getBoundingClientRect();
-    svgLayer.setAttribute('width', rect.width * scale);
-    svgLayer.setAttribute('height', rect.height * scale);
-    svgLayer.style.left = board.offsetLeft + 'px';
-    svgLayer.style.top = board.offsetTop + 'px';
-    // draw defs arrowhead once
+    svg.innerHTML = '';
+    // defs arrow
     const defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
-    defs.innerHTML = `<marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="${getComputedStyle(document.documentElement).getPropertyValue('--link-color') || '#0f172a'}"></path>
-    </marker>`;
-    svgLayer.appendChild(defs);
+    defs.innerHTML = `<marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="${getComputedStyle(document.documentElement).getPropertyValue('--link-color')||'#0f172a'}"></path></marker>`;
+    svg.appendChild(defs);
 
-    model.links.forEach(link => {
-      const from = model.nodes.find(n => n.id === link.from);
-      const to = model.nodes.find(n => n.id === link.to);
-      if(!from || !to) return;
-      const fx = (from.x + (from.w || 230)/2) * scale;
-      const fy = (from.y + 20) * scale;
-      const tx = (to.x + (to.w || 230)/2) * scale;
-      const ty = (to.y + 20) * scale;
-      const line = document.createElementNS('http://www.w3.org/2000/svg','line');
-      line.setAttribute('x1', fx); line.setAttribute('y1', fy);
-      line.setAttribute('x2', tx); line.setAttribute('y2', ty);
-      line.setAttribute('stroke', getComputedStyle(document.documentElement).getPropertyValue('--link-color') || '#0f172a');
-      line.setAttribute('stroke-width', Math.max(2, 2 * scale));
-      line.setAttribute('marker-end', 'url(#arrow)');
-      line.dataset.id = link.id;
-      line.style.cursor = 'pointer';
-      // allow click selection on unscaled coordinates: set pointer-events visible by attaching event via overlay rect
-      line.addEventListener('click', (e)=> {
-        e.stopPropagation();
-        selectLink(link.id);
-      }, false);
-      svgLayer.appendChild(line);
-      if(link.id === selectedLinkId){
-        line.classList.add('selected');
-        line.setAttribute('stroke', getComputedStyle(document.documentElement).getPropertyValue('--link-selected') || '#ff7a59');
+    model.links.forEach(link=>{
+      // choose polyline or straight line depending on link.points
+      if(link.points && link.points.length){
+        // draw polyline with handles
+        const pts = [ {x:model.nodes.find(n=>n.id===link.from).x + (model.nodes.find(n=>n.id===link.from).w||230)/2, y: model.nodes.find(n=>n.id===link.from).y + 20 } ].concat(link.points).concat([ {x:model.nodes.find(n=>n.id===link.to).x + (model.nodes.find(n=>n.id===link.to).w||230)/2, y: model.nodes.find(n=>n.id===link.to).y + 20 } ]);
+        const scaled = pts.map(p => `${p.x*scale},${p.y*scale}`).join(' ');
+        const poly = document.createElementNS('http://www.w3.org/2000/svg','polyline');
+        poly.setAttribute('points', scaled);
+        poly.classList.add('link-line');
+        poly.dataset.id = link.id;
+        poly.setAttribute('fill','none'); poly.setAttribute('stroke', selectedLinkId===link.id ? getComputedStyle(document.documentElement).getPropertyValue('--link-selected') : getComputedStyle(document.documentElement).getPropertyValue('--link-color'));
+        poly.setAttribute('stroke-width', Math.max(2,2*scale));
+        poly.style.pointerEvents = 'stroke';
+        poly.addEventListener('click', e=>{ e.stopPropagation(); selectLink(link.id); });
+        poly.addEventListener('dblclick', e=>{ e.stopPropagation(); insertHandleAt(link, e); });
+        svg.appendChild(poly);
+        // handles for internal control points (not endpoints)
+        (link.points||[]).forEach((p,i)=>{
+          const cx = p.x*scale, cy = p.y*scale;
+          const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+          c.setAttribute('cx',cx); c.setAttribute('cy',cy); c.setAttribute('r',8);
+          c.classList.add('handle');
+          c.dataset.linkId = link.id; c.dataset.handleIndex = i;
+          // events for dragging handle
+          enableSvgHandleDrag(c, link, i);
+          svg.appendChild(c);
+        });
+      } else {
+        // straight line
+        const from = model.nodes.find(n=>n.id===link.from);
+        const to = model.nodes.find(n=>n.id===link.to);
+        if(!from || !to) return;
+        const fx = (from.x + (from.w||230)/2) * scale;
+        const fy = (from.y + 20) * scale;
+        const tx = (to.x + (to.w||230)/2) * scale;
+        const ty = (to.y + 20) * scale;
+        const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+        line.setAttribute('x1', fx); line.setAttribute('y1', fy); line.setAttribute('x2', tx); line.setAttribute('y2', ty);
+        line.setAttribute('stroke', selectedLinkId===link.id ? getComputedStyle(document.documentElement).getPropertyValue('--link-selected') : getComputedStyle(document.documentElement).getPropertyValue('--link-color'));
+        line.setAttribute('stroke-width', Math.max(2,2*scale));
+        line.setAttribute('marker-end','url(#arrow)');
+        line.classList.add('link-line');
+        line.dataset.id = link.id;
+        line.style.pointerEvents = 'stroke';
+        line.addEventListener('click', e=>{ e.stopPropagation(); selectLink(link.id); });
+        line.addEventListener('dblclick', e=>{ e.stopPropagation(); // convert to polyline by inserting midpoint
+          const mx = ( (from.x + (from.w||230)/2) + (to.x + (to.w||230)/2) ) / 2;
+          const my = ( (from.y + 20) + (to.y + 20) ) / 2;
+          link.points = link.points || []; link.points.push({x: mx, y: my}); saveModel(); renderLinks();
+        });
+        svg.appendChild(line);
       }
     });
   }
 
   function selectLink(id){
-    selectedLinkId = id;
-    selectedLinkLabel.textContent = id || 'none';
-    toolDeleteLink.disabled = false;
-    renderLinks();
+    selectedLinkId = id; selectedLinkLabel.textContent = id || 'none'; toolDeleteLink.disabled = !id;
+    // deselect node if any
+    selectedNodeId = null;
+    renderNodes();
   }
+
+  // enable dragging of svg circle handle (index points)
+  function enableSvgHandleDrag(circleEl, link, index){
+    let dragging = false;
+    let handleId = circleEl.dataset.handleIndex;
+    circleEl.addEventListener('pointerdown', (e)=>{
+      e.stopPropagation(); dragging = true; circleEl.setPointerCapture(e.pointerId);
+      const onMove = (ev)=>{
+        // map client coords to model coords
+        const rect = canvas.getBoundingClientRect();
+        const mx = (ev.clientX - rect.left) / scale;
+        const my = (ev.clientY - rect.top) / scale;
+        link.points[index] = { x: mx, y: my }; renderLinks();
+      };
+      const onUp = (ev)=>{
+        dragging = false; circleEl.releasePointerCapture(ev.pointerId);
+        document.removeEventListener('pointermove', onMove); document.removeEventListener('pointerup', onUp);
+        saveModel();
+      };
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onUp);
+    });
+    // double-click to remove handle
+    circleEl.addEventListener('dblclick', e=>{ e.stopPropagation(); link.points.splice(index,1); if(link.points.length===0) link.points = null; saveModel(); renderLinks(); });
+  }
+
+  // Insert handle at clicked position on a polyline
+  function insertHandleAt(link, e){
+    const rect = canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) / scale;
+    const my = (e.clientY - rect.top) / scale;
+    link.points = link.points || [];
+    // insert after approx position by distance
+    let idx = 0; let best = Infinity;
+    for(let i=0;i<link.points.length;i++){
+      const d = Math.hypot(link.points[i].x - mx, link.points[i].y - my);
+      if(d < best){ best = d; idx = i+1; }
+    }
+    link.points.splice(idx,0,{x:mx,y:my});
+    saveModel(); renderLinks();
+  }
+
+  /* Selection / Delete handling */
+  function selectNode(id){
+    selectedNodeId = id;
+    selectedLinkId = null;
+    toolDeleteNode.disabled = !id;
+    toolDeleteLink.disabled = true;
+    renderNodes();
+  }
+
+  // Delete selected block or link via toolbar or keyboard
+  toolDeleteNode.addEventListener('click', ()=>{
+    if(!selectedNodeId) return;
+    if(!confirm('Delete selected block?')) return;
+    // remove links attached
+    model.links = model.links.filter(l => l.from !== selectedNodeId && l.to !== selectedNodeId);
+    model.nodes = model.nodes.filter(n => n.id !== selectedNodeId);
+    selectedNodeId = null; toolDeleteNode.disabled = true; saveModel(); renderNodes();
+  });
 
   toolDeleteLink.addEventListener('click', ()=>{
     if(!selectedLinkId) return;
     if(!confirm('Delete selected link?')) return;
     model.links = model.links.filter(l => l.id !== selectedLinkId);
-    selectedLinkId = null;
-    selectedLinkLabel.textContent = 'none';
-    toolDeleteLink.disabled = true;
-    saveModel();
-    renderLinks();
+    selectedLinkId = null; selectedLinkLabel.textContent = 'none'; toolDeleteLink.disabled = true; saveModel(); renderLinks();
   });
 
-  /* ---------- Modal (node settings) ---------- */
+  // keyboard delete
+  window.addEventListener('keydown', (e)=>{
+    if(e.key === 'Delete' || e.key === 'Backspace'){
+      if(selectedNodeId){
+        // delete node
+        model.links = model.links.filter(l => l.from !== selectedNodeId && l.to !== selectedNodeId);
+        model.nodes = model.nodes.filter(n => n.id !== selectedNodeId);
+        selectedNodeId = null; toolDeleteNode.disabled = true; saveModel(); renderNodes();
+      } else if(selectedLinkId){
+        model.links = model.links.filter(l => l.id !== selectedLinkId);
+        selectedLinkId = null; selectedLinkLabel.textContent = 'none'; toolDeleteLink.disabled = true; saveModel(); renderLinks();
+      }
+    }
+  });
+
+  /* Connector flow when clicking nodes */
+  toolConnector.addEventListener('click', ()=> { connectMode = !connectMode; connectFrom = null; toolConnector.style.background = connectMode ? '#fdecea' : ''; if(connectMode) flash('Connector active — click source then target'); });
+
+  function nodeClickForConnect(id){
+    if(!connectMode) return;
+    if(!connectFrom){ connectFrom = id; highlightNode(connectFrom,true); return; }
+    if(connectFrom === id){ highlightNode(connectFrom,false); connectFrom = null; return; }
+    const exists = model.links.some(l => l.from === connectFrom && l.to === id);
+    if(!exists) model.links.push({ id: uid(), from: connectFrom, to: id, points: null });
+    highlightNode(connectFrom,false); connectFrom = null; connectMode = false; toolConnector.style.background = '';
+    saveModel(); renderLinks();
+  }
+
+  function highlightNode(id,on){ const el = canvas.querySelector('.node[data-id="'+id+'"]'); if(!el) return; el.style.outline = on ? '3px solid rgba(11,116,255,0.12)' : 'none'; }
+
+  /* Modal */
   function openModal(id){
     selectedNodeId = id;
-    const node = model.nodes.find(n => n.id === id);
+    const node = model.nodes.find(n=>n.id===id);
     if(!node) return;
     modalTitle.value = node.title || '';
     modalBody.value = node.body || '';
     modalColor.value = node.color || '#ffffff';
     modalShape.value = node.shape || 'card';
     modal.style.display = 'flex'; modal.setAttribute('aria-hidden','false'); modalTitle.focus();
+    selectNode(id);
   }
-  function closeModal(){ modal.style.display = 'none'; modal.setAttribute('aria-hidden','true'); selectedNodeId = null; }
+  function closeModal(){ modal.style.display='none'; modal.setAttribute('aria-hidden','true'); }
   saveModalBtn.addEventListener('click', ()=>{
     if(!selectedNodeId) return closeModal();
-    const node = model.nodes.find(n => n.id === selectedNodeId);
+    const node = model.nodes.find(n=>n.id===selectedNodeId);
     if(!node) return closeModal();
-    node.title = modalTitle.value.trim();
-    node.body = modalBody.value.trim();
-    node.color = modalColor.value;
-    node.shape = modalShape.value;
+    node.title = modalTitle.value.trim(); node.body = modalBody.value.trim(); node.color = modalColor.value; node.shape = modalShape.value;
     saveModel(); renderNodes(); closeModal();
   });
   cancelModalBtn.addEventListener('click', closeModal);
   deleteBlockBtn.addEventListener('click', ()=>{
     if(!selectedNodeId) return closeModal();
     if(!confirm('Delete this block?')) return;
-    // remove node and related links
     model.links = model.links.filter(l => l.from !== selectedNodeId && l.to !== selectedNodeId);
     model.nodes = model.nodes.filter(n => n.id !== selectedNodeId);
     saveModel(); renderNodes(); closeModal();
   });
 
-  /* ---------- Buttons & UI ---------- */
-  function handleAddNode(){
-    const rect = canvas.getBoundingClientRect();
-    const cx = rect.left + rect.width/2;
-    const cy = rect.top + rect.height/2;
-    const pos = pageToModel(cx, cy);
-    addNodeAt(pos.x - 100, pos.y - 40);
-  }
+  /* UI buttons */
+  function handleAddNode(){ const rect = canvas.getBoundingClientRect(); const cx = rect.left + rect.width/2; const cy = rect.top + rect.height/2; const pos = pageToModel(cx,cy); addNodeAt(pos.x-100,pos.y-40); }
   document.getElementById('addNode')?.addEventListener('click', handleAddNode);
   toolAddNode.addEventListener('click', handleAddNode);
 
-  zoomInCorner.addEventListener('click', ()=> { zoomAt(scale + SCALE_STEP, window.innerWidth/2, window.innerHeight/2); });
-  zoomOutCorner.addEventListener('click', ()=> { zoomAt(scale - SCALE_STEP, window.innerWidth/2, window.innerHeight/2); });
+  zoomInCorner.addEventListener('click', ()=> zoomAt(scale + SCALE_STEP, window.innerWidth/2, window.innerHeight/2));
+  zoomOutCorner.addEventListener('click', ()=> zoomAt(scale - SCALE_STEP, window.innerWidth/2, window.innerHeight/2));
 
   saveBoardBtn.addEventListener('click', ()=> saveModel());
   backToProjects.addEventListener('click', ()=> { saveModel(); window.location.href = 'projects.html'; });
 
-  exportBtn.addEventListener('click', ()=>{
-    const data = JSON.stringify(model, null, 2);
-    const blob = new Blob([data], { type:'application/json' });
-    const url = URL.createObjectURL(blob);
+  exportBtn.addEventListener('click', ()=> {
+    const data = JSON.stringify(model,null,2); const blob = new Blob([data],{type:'application/json'}); const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = (projectId||'board') + '.board.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
   });
-  importFile.addEventListener('change', e=>{
-    const f = e.target.files[0]; if(!f) return;
-    const r = new FileReader();
-    r.onload = function(){
-      try{ const parsed = JSON.parse(r.result); if(parsed && parsed.nodes){ model = parsed; saveModel(); renderNodes(); flash('Imported'); } else alert('Invalid file'); } catch(err){ alert('Invalid JSON'); }
-    };
-    r.readAsText(f);
-  });
+  importFile.addEventListener('change', e=>{ const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=function(){ try{ const parsed=JSON.parse(r.result); if(parsed && parsed.nodes){ model=parsed; saveModel(); renderNodes(); flash('Imported'); } else alert('Invalid file'); } catch(err){ alert('Invalid JSON'); } }; r.readAsText(f); });
 
-  gridSizeInput.addEventListener('change', ()=> { gridSize = clamp(Number(gridSizeInput.value)||20, 5, 200); updateGrid(); });
-  showGridInput.addEventListener('change', ()=> updateGrid());
-  centerBtn.addEventListener('click', ()=> { pan = {x:0,y:0}; scale = 1; applyTransform(); });
+  showGrid.addEventListener('change', ()=> updateGrid());
+  gridSizeInput.addEventListener('change', ()=>{ gridSize = clamp(Number(gridSizeInput.value)||20,5,200); updateGrid(); });
+  centerBtn.addEventListener('click', ()=> { pan={x:0,y:0}; scale=1; applyTransform(); });
 
-  menuIcon.addEventListener('click', ()=> { const isOpen = floatingTools.classList.toggle('open'); floatingTools.setAttribute('aria-hidden', isOpen ? 'false' : 'true'); });
-  toolConnector.addEventListener('click', ()=> { setConnectMode(!connectMode); });
+  menuIcon.addEventListener('click', ()=> { const isOpen = floatingTools.classList.toggle('open'); floatingTools.setAttribute('aria-hidden', isOpen ? 'false':'true'); });
 
-  function setConnectMode(on){
-    connectMode = !!on; connectFrom = null;
-    toolConnector.style.background = connectMode ? '#fdecea' : '';
-    toolConnector.textContent = connectMode ? 'Connector (active)' : 'Connector';
-    if(!connectMode) highlightAllNodes(false);
-  }
+  /* Click canvas to deselect */
+  canvas.addEventListener('click', (e)=>{ selectedNodeId = null; selectedLinkId = null; toolDeleteNode.disabled = true; toolDeleteLink.disabled = true; selectedLinkLabel.textContent = 'none'; renderNodes(); renderLinks(); });
 
-  function highlightAllNodes(on){
-    document.querySelectorAll('.node').forEach(el => el.style.outline = on ? '3px solid rgba(11,116,255,0.10)' : 'none');
-  }
-
-  /* ---------- Click handling for connecting via nodes ---------- */
-  // intercept clicks on nodes to support connect mode
-  canvas.addEventListener('click', (e)=>{
-    // if clicked node element
-    const nodeEl = e.target.closest('.node');
-    if(nodeEl){
-      const id = nodeEl.dataset.id;
-      if(connectMode){ nodeClickForConnect(id); }
-    } else {
-      // clicked empty canvas: deselect link if any
-      if(selectedLinkId){ selectedLinkId = null; selectedLinkLabel.textContent = 'none'; toolDeleteLink.disabled = true; renderLinks(); }
-    }
-  });
-
-  function nodeClickForConnect(id){
-    if(!connectMode) return;
-    if(!connectFrom){ connectFrom = id; highlightNode(connectFrom, true); flash('Source selected — click target node'); return; }
-    if(connectFrom === id){ highlightNode(connectFrom, false); connectFrom = null; return; }
-    const exists = model.links.some(l => l.from === connectFrom && l.to === id);
-    if(!exists){
-      model.links.push({ id: uid(), from: connectFrom, to: id });
-      saveModel(); renderLinks();
-    } else flash('Link already exists');
-    highlightNode(connectFrom, false); connectFrom = null; setConnectMode(false);
-  }
-
-  /* ---------- Helper: highlight node ---------- */
-  function highlightNode(id, on){
-    const el = canvas.querySelector(`.node[data-id="${id}"]`);
-    if(!el) return; el.style.outline = on ? '3px solid rgba(11,116,255,0.12)' : 'none';
-  }
-
-  /* ---------- Render links on transform & on load ---------- */
-  function renderLinksInternal(){
-    // alias to avoid name clash earlier
-    renderLinks();
-  }
-
-  /* ---------- Tutorial ---------- */
-  const tutorialSteps = [
-    { title:'Welcome', text:'Add a block with + Node. Drag to move. Use Connector to link blocks.' },
-    { title:'Zoom & Pan', text:'Scroll to zoom (no Ctrl required). Drag empty space to pan.' },
-    { title:'Edit', text:'Double-click a block or click ✎ to edit title, body, color and shape.' }
+  /* Tutorial */
+  const steps = [
+    {title:'Welcome', text:'Add nodes, drag to move, scroll to zoom. Use Connector to link or drop nodes near each other to auto-link.'},
+    {title:'Edit', text:'Double-click a block or click ✎ to open settings. Change color or shape.'},
+    {title:'Bend connectors', text:'Double-click a connector to add a handle. Drag handles to bend the line. Double-click handle to remove.'}
   ];
   let tutorialIndex = 0;
-  function showTutorial(i){ tutorial.style.display = 'block'; tutorial.setAttribute('aria-hidden','false'); tutorialIndex = clamp(i,0,tutorialSteps.length-1); const s = tutorialSteps[tutorialIndex]; tutorialStep.innerHTML = `<h2 style="margin:0 0 6px;">${s.title}</h2><p style="margin:0">${s.text}</p>`; tutorialProgress.textContent = `Step ${tutorialIndex+1} / ${tutorialSteps.length}`; tutorialPrev.style.visibility = tutorialIndex===0 ? 'hidden':'visible'; tutorialNext.textContent = tutorialIndex === tutorialSteps.length-1 ? 'Finish' : 'Next'; }
-  tutorialNext.addEventListener('click', ()=> { if(tutorialIndex === tutorialSteps.length-1){ closeTutorial(); } else showTutorial(tutorialIndex+1); });
+  function showTutorial(i){ tutorial.style.display='block'; tutorial.setAttribute('aria-hidden','false'); tutorialIndex = clamp(i,0,steps.length-1); const s = steps[tutorialIndex]; tutorialStep.innerHTML = `<h2 style="margin:0 0 6px">${s.title}</h2><div style="opacity:0.95">${s.text}</div>`; tutorialProgress.textContent = `Step ${tutorialIndex+1} / ${steps.length}`; tutorialPrev.style.visibility = tutorialIndex===0 ? 'hidden':'visible'; tutorialNext.textContent = tutorialIndex===steps.length-1 ? 'Finish':'Next'; }
+  tutorialNext.addEventListener('click', ()=> { if(tutorialIndex===steps.length-1){ closeTutorial(); } else showTutorial(tutorialIndex+1); });
   tutorialPrev.addEventListener('click', ()=> showTutorial(tutorialIndex-1));
   tutorialClose.addEventListener('click', closeTutorial);
-  function closeTutorial(){ tutorial.style.display = 'none'; tutorial.setAttribute('aria-hidden','true'); localStorage.setItem(tutorialKey,'seen'); }
+  function closeTutorial(){ tutorial.style.display='none'; tutorial.setAttribute('aria-hidden','true'); localStorage.setItem(tutorialKey,'seen'); }
 
-  /* ---------- Bootstrap ---------- */
+  /* Bootstrap */
   loadModel();
-  if(!model.nodes.length){ model.nodes.push({ id: uid(), x:120, y:120, w:260, h:120, title:'Start here', body:'Use + Node and Connector to build flow.', color:'#fef9c3', shape:'soft' }); saveModel(); }
+  if(!model.nodes.length){
+    model.nodes.push({ id: uid(), x:120, y:120, w:260, h:120, title:'Start', body:'Drop nodes near others to auto-link.', color:'#fff8f0', shape:'soft' });
+    saveModel();
+  }
   updateGrid(); renderNodes(); applyTransform();
   if(!localStorage.getItem(tutorialKey)) showTutorial(0);
 
-  /* ---------- selection & API ---------- */
+  // expose small API
   window.__ariesWorkspace = { model, saveModel, addNodeAt: (x,y)=>addNodeAt(x,y) };
 
 })();
