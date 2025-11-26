@@ -287,3 +287,58 @@ header.project-header {
         margin-top: 5px;
     }
 }
+
+/* --- New Styles for Individual Project Detail Page --- */
+
+header.project-detail-header {
+    background-color: black;
+    color: white;
+    padding: 15px 15px 15px 20px;
+    height: 50px; 
+    display: flex;
+    align-items: center; 
+    justify-content: space-between; /* Spreads elements */
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+.project-title-dropdown {
+    display: flex;
+    align-items: center;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    padding-left: 5px; /* Spacing from left edge */
+}
+
+.dropdown-arrow {
+    font-size: 10px;
+    margin-left: 5px;
+    transform: translateY(1px); /* Slightly lower the arrow */
+}
+
+/* Ensure the PROJECT MANAGER title is centered in the header */
+header.project-detail-header .header-title {
+    flex-grow: 1; /* Allows title to take central space */
+    text-align: center;
+    margin: 0; /* Remove default margin */
+}
+
+/* Main workspace area for the project detail page */
+.project-workspace {
+    flex-grow: 1; /* Takes up remaining vertical space */
+    padding: 20px;
+    background-color: white; /* Ensures it's a clean white board */
+    /* Add any specific styles for your tools/canvas here */
+}
+
+/* Ensure project cards are clickable links and style them */
+.project-card-link {
+    text-decoration: none; /* Remove underline from links */
+    color: inherit; /* Inherit text color */
+    display: block; /* Make the whole card a clickable block */
+    margin-bottom: 15px; /* Consistent spacing with previous cards */
+}
+
+.project-card-link:hover .project-card {
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.2); /* Subtle hover effect */
+}
