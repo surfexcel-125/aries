@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Project 2 Workspace</title>
+    <title>Project 1 Workspace</title>
     <link rel="stylesheet" href="main.css">
     
     <link href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&family=Roboto+Slab:wght@900&display=swap" rel="stylesheet">
@@ -24,15 +24,25 @@
     <div id="pageWrapper" class="page-wrapper">
 
         <header class="project-detail-header">
-            <div class="project-title-dropdown">
-                Project 2 <span class="dropdown-arrow">&#9660;</span>
+            
+            <div id="projectDropdownToggle" class="project-title-dropdown">
+                Project 1 <span class="dropdown-arrow">&#9660;</span>
             </div>
+            
             <h1 class="header-title">PROJECT MANAGER</h1>
             <div class="ram-icon"></div>
         </header>
+        
+        <div id="projectDropdownMenu" class="project-dropdown-menu">
+            <a href="?project=1" class="dropdown-project-button active">Project 1</a>
+            <a href="?project=2" class="dropdown-project-button">Project 2</a>
+            <a href="?project=3" class="dropdown-project-button">Project 3</a>
+            <a href="?project=4" class="dropdown-project-button">Project 4</a>
+            <a href="?project=5" class="dropdown-project-button">Project 5</a>
+        </div>
 
         <main class="project-workspace">
-            <p>Welcome to the workspace for Project 2. Start working here!</p>
+            <p>Welcome to the workspace for **Project 1**.</p>
             <div style="border: 1px dashed #ccc; padding: 50px; text-align: center; margin-top: 50px;">
                 Your Project Tools & Content Go Here
             </div>
