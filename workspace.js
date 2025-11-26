@@ -1,12 +1,11 @@
 /* workspace.js — full replacement
-   Features:
-   - No lingering preview after create
-   - Orthogonal routing (tidy) + parallel separation
-   - Each link has a draggable control point (cp) for manual adjustment
-   - Visible handle appears for each link's cp; drag to adjust path
-   - Create link then prompt for label (cancel removes link)
-   - DOM-based anchors and robust pointer->board mapping
-   - Inspector and typing protections retained
+   - Orthogonal (right-angle) routing for links (orderly paths)
+   - Parallel-link separation so multiple links fan out neatly
+   - Small rounded corners for aesthetics
+   - Anchors computed from DOM offsets (robust)
+   - Preview follows cursor exactly (client->board mapping)
+   - Label prompt AFTER link creation (cancel removes link)
+   - Inspector clicking / typing protections preserved
 */
 (function(){
   function ready() {
@@ -67,15 +66,12 @@
     const DEBOUNCE = 800;
     let autoSaveTimer = null;
 
-    // drag state for link handle dragging
-    let handleDrag = null; // { linkId, startClientX, startClientY, startCpX, startCpY }
-
     // helpers
     const uid = (p='n') => p + Math.random().toString(36).slice(2,9);
     const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
     const gridSize = () => parseInt(gridSizeInput.value || 25);
 
-    // screen <-> board coordinate mapping (use getBoundingClientRect)
+    // screen <-> board coordinate mapping (board.getBoundingClientRect)
     function screenToBoard(sx, sy) {
       const rect = board.getBoundingClientRect();
       return { x: (sx - rect.left) / transform.scale, y: (sy - rect.top) / transform.scale };
@@ -85,6 +81,7 @@
       return { x: rect.left + bx * transform.scale, y: rect.top + by * transform.scale };
     }
 
+    // typing detection (to avoid accidental delete when editing)
     function isTyping() {
       try {
         const ae = document.activeElement;
@@ -97,7 +94,7 @@
       } catch (e) { return false; }
     }
 
-    // anchors: prefer DOM offsets for correct coordinates
+    // anchor calculation — prefer DOM offsets, fallback to model coords
     function getAnchor(node, isTarget=false) {
       const el = document.getElementById(`node-${node.id}`);
       if (el) {
@@ -112,58 +109,13 @@
       return isTarget ? { x: node.x, y: node.y + h/2 } : { x: node.x + w, y: node.y + h/2 };
     }
 
-    // polyline -> rounded-path helpers (used by orthogonal path builder)
-    function polyToRoundedPath(points, cornerRadius) {
-      if (!points || points.length < 2) return '';
-      const r = Math.max(0, cornerRadius || 0);
-      let d = `M ${points[0].x} ${points[0].y}`;
-      for (let i = 1; i < points.length; i++) {
-        const prev = points[i-1];
-        const cur = points[i];
-        const next = points[i+1];
-        if (next && r > 0) {
-          const vx = cur.x - prev.x, vy = cur.y - prev.y;
-          const nx = next.x - cur.x, ny = next.y - cur.y;
-          const inLen = Math.sqrt(vx*vx + vy*vy) || 1;
-          const outLen = Math.sqrt(nx*nx + ny*ny) || 1;
-          const rad = Math.min(r, inLen/2, outLen/2);
-          const ux = vx / inLen, uy = vy / inLen;
-          const ox = nx / outLen, oy = ny / outLen;
-          const csx = cur.x - ux * rad;
-          const csy = cur.y - uy * rad;
-          const cex = cur.x + ox * rad;
-          const cey = cur.y + oy * rad;
-          d += ` L ${csx} ${csy}`;
-          d += ` Q ${cur.x} ${cur.y}, ${cex} ${cey}`;
-        } else {
-          d += ` L ${cur.x} ${cur.y}`;
-        }
-      }
-      return d;
-    }
-
-    // orthogonal path builder with optional perpendicular offset
-    function orthogonalPathWithOffset(start, end, offsetX=0, offsetY=0, cornerRadius=8) {
-      const s = { x: start.x + offsetX, y: start.y + offsetY };
-      const e = { x: end.x + offsetX, y: end.y + offsetY };
-      const dx = Math.abs(e.x - s.x);
-      const dy = Math.abs(e.y - s.y);
-      if (dx > dy) {
-        const midX = s.x + (e.x - s.x) / 2;
-        const points = [s, { x: midX, y: s.y }, { x: midX, y: e.y }, e];
-        return polyToRoundedPath(points, cornerRadius);
-      } else {
-        const midY = s.y + (e.y - s.y) / 2;
-        const points = [s, { x: s.x, y: midY }, { x: e.x, y: midY }, e];
-        return polyToRoundedPath(points, cornerRadius);
-      }
-    }
-
-    // Render nodes
+    // small escape helper
     function escapeHtml(str) {
       if (str == null) return '';
       return String(str).replace(/[&<>"']/g, function(m){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])});
     }
+
+    // clear nodes and render nodes
     function clearNodes() { document.querySelectorAll('.node').forEach(n=>n.remove()); }
 
     function renderNodes() {
@@ -190,30 +142,105 @@
         el.addEventListener('contextmenu', e => nodeContext(e, node.id));
         board.appendChild(el);
       });
-      renderLinks(); updateInspector();
+      renderLinks();
+      updateInspector();
     }
 
-    // Render links + handles (handles are draggable)
+    // ---------------------------
+    // ORTHOGONAL ROUTING
+    // ---------------------------
+    // Compute an orthogonal path between start and end (board coords).
+    // We produce a polyline: start -> midX,start -> midX,end -> end
+    // Then apply a small offset perpendicular to the main direction for parallel links.
+    function orthogonalPath(start, end, offsetX=0, offsetY=0, cornerRadius=10) {
+      // apply offset first
+      const s = { x: start.x + offsetX, y: start.y + offsetY };
+      const e = { x: end.x + offsetX, y: end.y + offsetY };
+
+      // if horizontal distance is small, route vertically first
+      const dx = Math.abs(e.x - s.x);
+      const dy = Math.abs(e.y - s.y);
+      let midX, midY;
+      if (dx > dy) {
+        // horizontal major: center split on X
+        midX = s.x + (e.x - s.x)/2;
+        // path points: s -> (midX, s.y) -> (midX, e.y) -> e
+        const p1 = { x: midX, y: s.y };
+        const p2 = { x: midX, y: e.y };
+        return polyToPath([s, p1, p2, e], cornerRadius);
+      } else {
+        // vertical major: center split on Y
+        midY = s.y + (e.y - s.y)/2;
+        const p1 = { x: s.x, y: midY };
+        const p2 = { x: e.x, y: midY };
+        return polyToPath([s, p1, p2, e], cornerRadius);
+      }
+    }
+
+    // Convert polyline points to SVG path with small rounded corners using cubic bezier.
+    // points = array of {x,y}. cornerRadius in px (board coords).
+    function polyToPath(points, cornerRadius) {
+      if (!points || points.length < 2) return '';
+      const r = Math.max(0, cornerRadius || 0);
+      let d = `M ${points[0].x} ${points[0].y}`;
+      for (let i = 1; i < points.length; i++) {
+        const prev = points[i-1];
+        const cur = points[i];
+        const next = points[i+1];
+        // If next exists and corner radius > 0, we create a rounded corner between prev->cur->next
+        if (next && r > 0) {
+          // direction vectors
+          const vx = cur.x - prev.x;
+          const vy = cur.y - prev.y;
+          const nx = next.x - cur.x;
+          const ny = next.y - cur.y;
+          // compute incoming length and outgoing length
+          const inLen = Math.sqrt(vx*vx + vy*vy) || 1;
+          const outLen = Math.sqrt(nx*nx + ny*ny) || 1;
+          // clamp radius by half min segment length
+          const rad = Math.min(r, inLen/2, outLen/2);
+          // unit vectors
+          const ux = vx / inLen, uy = vy / inLen;
+          const ox = nx / outLen, oy = ny / outLen;
+          // corner start and end
+          const csx = cur.x - ux * rad;
+          const csy = cur.y - uy * rad;
+          const cex = cur.x + ox * rad;
+          const cey = cur.y + oy * rad;
+          // line to corner start, then quadratic/cubic to corner end
+          d += ` L ${csx} ${csy}`;
+          // use quadratic bezier Q control-point = cur
+          d += ` Q ${cur.x} ${cur.y}, ${cex} ${cey}`;
+        } else {
+          // no rounding (last segment)
+          d += ` L ${cur.x} ${cur.y}`;
+        }
+      }
+      return d;
+    }
+
+    // renderLinks: builds orthogonal path for each link and separates parallels
     function renderLinks() {
-      // remove everything inside svg
       while (svg.firstChild) svg.removeChild(svg.firstChild);
 
-      // preview path while drawing (dashed)
+      // preview while drawing (dashed)
       if (linkDraw) {
         const p = document.createElementNS('http://www.w3.org/2000/svg','path');
         const a = { x: linkDraw.x, y: linkDraw.y };
         const b = { x: linkDraw.currentX, y: linkDraw.currentY };
-        const d = orthogonalPathWithOffset(a, b, 0, 0, 6);
+        // simple orthogonal preview between a and b (no parallel offset)
+        const d = orthogonalPath(a, b, 0, 0, 6);
         p.setAttribute('d', d);
         p.setAttribute('stroke', 'var(--accent)');
         p.setAttribute('stroke-width', 3);
         p.setAttribute('fill', 'none');
         p.setAttribute('stroke-dasharray','6,6');
         p.setAttribute('stroke-linecap','round');
+        p.setAttribute('stroke-linejoin','round');
         svg.appendChild(p);
       }
 
-      // bucket links to compute parallel offsets
+      // bucket links by directional pair so parallels share bucket
       const pairs = {};
       model.links.forEach(link => {
         const key = `${link.source}::${link.target}`;
@@ -225,45 +252,33 @@
         arr.forEach((link, idx) => { link._parallelIndex = idx; link._parallelCount = arr.length; });
       });
 
-      // draw each link
       model.links.forEach(link => {
         const s = model.nodes.find(n => n.id === link.source);
         const t = model.nodes.find(n => n.id === link.target);
         if (!s || !t) return;
 
-        // anchors
+        // base anchors (board coords)
         const p1 = getAnchor(s, false);
         const p2 = getAnchor(t, true);
 
-        // compute normal for parallel offset
-        const dx = p2.x - p1.x, dy = p2.y - p1.y;
+        // compute perpendicular normal (for offset) based on main direction between anchors
+        const dx = p2.x - p1.x;
+        const dy = p2.y - p1.y;
         const len = Math.sqrt(dx*dx + dy*dy) || 1;
-        const nx = -dy / len, ny = dx / len;
+        const nx = -dy / len;
+        const ny = dx / len;
 
-        const baseGap = 18;
+        // parallel spacing: spread around center
+        const baseGap = 18; // adjust to taste
         const idx = (link._parallelIndex !== undefined) ? link._parallelIndex : 0;
         const count = (link._parallelCount !== undefined) ? link._parallelCount : 1;
         const middle = (count - 1) / 2;
         const offset = (idx - middle) * baseGap;
-        const offsetX = nx * offset, offsetY = ny * offset;
+        const offsetX = nx * offset;
+        const offsetY = ny * offset;
 
-        // if link has cp (control point) use it; else create default cp halfway
-        if (!link.cp) {
-          const mid = { x: (p1.x + p2.x)/2, y: (p1.y + p2.y)/2 };
-          // place cp slightly offset perpendicular to make it clearer (apply offsetX/Y too)
-          link.cp = { x: mid.x + offsetX, y: mid.y + offsetY };
-        }
-
-        // build path using orthogonal path that ignores cp for main routing, but we will
-        // modify offset by the vector from midpoint to cp to allow manual shaping (soft approach)
-        // compute mid point and extra offset
-        const midBase = { x: (p1.x + p2.x)/2 + offsetX, y: (p1.y + p2.y)/2 + offsetY };
-        const extraX = link.cp.x - midBase.x;
-        const extraY = link.cp.y - midBase.y;
-
-        // final offset for orthogonal path (perp + cp offset projected onto normal/tangent)
-        // We'll apply perpendicular offset = offsetX/Y plus small along-axis nudges from cp.
-        const d = orthogonalPathWithOffset(p1, p2, offsetX + extraX, offsetY + extraY, 10);
+        // generate an orthogonal path with the calculated offset and slight corner rounding
+        const d = orthogonalPath(p1, p2, offsetX, offsetY, 10);
 
         const path = document.createElementNS('http://www.w3.org/2000/svg','path');
         const isSel = selectedLinkId === link.id;
@@ -277,6 +292,7 @@
         path.classList.add('link-path');
         path.id = `link-${link.id}`;
         path.style.cursor = 'pointer';
+
         path.addEventListener('click', e => {
           e.stopPropagation();
           selectedLinkId = link.id;
@@ -285,47 +301,31 @@
           toolDeleteNode.disabled = true;
           renderNodes(); renderLinks();
         });
+
         svg.appendChild(path);
 
-        // label
+        // label: place at midpoint of polyline visually — naive approach: midpoint of start/end
         if (link.label) {
+          // compute screen position of a point halfway along board coords and convert to svg coords
+          const midBoard = { x: (p1.x + p2.x)/2 + offsetX, y: (p1.y + p2.y)/2 + offsetY };
           const text = document.createElementNS('http://www.w3.org/2000/svg','text');
-          text.setAttribute('x', link.cp.x);
-          text.setAttribute('y', link.cp.y - 10);
+          text.setAttribute('x', midBoard.x);
+          text.setAttribute('y', midBoard.y - 8);
           text.setAttribute('class','link-label');
           text.setAttribute('text-anchor','middle');
           text.textContent = link.label;
           svg.appendChild(text);
         }
-
-        // handle (draggable circle) at cp
-        const handle = document.createElementNS('http://www.w3.org/2000/svg','circle');
-        handle.setAttribute('cx', link.cp.x);
-        handle.setAttribute('cy', link.cp.y);
-        handle.setAttribute('r', 6);
-        handle.setAttribute('class','link-handle');
-        handle.setAttribute('data-link-id', link.id);
-        handle.style.fill = isSel ? 'var(--link-selected)' : '#ffffff';
-        handle.style.stroke = isSel ? 'var(--link-selected)' : '#333';
-        handle.style.strokeWidth = 1.5;
-        handle.style.cursor = 'move';
-        svg.appendChild(handle);
-
-        // handle drag events: mousedown to start (we use document mousemove/up)
-        handle.addEventListener('mousedown', (ev) => {
-          ev.stopPropagation(); ev.preventDefault();
-          handleDrag = { linkId: link.id, startClientX: ev.clientX, startClientY: ev.clientY, startCpX: link.cp.x, startCpY: link.cp.y };
-        });
-      } // end model.links.forEach
+      });
     }
 
-    // apply transform and grid
+    // transform + grid
     function applyTransform() {
       board.style.transform = `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`;
       zoomIndicator && (zoomIndicator.textContent = `${Math.round(transform.scale*100)}%`);
       updateGrid();
       renderLinks();
-      requestAnimationFrame(()=> { repaintUI(); });
+      requestAnimationFrame(() => { repaintUI(); });
     }
     function updateGrid() {
       if (!showGrid.checked) { canvas.style.backgroundImage = 'none'; return; }
@@ -341,12 +341,15 @@
     function repaintUI() {
       try {
         const uiEls = document.querySelectorAll('.topbar, .header-actions, #floatingTools, .controls-panel, .header-title');
-        uiEls.forEach(el => { el.style.transform = el.style.transform || 'translateZ(0)'; el.style.willChange = 'transform'; });
-        setTimeout(()=> uiEls.forEach(el=> el.style.willChange=''), 260);
-      } catch(e){}
+        uiEls.forEach(el => {
+          el.style.transform = el.style.transform || 'translateZ(0)';
+          el.style.willChange = 'transform';
+        });
+        setTimeout(()=> uiEls.forEach(el => el.style.willChange = ''), 260);
+      } catch(e){ /* ignore */ }
     }
 
-    // model operations
+    // model ops — add/save/load
     function addNodeAt(x,y,type,opts={}) {
       const s = gridSize();
       const nx = Math.round(x / s) * s;
@@ -361,15 +364,23 @@
       markDirty(); renderNodes();
       return base;
     }
+
     function markDirty() { dirty = true; statusMeta.textContent = 'Unsaved changes'; clearTimeout(autoSaveTimer); autoSaveTimer = setTimeout(saveModel, DEBOUNCE); saveBoardBtn.textContent = 'Saving...'; }
     async function saveModel() {
       if (!dirty) return;
-      if (!window.AriesDB || !window.AriesDB.saveProjectWorkspace) { console.warn('No AriesDB.saveProjectWorkspace found'); dirty=false; statusMeta.textContent='Local only'; saveBoardBtn.textContent='Save Board'; return; }
+      if (!window.AriesDB || !window.AriesDB.saveProjectWorkspace) {
+        console.warn('No AriesDB.saveProjectWorkspace found');
+        dirty = false; statusMeta.textContent = 'Local only'; saveBoardBtn.textContent = 'Save Board';
+        return;
+      }
       try {
         await window.AriesDB.saveProjectWorkspace(projectId, model.nodes, model.links);
-        dirty = false; statusMeta.textContent = 'Saved'; saveBoardBtn.textContent = 'Saved!'; setTimeout(()=> saveBoardBtn.textContent='Save Board', 1200);
+        dirty = false; statusMeta.textContent = 'Saved';
+        saveBoardBtn.textContent = 'Saved!'; setTimeout(()=> saveBoardBtn.textContent = 'Save Board', 1200);
       } catch (err) {
-        console.error('Save failed', err); statusMeta.textContent = 'Save failed'; saveBoardBtn.textContent = 'Save Failed'; setTimeout(()=> saveBoardBtn.textContent='Save Board', 1400);
+        console.error('Save failed', err);
+        statusMeta.textContent = 'Save failed'; saveBoardBtn.textContent = 'Save Failed';
+        setTimeout(()=> saveBoardBtn.textContent = 'Save Board', 1400);
       }
     }
 
@@ -381,13 +392,12 @@
           headerTitle && (headerTitle.textContent = d.name || headerTitle.textContent);
           model.nodes = (d.nodes || []).map(n => ({ ...n }));
           model.links = (d.links || []).map(l => ({ ...l }));
-          // ensure links have cp for rendering
-          model.links.forEach(link => { if (!link.cp) link.cp = null; });
           highestZ = model.nodes.reduce((m,n)=> Math.max(m,n.zIndex||15), 15);
         } else seedModel();
       } catch (err) { console.error('Load failed', err); seedModel(); }
       applyTransform(); renderNodes();
     }
+
     function seedModel(){
       if (model.nodes.length === 0) {
         addNodeAt(200,200,'page',{title:'Home'});
@@ -396,23 +406,27 @@
       }
     }
 
-    // selection & inspector helpers
+    // selection & inspector
     function setSelectedNodesFromClick(nodeId, ev) {
       if (ev.shiftKey) {
         if (selectedNodes.has(nodeId)) selectedNodes.delete(nodeId); else selectedNodes.add(nodeId);
       } else {
-        selectedNodes.clear(); selectedNodes.add(nodeId);
+        selectedNodes.clear();
+        selectedNodes.add(nodeId);
       }
       selectedLinkId = null;
-      toolDeleteNode.disabled = false; toolDeleteLink.disabled = true;
+      toolDeleteNode.disabled = false;
+      toolDeleteLink.disabled = true;
       renderNodes(); renderLinks(); updateInspector();
     }
+
     function updateInspector() {
       selectedCount.textContent = selectedNodes.size;
       if (!inspector) return;
-      if (selectedNodes.size === 0) { inspectorSingle.style.display='none'; inspectorMulti.style.display='none'; }
-      else if (selectedNodes.size === 1) {
-        inspectorMulti.style.display='none'; inspectorSingle.style.display='block';
+      if (selectedNodes.size === 0) {
+        inspectorSingle.style.display = 'none'; inspectorMulti.style.display = 'none';
+      } else if (selectedNodes.size === 1) {
+        inspectorMulti.style.display = 'none'; inspectorSingle.style.display = 'block';
         const id = Array.from(selectedNodes)[0];
         const node = model.nodes.find(n=>n.id===id);
         if (node) {
@@ -423,28 +437,35 @@
           inspectorW.value = parseInt(node.w||220);
           inspectorH.value = parseInt(node.h||100);
         }
-      } else { inspectorSingle.style.display='none'; inspectorMulti.style.display='block'; }
+      } else {
+        inspectorSingle.style.display = 'none'; inspectorMulti.style.display = 'block';
+      }
     }
+
     function applyInspectorToNode() {
       if (selectedNodes.size !== 1) return;
       const id = Array.from(selectedNodes)[0];
       const node = model.nodes.find(n=>n.id===id);
       if (!node) return;
-      node.type = inspectorType.value; node.title = inspectorTitle.value; node.body = inspectorBody.value;
-      node.w = parseInt(inspectorW.value) || node.w; node.h = parseInt(inspectorH.value) || node.h;
+      node.type = inspectorType.value;
+      node.title = inspectorTitle.value;
+      node.body = inspectorBody.value;
+      node.w = parseInt(inspectorW.value) || node.w;
+      node.h = parseInt(inspectorH.value) || node.h;
       markDirty(); renderNodes();
     }
-    inspectorSave && inspectorSave.addEventListener('click', applyInspectorToNode);
-    inspectorDelete && inspectorDelete.addEventListener('click', ()=> { if (selectedNodes.size===1) deleteSelectedNode(Array.from(selectedNodes)[0]); });
 
-    document.getElementById('alignLeft') && document.getElementById('alignLeft').addEventListener('click', ()=> {
+    inspectorSave && inspectorSave.addEventListener('click', applyInspectorToNode);
+    inspectorDelete && inspectorDelete.addEventListener('click', ()=> { if (selectedNodes.size === 1) deleteSelectedNode(Array.from(selectedNodes)[0]); });
+
+    document.getElementById('alignLeft').addEventListener('click', ()=> {
       if (selectedNodes.size<2) return;
       const arr = Array.from(selectedNodes).map(id=>model.nodes.find(n=>n.id===id));
       const left = Math.min(...arr.map(n=>n.x));
       arr.forEach(n=> n.x = left);
       markDirty(); renderNodes();
     });
-    document.getElementById('alignTop') && document.getElementById('alignTop').addEventListener('click', ()=> {
+    document.getElementById('alignTop').addEventListener('click', ()=> {
       if (selectedNodes.size<2) return;
       const arr = Array.from(selectedNodes).map(id=>model.nodes.find(n=>n.id===id));
       const top = Math.min(...arr.map(n=>n.y));
@@ -462,9 +483,9 @@
       canvas.style.cursor = 'crosshair';
     }
 
-    // finalize link: create immediately then prompt label
+    // finalize: create link first, then label prompt, cancel removes link
     async function finalizeLinkIfPossible(evt) {
-      if (!linkDraw) { linkDraw = null; canvas.style.cursor='default'; renderLinks(); return; }
+      if (!linkDraw) { linkDraw = null; canvas.style.cursor = 'default'; renderLinks(); return; }
 
       const clientX = (evt && evt.clientX) || (window._lastMouse && window._lastMouse.clientX) || 0;
       const clientY = (evt && evt.clientY) || (window._lastMouse && window._lastMouse.clientY) || 0;
@@ -476,14 +497,19 @@
       if (targetEl) {
         const targetId = targetEl.id.replace('node-','');
         if (targetId !== linkDraw.sourceId) {
-          const left = targetEl.offsetLeft, top = targetEl.offsetTop, w = targetEl.offsetWidth, h = targetEl.offsetHeight;
+          const left = targetEl.offsetLeft;
+          const top = targetEl.offsetTop;
+          const w = targetEl.offsetWidth;
+          const h = targetEl.offsetHeight;
           const inside = boardPt.x >= left && boardPt.x <= (left + w) && boardPt.y >= top && boardPt.y <= (top + h);
           if (inside) {
-            const newLink = { id: uid('l'), source: linkDraw.sourceId, target: targetId, label: '', cp: null };
+            // create link immediately (empty label)
+            const newLink = { id: uid('l'), source: linkDraw.sourceId, target: targetId, label: '' };
             model.links.push(newLink);
             markDirty();
             renderLinks();
 
+            // then ask for label — if canceled, remove
             try {
               const label = (window.requestTransitionLabel && typeof window.requestTransitionLabel === 'function')
                               ? await window.requestTransitionLabel('Next')
@@ -492,7 +518,6 @@
                 const linkObj = model.links.find(l => l.id === newLink.id);
                 if (linkObj) { linkObj.label = label.trim(); markDirty(); renderLinks(); }
               } else {
-                // canceled or empty: remove created link
                 model.links = model.links.filter(l => l.id !== newLink.id);
                 renderLinks();
               }
@@ -505,7 +530,6 @@
         }
       }
 
-      // Clear preview state to avoid lingering connector
       linkDraw = null;
       canvas.style.cursor = 'default';
       renderLinks();
@@ -513,14 +537,6 @@
 
     // mouse up
     function onUp(e) {
-      // if dragging a link handle, finalize handle
-      if (handleDrag) {
-        handleDrag = null;
-        // save
-        markDirty();
-        renderLinks();
-      }
-
       if (linkDraw) finalizeLinkIfPossible(e);
 
       if (dragInfo) {
@@ -529,7 +545,8 @@
           for (let id of Object.keys(dragInfo.startPositions)) {
             const n = model.nodes.find(x=>x.id===id);
             if (!n) continue;
-            n.x = Math.round(n.x / s) * s; n.y = Math.round(n.y / s) * s;
+            n.x = Math.round(n.x / s) * s;
+            n.y = Math.round(n.y / s) * s;
           }
           markDirty(); renderNodes();
         }
@@ -538,7 +555,7 @@
       }
     }
 
-    // context menu & inspector open
+    // context menu
     function nodeContext(e, nodeId) {
       e.preventDefault();
       setSelectedNodesFromClick(nodeId, e);
@@ -546,13 +563,20 @@
     }
     function contextMenuAt(x,y,nodeId) {
       const cm = document.getElementById('contextMenu');
-      cm.style.left = `${x}px`; cm.style.top = `${y}px`; cm.style.display='block';
+      cm.style.left = `${x}px`;
+      cm.style.top = `${y}px`;
+      cm.style.display = 'block';
       document.getElementById('contextEdit').onclick = ()=> { cm.style.display='none'; openNodeInspector(model.nodes.find(n=>n.id===nodeId)); };
       document.getElementById('contextDelete').onclick = ()=> { cm.style.display='none'; deleteSelectedNode(nodeId); };
     }
+
     function openNodeInspector(node) {
-      selectedNodes.clear(); selectedNodes.add(node.id); updateInspector();
-      if (inspector && inspector.classList.contains('hidden')) { inspector.classList.remove('hidden'); inspector.classList.add('visible'); }
+      selectedNodes.clear();
+      selectedNodes.add(node.id);
+      updateInspector();
+      if (inspector && inspector.classList.contains('hidden')) {
+        inspector.classList.remove('hidden'); inspector.classList.add('visible');
+      }
     }
 
     // node drag / pan
@@ -563,12 +587,15 @@
       if (!selectedNodes.has(nodeId)) setSelectedNodesFromClick(nodeId, e);
       selectedLinkId = null;
       const startPositions = {};
-      Array.from(selectedNodes).forEach(id => { const n = model.nodes.find(x=>x.id===id); if (n) startPositions[id] = { x: n.x, y: n.y }; });
+      Array.from(selectedNodes).forEach(id => {
+        const n = model.nodes.find(x=>x.id===id); if (n) startPositions[id] = { x: n.x, y: n.y };
+      });
       const node = model.nodes.find(n=>n.id===nodeId);
       if (node) { highestZ++; node.zIndex = highestZ; const el=document.getElementById(`node-${nodeId}`); if (el) el.style.zIndex = highestZ; }
       dragInfo = { mode:'node', startX: e.clientX, startY: e.clientY, nodeId, startPositions };
       renderNodes();
     }
+
     function onCanvasDown(e) {
       if (e.target.closest('.node') || e.target.closest('#contextMenu')) return;
       selectedNodes.clear(); selectedLinkId = null;
@@ -578,32 +605,20 @@
       canvas.style.cursor = 'grabbing';
     }
 
-    // store last mouse for fallback
-    window._lastMouse = { clientX:0, clientY:0 };
+    // store last mouse
+    window._lastMouse = { clientX: 0, clientY: 0 };
 
-    // main mouse move — handles node pan, node drag, link preview, handle dragging
     function onMove(e) {
-      window._lastMouse.clientX = e.clientX; window._lastMouse.clientY = e.clientY;
-
-      // handle dragging of link cp
-      if (handleDrag) {
-        const deltaX = (e.clientX - handleDrag.startClientX) / transform.scale;
-        const deltaY = (e.clientY - handleDrag.startClientY) / transform.scale;
-        const link = model.links.find(l => l.id === handleDrag.linkId);
-        if (link) {
-          link.cp.x = handleDrag.startCpX + deltaX;
-          link.cp.y = handleDrag.startCpY + deltaY;
-          // re-render path live
-          renderLinks();
-        }
-        return; // while handle drag, ignore other moves
-      }
+      window._lastMouse.clientX = e.clientX;
+      window._lastMouse.clientY = e.clientY;
 
       if (!dragInfo && !linkDraw) return;
 
       if (dragInfo && dragInfo.mode === 'pan') {
-        const dx = e.clientX - dragInfo.startX, dy = e.clientY - dragInfo.startY;
-        transform.x = dragInfo.startTransformX + dx; transform.y = dragInfo.startTransformY + dy;
+        const dx = e.clientX - dragInfo.startX;
+        const dy = e.clientY - dragInfo.startY;
+        transform.x = dragInfo.startTransformX + dx;
+        transform.y = dragInfo.startTransformY + dy;
         applyTransform();
       } else if (dragInfo && dragInfo.mode === 'node') {
         const deltaX = (e.clientX - dragInfo.startX) / transform.scale;
@@ -611,15 +626,16 @@
         for (let id of Object.keys(dragInfo.startPositions)) {
           const n = model.nodes.find(x=>x.id===id);
           if (!n) continue;
-          n.x = dragInfo.startPositions[id].x + deltaX; n.y = dragInfo.startPositions[id].y + deltaY;
+          n.x = dragInfo.startPositions[id].x + deltaX;
+          n.y = dragInfo.startPositions[id].y + deltaY;
           const el = document.getElementById(`node-${n.id}`);
           if (el) { el.style.left = `${n.x}px`; el.style.top = `${n.y}px`; }
         }
-        // while dragging nodes update link visuals
         renderLinks();
       } else if (linkDraw) {
         const b = screenToBoard(e.clientX, e.clientY);
-        linkDraw.currentX = b.x; linkDraw.currentY = b.y;
+        linkDraw.currentX = b.x;
+        linkDraw.currentY = b.y;
         renderLinks();
       }
     }
@@ -628,10 +644,14 @@
     function onKey(e) {
       if (isTyping()) return;
       if ((e.key === 'Delete' || e.key === 'Backspace')) {
-        if (selectedNodes.size > 0) { Array.from(selectedNodes).forEach(id => deleteSelectedNode(id)); selectedNodes.clear(); renderNodes(); }
-        else if (selectedLinkId) { deleteSelectedLink(); }
+        if (selectedNodes.size > 0) {
+          Array.from(selectedNodes).forEach(id => deleteSelectedNode(id));
+          selectedNodes.clear(); renderNodes();
+        } else if (selectedLinkId) {
+          deleteSelectedLink();
+        }
       } else if (e.key === 'Escape') {
-        linkDraw = null; dragInfo = null; handleDrag = null;
+        linkDraw = null; dragInfo = null;
         document.getElementById('contextMenu').style.display = 'none';
         renderLinks();
       }
@@ -665,7 +685,6 @@
     canvas.addEventListener('mousedown', onCanvasDown);
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
-    // touch gestures
     canvas.addEventListener('touchstart', (ev)=> { const t = ev.touches[0]; onCanvasDown({ clientX: t.clientX, clientY: t.clientY, target: ev.target }); ev.preventDefault(); }, { passive:false});
     canvas.addEventListener('touchmove', (ev)=> { const t = ev.touches[0]; onMove({ clientX: t.clientX, clientY: t.clientY }); ev.preventDefault(); }, { passive:false});
     canvas.addEventListener('touchend', (ev)=> { onUp({ clientX:0, clientY:0 }); }, { passive:false});
@@ -679,13 +698,12 @@
     showGrid && showGrid.addEventListener('change', applyTransform);
     gridSizeInput && gridSizeInput.addEventListener('change', applyTransform);
 
-    // import/export
+    // import/export handling
     document.addEventListener('workspace:importJson', (ev) => {
       const payload = ev.detail;
       if (!payload) return;
       model.nodes = (payload.nodes || []).map(n => ({ ...n }));
       model.links = (payload.links || []).map(l => ({ ...l }));
-      model.links.forEach(l => { if (!l.cp) l.cp = null; });
       highestZ = model.nodes.reduce((m,n)=> Math.max(m,n.zIndex||15), 15);
       selectedNodes.clear(); selectedLinkId = null;
       markDirty(); applyTransform(); renderNodes();
@@ -693,7 +711,7 @@
 
     exportBtn && exportBtn.addEventListener('click', ()=> downloadJSON());
     exportJsonBtn && exportJsonBtn.addEventListener('click', ()=> downloadJSON());
-    importJsonBtn && importJsonBtn.addEventListener('click', ()=> importFile && importFile.click());
+    importJsonBtn && importJsonBtn.addEventListener('click', ()=> document.getElementById('importFile').click());
 
     autosizeBtn && autosizeBtn.addEventListener('click', autoResizeBoard);
     clearAllBtn && clearAllBtn.addEventListener('click', ()=> { if (confirm('Clear entire board?')) { model.nodes=[]; model.links=[]; selectedNodes.clear(); markDirty(); renderNodes(); }});
@@ -703,7 +721,11 @@
       const data = JSON.stringify(payload, null, 2);
       const blob = new Blob([data], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = `workflow-${projectId || 'board'}.json`; a.click(); URL.revokeObjectURL(url);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `workflow-${projectId || 'board'}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
     }
 
     function autoResizeBoard() {
@@ -715,7 +737,8 @@
       const minY = Math.min(...model.nodes.map(n => n.y));
       const w = Math.max(1200, (maxX - minX) + pad*2);
       const h = Math.max(800, (maxY - minY) + pad*2);
-      board.style.width = `${Math.round(w)}px`; board.style.height = `${Math.round(h)}px`;
+      board.style.width = `${Math.round(w)}px`;
+      board.style.height = `${Math.round(h)}px`;
       const dx = pad - minX, dy = pad - minY;
       model.nodes.forEach(n => { n.x += dx; n.y += dy; });
       markDirty(); renderNodes(); applyTransform();
@@ -730,21 +753,31 @@
       const pad = 80;
       const bboxW = (maxX - minX) + pad*2;
       const bboxH = (maxY - minY) + pad*2;
-      const viewW = canvas.clientWidth, viewH = canvas.clientHeight;
-      const scaleX = viewW / bboxW, scaleY = viewH / bboxH;
+      const viewW = canvas.clientWidth;
+      const viewH = canvas.clientHeight;
+      const scaleX = viewW / bboxW;
+      const scaleY = viewH / bboxH;
       const scale = clamp(Math.min(scaleX, scaleY, 1.6), 0.2, 1.6);
       transform.scale = scale;
-      const centerBoardX = (minX + maxX)/2, centerBoardY = (minY + maxY)/2;
-      transform.x = (viewW/2) - (centerBoardX * transform.scale); transform.y = (viewH/2) - (centerBoardY * transform.scale);
+      const centerBoardX = (minX + maxX)/2;
+      const centerBoardY = (minY + maxY)/2;
+      transform.x = (viewW/2) - (centerBoardX * transform.scale);
+      transform.y = (viewH/2) - (centerBoardY * transform.scale);
       applyTransform();
     }
 
     // prevent clicks inside UI panels from clearing selection
     document.addEventListener('click', (e)=> {
       const target = e.target;
-      if (target.closest('.node') || target.closest('.link-path') || target.closest('.link-handle')) return;
-      if (target.closest('#inspector') || target.closest('.topbar') || target.closest('.header-actions') || target.closest('#floatingTools')
-          || target.closest('.controls-panel') || target.closest('#contextMenu') || target.closest('.modal-backdrop') || target.closest('.modal-card')) {
+      if (target.closest('.node') || target.closest('.link-path')) return;
+      if (target.closest('#inspector')
+          || target.closest('.topbar')
+          || target.closest('.header-actions')
+          || target.closest('#floatingTools')
+          || target.closest('.controls-panel')
+          || target.closest('#contextMenu')
+          || target.closest('.modal-backdrop')
+          || target.closest('.modal-card')) {
         return;
       }
       selectedNodes.clear(); selectedLinkId = null;
@@ -762,10 +795,9 @@
     // keyboard
     document.addEventListener('keydown', onKey);
 
-    // expose API for debug
+    // debug API
     window._wf = { model, renderNodes, saveModel, zoomToFit, autoResizeBoard };
-
-  } // end ready
+  }
 
   document.addEventListener('DOMContentLoaded', ready);
 })();
