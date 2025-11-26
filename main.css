@@ -171,3 +171,127 @@ body {
     .project-inner { flex-direction: column; gap: 10px; align-items: flex-start; }
     .project-pill { width: 100%; justify-content: center; }
 }
+/* Inspector — polished theme to match the workspace/header */
+.inspector {
+  background: linear-gradient(180deg, #ffffff, #fbfbfd); /* slightly warm */
+  border-left: 1px solid rgba(15,23,42,0.04);
+  box-shadow: -8px 16px 40px rgba(8,13,25,0.06);
+  padding: 20px;
+  border-radius: 0 12px 12px 0;
+  color: #0f172a;
+  font-size: 15px;
+}
+
+/* Headline */
+.inspector h4 {
+  margin: 2px 0 14px 0;
+  font-size: 20px;
+  color: #0b2747;
+  letter-spacing: 0.2px;
+}
+
+/* Groups */
+.field { margin-bottom: 12px; }
+.field label {
+  display:block;
+  font-size: 13px;
+  color: #374151;
+  margin-bottom:6px;
+  font-weight:600;
+}
+
+/* Inputs, selects, textarea */
+.inspector input[type="text"],
+.inspector input[type="number"],
+.inspector textarea,
+.inspector select {
+  width:100%;
+  padding:10px 12px;
+  border-radius:8px;
+  border:1px solid rgba(15,23,42,0.08);
+  background: #fff;
+  box-shadow: inset 0 1px 0 rgba(16,24,40,0.02);
+  font-size:14px;
+  color: #0f172a;
+  transition: border-color .12s ease, box-shadow .12s ease, transform .06s;
+  outline: none;
+}
+
+/* Slightly larger textarea */
+.inspector textarea { min-height:92px; resize:vertical; }
+
+/* Select */
+.inspector select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, #aab6d6 50%),
+                    linear-gradient(135deg, #aab6d6 50%, transparent 50%),
+                    linear-gradient(to right, rgba(15,23,42,0.04), rgba(15,23,42,0.04));
+  background-position: calc(100% - 18px) calc(1em + 2px), calc(100% - 13px) calc(1em + 2px), 100% 0;
+  background-size: 6px 6px, 6px 6px, 1px 1.5em;
+  background-repeat: no-repeat;
+  padding-right: 36px;
+}
+
+/* Input & select focus */
+.inspector input:focus,
+.inspector textarea:focus,
+.inspector select:focus {
+  border-color: rgba(11,116,255,0.9);
+  box-shadow: 0 6px 18px rgba(11,116,255,0.07);
+  transform: translateY(-1px);
+}
+
+/* Small meta text */
+.inspector .meta { color: #6b7280; font-size:13px; margin-bottom:8px; }
+
+/* Buttons inside inspector: primary and subtle */
+.inspector .btn {
+  height:36px;
+  padding:6px 12px;
+  border-radius:8px;
+  font-weight:600;
+  border:1px solid rgba(15,23,42,0.06);
+  background: #ffffff;
+  color: #0b2747;
+  cursor:pointer;
+  box-shadow: 0 6px 18px rgba(9,15,30,0.03);
+}
+
+.inspector .btn:hover { transform: translateY(-1px); }
+
+/* Primary variant (use class .primary if you want) */
+.inspector .btn.primary,
+#inspectorSave.btn {
+  background: linear-gradient(180deg, #0b74ff, #0366d6);
+  color: #fff;
+  border: none;
+  box-shadow: 0 8px 22px rgba(11,116,255,0.16);
+}
+
+/* Danger/ghost */
+.inspector .btn.ghost,
+#inspectorDelete.btn {
+  background: #fff;
+  color: #e11d48;
+  border: 1px solid rgba(225,29,72,0.08);
+}
+
+/* Compact horizontal pairs (width/height inputs) */
+.field.inline { display:flex; gap:10px; align-items:center; }
+.field.inline .field-sub { flex:1; }
+
+/* Tidy the import/export and small buttons */
+#exportJson, #importJsonBtn, #autosizeBtn, #clearAllBtn { height:36px; border-radius:8px; padding:6px 10px; }
+
+/* Small helper spacing */
+.inspector hr { border: none; border-top:1px solid rgba(15,23,42,0.04); margin:8px 0 12px 0; }
+
+/* Make links / back buttons consistent if they appear inside inspector */
+.inspector a { color: #0b74ff; text-decoration:none; }
+
+/* Responsive tweak: reduce padding on narrow widths */
+@media (max-width:1100px) {
+  .inspector { padding:16px; font-size:14px; }
+  .inspector h4 { font-size:18px; }
+}
