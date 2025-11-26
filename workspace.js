@@ -1,12 +1,6 @@
-/* workspace.js — all-features replacement
-   Features:
-     - Multi-select (Shift+click), group move (drag one node)
-     - Inspector (right-side) edit node properties
-     - Export / Import JSON (download/upload)
-     - Auto-resize board to content & Zoom-to-fit
-     - Improved anchors/connectors, snap-to-grid, keyboard delete
-   Notes:
-     - Expects window.AriesDB.saveProjectWorkspace(projectId, nodes, links) and loadProjectData(projectId)
+/* workspace.js — updated to support inspector toggle and robust header layout
+   - Compatible with the project_detail.html above.
+   - Keeps previous features: multi-select, connectors, save/load, export/import, zoom/pan.
 */
 (function(){
   function ready() {
@@ -75,7 +69,6 @@
     const screenToBoard = (sx, sy) => ({ x: (sx - transform.x)/transform.scale, y: (sy - transform.y)/transform.scale });
     const boardToScreen = (bx, by) => ({ x: bx*transform.scale + transform.x, y: by*transform.scale + transform.y });
 
-    // anchor position on node edge in board coords
     function getAnchor(node, isTarget=false) {
       const el = document.getElementById(`node-${node.id}`);
       if (!el) return { x: node.x + (node.w||200)/2, y: node.y + (node.h||100)/2 };
@@ -181,6 +174,8 @@
       zoomIndicator && (zoomIndicator.textContent = `${Math.round(transform.scale*100)}%`);
       updateGrid();
       renderLinks();
+      // repaint UI to avoid ghosting
+      requestAnimationFrame(() => { repaintUI(); });
     }
     function updateGrid() {
       if (!showGrid.checked) { canvas.style.backgroundImage = 'none'; return; }
@@ -194,7 +189,19 @@
       canvas.style.backgroundPosition = `${ox}px ${oy}px`;
     }
 
-    // model operations
+    // repaint helper to avoid ghosted header/buttons after transforms
+    function repaintUI() {
+      try {
+        const uiEls = document.querySelectorAll('.topbar, .header-actions, #floatingTools, .controls-panel, .header-title');
+        uiEls.forEach(el => {
+          el.style.transform = el.style.transform || 'translateZ(0)';
+          el.style.willChange = 'transform';
+        });
+        setTimeout(()=> uiEls.forEach(el => el.style.willChange = ''), 260);
+      } catch(e){ /* ignore */ }
+    }
+
+    // model ops
     function addNodeAt(x,y,type,opts={}) {
       const s = gridSize();
       const nx = Math.round(x / s) * s;
@@ -206,8 +213,7 @@
       else if (type === 'decision') { base.title='Decision'; base.body='Condition'; base.w=150; base.h=150; }
       Object.assign(base, opts);
       model.nodes.push(base);
-      markDirty();
-      renderNodes();
+      markDirty(); renderNodes();
       return base;
     }
 
@@ -216,19 +222,16 @@
       if (!dirty) return;
       if (!window.AriesDB || !window.AriesDB.saveProjectWorkspace) {
         console.warn('No AriesDB.saveProjectWorkspace found');
-        dirty = false; statusMeta.textContent = 'Local only';
-        saveBoardBtn.textContent = 'Save Board';
+        dirty = false; statusMeta.textContent = 'Local only'; saveBoardBtn.textContent = 'Save Board';
         return;
       }
       try {
         await window.AriesDB.saveProjectWorkspace(projectId, model.nodes, model.links);
         dirty = false; statusMeta.textContent = 'Saved';
-        saveBoardBtn.textContent = 'Saved!';
-        setTimeout(()=> saveBoardBtn.textContent = 'Save Board', 1200);
+        saveBoardBtn.textContent = 'Saved!'; setTimeout(()=> saveBoardBtn.textContent = 'Save Board', 1200);
       } catch (err) {
         console.error('Save failed', err);
-        statusMeta.textContent = 'Save failed';
-        saveBoardBtn.textContent = 'Save Failed';
+        statusMeta.textContent = 'Save failed'; saveBoardBtn.textContent = 'Save Failed';
         setTimeout(()=> saveBoardBtn.textContent = 'Save Board', 1400);
       }
     }
@@ -271,6 +274,7 @@
 
     function updateInspector() {
       selectedCount.textContent = selectedNodes.size;
+      if (!inspector) return;
       if (selectedNodes.size === 0) {
         inspectorSingle.style.display = 'none'; inspectorMulti.style.display = 'none';
       } else if (selectedNodes.size === 1) {
@@ -303,8 +307,9 @@
       markDirty(); renderNodes();
     }
 
-    inspectorSave.addEventListener('click', applyInspectorToNode);
-    inspectorDelete.addEventListener('click', ()=> { if (selectedNodes.size === 1) { deleteSelectedNode(Array.from(selectedNodes)[0]); }});
+    inspectorSave && inspectorSave.addEventListener('click', applyInspectorToNode);
+    inspectorDelete && inspectorDelete.addEventListener('click', ()=> { if (selectedNodes.size === 1) deleteSelectedNode(Array.from(selectedNodes)[0]); });
+
     document.getElementById('alignLeft').addEventListener('click', ()=> {
       if (selectedNodes.size<2) return;
       const arr = Array.from(selectedNodes).map(id=>model.nodes.find(n=>n.id===id));
@@ -320,7 +325,7 @@
       markDirty(); renderNodes();
     });
 
-    // events: link draw
+    // link draw
     function startLinkDraw(e, sourceId) {
       e.stopPropagation();
       const src = model.nodes.find(n=>n.id===sourceId);
@@ -349,6 +354,10 @@
       selectedNodes.clear();
       selectedNodes.add(node.id);
       updateInspector();
+      // show inspector if hidden
+      if (inspector && inspector.classList.contains('hidden')) {
+        inspector.classList.remove('hidden'); inspector.classList.add('visible');
+      }
     }
 
     // node drag / pan
@@ -360,20 +369,13 @@
         setSelectedNodesFromClick(nodeId, e);
       }
       selectedLinkId = null;
-      // prepare drag: record start positions for all selected nodes
       const startPositions = {};
       Array.from(selectedNodes).forEach(id => {
         const n = model.nodes.find(x=>x.id===id); if (n) startPositions[id] = { x: n.x, y: n.y };
       });
       const node = model.nodes.find(n=>n.id===nodeId);
-      if (node) { highestZ++; node.zIndex = highestZ; document.getElementById(`node-${nodeId}`).style.zIndex = highestZ; }
-      dragInfo = {
-        mode:'node',
-        startX: e.clientX,
-        startY: e.clientY,
-        nodeId,
-        startPositions
-      };
+      if (node) { highestZ++; node.zIndex = highestZ; const el=document.getElementById(`node-${nodeId}`); if (el) el.style.zIndex = highestZ; }
+      dragInfo = { mode:'node', startX: e.clientX, startY: e.clientY, nodeId, startPositions };
       renderNodes();
     }
 
@@ -414,7 +416,6 @@
     }
 
     function onUp(e) {
-      // finalize link
       if (linkDraw) {
         const targetEl = e.target.closest('.node');
         if (targetEl) {
@@ -434,7 +435,6 @@
 
       if (dragInfo) {
         if (dragInfo.mode === 'node') {
-          // snap all selected to grid
           const s = gridSize();
           for (let id of Object.keys(dragInfo.startPositions)) {
             const n = model.nodes.find(x=>x.id===id);
@@ -483,10 +483,7 @@
       markDirty();
     }
 
-    // inspector open/save handled above
-
-    // buttons & UI
-    saveBoardBtn && saveBoardBtn.addEventListener('click', saveModel);
+    // buttons & UI bindings
     toolAddPage && toolAddPage.addEventListener('click', ()=> addNodeAt(220,220,'page'));
     toolAddAction && toolAddAction.addEventListener('click', ()=> addNodeAt(420,220,'action'));
     toolAddDecision && toolAddDecision.addEventListener('click', ()=> addNodeAt(640,220,'decision'));
@@ -511,23 +508,25 @@
     showGrid && showGrid.addEventListener('change', applyTransform);
     gridSizeInput && gridSizeInput.addEventListener('change', applyTransform);
 
-    // export/import
+    // export/import logic: import via event dispatched from project_detail.html
+    document.addEventListener('workspace:importJson', (ev) => {
+      const payload = ev.detail;
+      if (!payload) return;
+      model.nodes = (payload.nodes || []).map(n => ({ ...n }));
+      model.links = (payload.links || []).map(l => ({ ...l }));
+      highestZ = model.nodes.reduce((m,n)=> Math.max(m,n.zIndex||15), 15);
+      selectedNodes.clear(); selectedLinkId = null;
+      markDirty(); applyTransform(); renderNodes();
+    });
+
     exportBtn && exportBtn.addEventListener('click', ()=> downloadJSON());
     exportJsonBtn && exportJsonBtn.addEventListener('click', ()=> downloadJSON());
-    importFile && (importFile.onchange = (ev)=> {
-      const f = ev.target.files[0]; if (!f) return;
-      const reader = new FileReader();
-      reader.onload = e => { try { const obj = JSON.parse(e.target.result); loadFromJSON(obj); } catch(err){ alert('Invalid JSON'); } };
-      reader.readAsText(f);
-    });
-    importJsonBtn && importJsonBtn.addEventListener('click', ()=> importFile.click());
-    document.getElementById('importJsonBtn').addEventListener('click', ()=> importFile.click());
+    importJsonBtn && importJsonBtn.addEventListener('click', ()=> document.getElementById('importFile').click());
 
-    // autosize & clear
     autosizeBtn && autosizeBtn.addEventListener('click', autoResizeBoard);
     clearAllBtn && clearAllBtn.addEventListener('click', ()=> { if (confirm('Clear entire board?')) { model.nodes=[]; model.links=[]; selectedNodes.clear(); markDirty(); renderNodes(); }});
 
-    // helper: download JSON
+    // download JSON
     function downloadJSON() {
       const payload = { nodes: model.nodes, links: model.links, exportedAt: new Date().toISOString(), projectId };
       const data = JSON.stringify(payload, null, 2);
@@ -540,16 +539,7 @@
       URL.revokeObjectURL(url);
     }
 
-    function loadFromJSON(obj) {
-      if (!obj) return;
-      model.nodes = (obj.nodes || []).map(n => ({ ...n }));
-      model.links = (obj.links || []).map(l => ({ ...l }));
-      highestZ = model.nodes.reduce((m,n)=> Math.max(m,n.zIndex||15), 15);
-      selectedNodes.clear(); selectedLinkId = null;
-      markDirty(); applyTransform(); renderNodes();
-    }
-
-    // autosize board to content
+    // autosize board
     function autoResizeBoard() {
       if (model.nodes.length === 0) { board.style.width = '1200px'; board.style.height = '900px'; return; }
       const pad = 140;
@@ -561,16 +551,13 @@
       const h = Math.max(800, (maxY - minY) + pad*2);
       board.style.width = `${Math.round(w)}px`;
       board.style.height = `${Math.round(h)}px`;
-      // shift nodes so minX/minY become pad
       const dx = pad - minX, dy = pad - minY;
       model.nodes.forEach(n => { n.x += dx; n.y += dy; });
       markDirty(); renderNodes(); applyTransform();
     }
 
-    // zoom-to-fit
     function zoomToFit() {
       if (model.nodes.length === 0) { transform = { x:0, y:0, scale:1 }; applyTransform(); return; }
-      // compute bounding box in board coords
       const minX = Math.min(...model.nodes.map(n=>n.x));
       const minY = Math.min(...model.nodes.map(n=>n.y));
       const maxX = Math.max(...model.nodes.map(n=>n.x + (n.w||220)));
@@ -584,7 +571,6 @@
       const scaleY = viewH / bboxH;
       const scale = clamp(Math.min(scaleX, scaleY, 1.6), 0.2, 1.6);
       transform.scale = scale;
-      // center: compute board offset so bbox centered
       const centerBoardX = (minX + maxX)/2;
       const centerBoardY = (minY + maxY)/2;
       transform.x = (viewW/2) - (centerBoardX * transform.scale);
@@ -592,7 +578,7 @@
       applyTransform();
     }
 
-    // simple click handler for nodes & linking
+    // global click to clear selections
     document.addEventListener('click', (e)=> {
       if (!e.target.closest('.node') && !e.target.closest('.link-path')) {
         selectedNodes.clear(); selectedLinkId = null;
@@ -602,24 +588,8 @@
       }
     });
 
-    // save/load hooks
+    // save shortcut binding (also exposed button)
     saveBoardBtn && saveBoardBtn.addEventListener('click', saveModel);
-    async function saveModel() {
-      if (!window.AriesDB || !window.AriesDB.saveProjectWorkspace) {
-        console.warn('No AriesDB.saveProjectWorkspace found'); dirty=false; statusMeta.textContent='Local only'; saveBoardBtn.textContent='Save Board'; return;
-      }
-      try {
-        saveBoardBtn.textContent='Saving...';
-        await window.AriesDB.saveProjectWorkspace(projectId, model.nodes, model.links);
-        dirty = false; statusMeta.textContent='Saved';
-        saveBoardBtn.textContent='Saved!';
-        setTimeout(()=> saveBoardBtn.textContent='Save Board', 1200);
-      } catch(err) {
-        console.error(err);
-        statusMeta.textContent='Save failed'; saveBoardBtn.textContent='Save Failed';
-        setTimeout(()=> saveBoardBtn.textContent='Save Board', 1400);
-      }
-    }
 
     // initial load
     loadModel();
