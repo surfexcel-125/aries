@@ -1,5 +1,10 @@
-/* workspace.js — updated click-ignore fix so inspector interactions don't clear selection
-   Overwrite your existing workspace.js with this file.
+/* workspace.js — full replacement
+   Features:
+   - anchor coordinates from model w/h (board coords)
+   - parallel link displacement to avoid overlaps
+   - in-page modal for labels (requires project_detail.html helper requestTransitionLabel)
+   - inspector click-ignore fix so clicks inside inspector don't deselect nodes
+   - repaint helper to avoid header/button ghosting
 */
 (function(){
   function ready() {
@@ -55,7 +60,6 @@
     let selectedLinkId = null;
     let dragInfo = null;
     let linkDraw = null;
-    let activeModalNode = null;
     let highestZ = 15;
     let dirty = false;
     const DEBOUNCE = 800;
@@ -68,16 +72,19 @@
     const screenToBoard = (sx, sy) => ({ x: (sx - transform.x)/transform.scale, y: (sy - transform.y)/transform.scale });
     const boardToScreen = (bx, by) => ({ x: bx*transform.scale + transform.x, y: by*transform.scale + transform.y });
 
+    // --- anchor calculation (board coords) ---
     function getAnchor(node, isTarget=false) {
-      const el = document.getElementById(`node-${node.id}`);
-      if (!el) return { x: node.x + (node.w||200)/2, y: node.y + (node.h||100)/2 };
-      const w = el.offsetWidth / transform.scale;
-      const h = el.offsetHeight / transform.scale;
-      if (!isTarget) return { x: node.x + w, y: node.y + h/2 };
-      return { x: node.x, y: node.y + h/2 };
+      // Use the model's stored width/height (board coords) instead of reading element sizes with scale math.
+      const w = (node.w !== undefined) ? node.w : 220;
+      const h = (node.h !== undefined) ? node.h : 100;
+      if (!isTarget) {
+        return { x: node.x + w, y: node.y + (h / 2) };
+      } else {
+        return { x: node.x, y: node.y + (h / 2) };
+      }
     }
 
-    // render
+    // render nodes
     function clearNodes() { document.querySelectorAll('.node').forEach(n=>n.remove()); }
     function renderNodes() {
       clearNodes();
@@ -92,7 +99,7 @@
           el.style.width = `${node.w}px`;
           el.style.height = `${node.h}px`;
         }
-        el.innerHTML = `<div class="node-title">${node.title}</div><div class="node-body">${node.body}</div>`;
+        el.innerHTML = `<div class="node-title">${escapeHtml(node.title)}</div><div class="node-body">${escapeHtml(node.body)}</div>`;
         const out = document.createElement('div');
         out.className = 'anchor output-anchor';
         out.addEventListener('mousedown', e => startLinkDraw(e, node.id));
@@ -107,8 +114,17 @@
       updateInspector();
     }
 
+    // small escape helper for innerHTML to avoid injection
+    function escapeHtml(str) {
+      if (str == null) return '';
+      return String(str).replace(/[&<>"']/g, function(m){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])});
+    }
+
+    // --- renderLinks with parallel offsets ---
     function renderLinks() {
       while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+      // preview while drawing
       if (linkDraw) {
         const p = document.createElementNS('http://www.w3.org/2000/svg','path');
         const a = { x: linkDraw.x, y: linkDraw.y };
@@ -123,16 +139,56 @@
         svg.appendChild(p);
       }
 
+      // Group links by directional pair to handle parallel offsets
+      const pairs = {};
+      model.links.forEach(link => {
+        const key = `${link.source}::${link.target}`;
+        if (!pairs[key]) pairs[key] = [];
+        pairs[key].push(link);
+      });
+
+      // assign parallel index for each link in its bucket
+      Object.keys(pairs).forEach(key => {
+        const arr = pairs[key];
+        arr.forEach((link, idx) => { link._parallelIndex = idx; link._parallelCount = arr.length; });
+      });
+
+      // render each link
       model.links.forEach(link => {
         const s = model.nodes.find(n => n.id === link.source);
         const t = model.nodes.find(n => n.id === link.target);
         if (!s || !t) return;
+
         const p1 = getAnchor(s, false);
         const p2 = getAnchor(t, true);
-        const dx = Math.max(40, Math.abs(p1.x - p2.x) * 0.4);
-        const c1x = p1.x + dx, c1y = p1.y;
-        const c2x = p2.x - dx, c2y = p2.y;
-        const d = `M${p1.x} ${p1.y} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${p2.x} ${p2.y}`;
+
+        // perpendicular normal for offset
+        const dx = p2.x - p1.x;
+        const dy = p2.y - p1.y;
+        const length = Math.sqrt(dx*dx + dy*dy) || 1;
+        const nx = -dy / length;
+        const ny = dx / length;
+
+        const baseGap = 18;
+        const idx = (link._parallelIndex !== undefined) ? link._parallelIndex : 0;
+        const count = (link._parallelCount !== undefined) ? link._parallelCount : 1;
+        const middle = (count - 1) / 2;
+        const offset = (idx - middle) * baseGap;
+
+        const offsetX = nx * offset;
+        const offsetY = ny * offset;
+
+        const start = { x: p1.x + offsetX, y: p1.y + offsetY };
+        const end   = { x: p2.x + offsetX, y: p2.y + offsetY };
+
+        const cpDist = Math.max(40, Math.abs(p2.x - p1.x) * 0.35);
+        const c1x = start.x + cpDist;
+        const c1y = start.y;
+        const c2x = end.x - cpDist;
+        const c2y = end.y;
+
+        const d = `M${start.x} ${start.y} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${end.x} ${end.y}`;
+
         const path = document.createElementNS('http://www.w3.org/2000/svg','path');
         const isSel = selectedLinkId === link.id;
         path.setAttribute('d', d);
@@ -151,11 +207,12 @@
           toolDeleteNode.disabled = true;
           renderNodes(); renderLinks();
         });
+
         svg.appendChild(path);
 
         if (link.label) {
-          const midX = (p1.x + p2.x)/2;
-          const midY = (p1.y + p2.y)/2;
+          const midX = (start.x + end.x)/2;
+          const midY = (start.y + end.y)/2;
           const text = document.createElementNS('http://www.w3.org/2000/svg','text');
           text.setAttribute('x', midX);
           text.setAttribute('y', midY - 6);
@@ -187,7 +244,7 @@
       canvas.style.backgroundPosition = `${ox}px ${oy}px`;
     }
 
-    // repaint helper
+    // repaint helper to avoid ghosted header/buttons after transforms
     function repaintUI() {
       try {
         const uiEls = document.querySelectorAll('.topbar, .header-actions, #floatingTools, .controls-panel, .header-title');
@@ -323,7 +380,7 @@
       markDirty(); renderNodes();
     });
 
-    // link draw - uses in-page modal (project_detail.html exposes requestTransitionLabel)
+    // link draw
     function startLinkDraw(e, sourceId) {
       e.stopPropagation();
       const src = model.nodes.find(n=>n.id===sourceId);
@@ -339,7 +396,10 @@
         const targetId = targetEl.id.replace('node-','');
         if (targetId !== linkDraw.sourceId) {
           try {
-            const label = await window.requestTransitionLabel('Next');
+            // expects project_detail.html to provide window.requestTransitionLabel()
+            const label = (window.requestTransitionLabel && typeof window.requestTransitionLabel === 'function')
+                            ? await window.requestTransitionLabel('Next')
+                            : window.prompt('Enter transition label (e.g., Next, Success):', 'Next');
             if (label !== null && label !== '') {
               model.links.push({ id: uid('l'), source: linkDraw.sourceId, target: targetId, label: label.trim() });
               markDirty();
@@ -376,7 +436,7 @@
       }
     }
 
-    // rest of handlers (pan, drag etc.)
+    // context menu
     function nodeContext(e, nodeId) {
       e.preventDefault();
       setSelectedNodesFromClick(nodeId, e);
@@ -400,6 +460,7 @@
       }
     }
 
+    // node drag / pan
     function handleNodeDown(e, nodeId) {
       if (e.button !== 0) return;
       e.stopPropagation();
@@ -581,14 +642,10 @@
       applyTransform();
     }
 
-    // Previously we cleared selection on any click outside nodes/links.
-    // Now ignore clicks inside inspector, header, controls, floating tools, context menu, modals.
+    // Prevent clicks inside UI panels from clearing selection
     document.addEventListener('click', (e)=> {
       const target = e.target;
-      // If click is inside a node or a link, ignore here (handled elsewhere)
       if (target.closest('.node') || target.closest('.link-path')) return;
-
-      // If click is inside the inspector or UI panels, don't clear selection
       if (target.closest('#inspector')
           || target.closest('.topbar')
           || target.closest('.header-actions')
@@ -599,8 +656,6 @@
           || target.closest('.modal-card')) {
         return;
       }
-
-      // Otherwise clear selections as before
       selectedNodes.clear(); selectedLinkId = null;
       toolDeleteNode.disabled = true; toolDeleteLink.disabled = true;
       document.getElementById('contextMenu').style.display = 'none';
@@ -616,7 +671,7 @@
     // keyboard
     document.addEventListener('keydown', onKey);
 
-    // expose for debugging
+    // expose small API for debugging
     window._wf = { model, renderNodes, saveModel, zoomToFit, autoResizeBoard };
   }
 
