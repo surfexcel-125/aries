@@ -10,24 +10,33 @@
 </head>
 <body>
 
-    <header>
-        <div class="menu-icon">
-            &#9776; 
+    <div id="sidebar" class="sidebar">
+        <div class="sidebar-header">
+            <span id="closeIcon" class="close-icon">&#10094;</span> 
         </div>
-    </header>
+        
+        <a href="#" class="sidebar-button">PROJECT</a>
+        <a href="#" class="sidebar-button">ABOUT</a>
+        <a href="#" class="sidebar-button">SETTINGS</a>
+    </div>
 
-    <main>
-        <div class="content-left">
-            <h1 class="aries-title">Aries</h1>
-            <p class="aries-subtitle">King</p>
-        </div>
-        <div class="content-right">
-            <img src="images/goat.png" alt="Aries Ram Head" class="goat-image">
-        </div>
-    </main>
+    <div id="pageWrapper" class="page-wrapper">
+        <header>
+            <span id="menuIcon" class="menu-icon">&#9776;</span> 
+        </header>
+    
+        <main>
+            <div class="content-left">
+                <h1 class="aries-title">Aries</h1>
+                <p class="aries-subtitle">King</p>
+            </div>
+            <div class="content-right">
+                <img src="images/goat.png" alt="Aries Ram Head" class="goat-image">
+            </div>
+        </main>
+    </div>
 
-    <footer>
-        </footer>
+    <script src="app.js"></script>
 
 </body>
 </html>
