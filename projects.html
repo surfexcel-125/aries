@@ -5,28 +5,36 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Projects — Aries</title>
   <link rel="stylesheet" href="main.css" />
+  <style>
+    /* Small page-specific layout improvements */
+    .projects-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; padding: 24px; }
+    .project-card { display:flex; gap:12px; background:var(--card-bg, #fff); border-radius:10px; box-shadow:var(--card-shadow, 0 6px 18px rgba(0,0,0,0.08)); padding:12px; align-items:flex-start; }
+    .project-thumb { width:96px; height:96px; object-fit:cover; border-radius:8px; flex-shrink:0; }
+    .project-title { margin:0 0 6px 0; font-size:1.05rem; }
+    .project-desc { margin:0 0 8px 0; color:var(--muted,#666); font-size:0.92rem; }
+    .project-actions { display:flex; gap:8px; }
+    .btn { padding:8px 12px; border-radius:8px; text-decoration:none; display:inline-block; background:#1f2937; color:#fff; font-weight:600; }
+    .btn.ghost { background:transparent; border:1px solid #ddd; color:inherit; }
+    .projects-header { display:flex; justify-content:space-between; align-items:center; padding:16px 24px; gap:12px; }
+    .projects-header h1 { margin:0; font-size:1.25rem; }
+    .new-project-btn { padding:8px 12px; border-radius:8px; background:#0b74ff; color:#fff; text-decoration:none; }
+    .empty-note { padding:24px; text-align:center; color:var(--muted,#666); }
+  </style>
 </head>
 <body>
-  <!-- Header -->
   <header class="site-header">
     <button id="menuIcon" class="icon-btn" aria-label="Open menu">☰</button>
     <h1 class="site-title">Aries — Projects</h1>
 
-    <!-- Project dropdown trigger (app.js will wire this) -->
     <div class="project-switcher" style="position:relative;">
-      <button id="projectDropdownToggle" class="project-toggle" aria-haspopup="true" aria-expanded="false">
-        Select Project ▾
-      </button>
-
+      <button id="projectDropdownToggle" class="project-toggle" aria-haspopup="true" aria-expanded="false">Select Project ▾</button>
       <nav id="projectDropdownMenu" class="project-dropdown-menu" role="menu" aria-label="Projects menu">
+        <!-- Filled by app.js if desired; kept static as fallback -->
         <a class="dropdown-project-button" role="menuitem" href="project_detail.html?id=1">Project 1 — Alpha</a>
-        <a class="dropdown-project-button" role="menuitem" href="project_detail.html?id=2">Project 2 — Beta</a>
-        <a class="dropdown-project-button" role="menuitem" href="project_detail.html?id=3">Project 3 — Gamma</a>
       </nav>
     </div>
   </header>
 
-  <!-- Sidebar -->
   <aside id="sidebar" class="sidebar" aria-hidden="true">
     <button id="closeIcon" class="icon-btn" aria-label="Close menu">✕</button>
     <nav class="side-nav" aria-label="Main navigation">
@@ -37,69 +45,142 @@
     </nav>
   </aside>
 
-  <!-- Main content -->
-  <main id="main" class="main-content" role="main">
-    <section class="projects-grid" aria-label="Project list">
-      <!-- Project card 1 -->
-      <article class="project-card">
-        <img src="images/goat.png" alt="Project 1 thumbnail" class="project-thumb" />
-        <div class="project-body">
-          <h2 class="project-title">Project 1 — Alpha</h2>
-          <p class="project-desc">Short description: A demo project to show layout, routing and details page.</p>
-          <div class="project-actions">
-            <a class="btn" href="project_detail.html?id=1">Open</a>
-            <a class="btn ghost" href="project_detail.html?id=1">Details</a>
-          </div>
-        </div>
-      </article>
-
-      <!-- Project card 2 -->
-      <article class="project-card">
-        <img src="images/goat.png" alt="Project 2 thumbnail" class="project-thumb" />
-        <div class="project-body">
-          <h2 class="project-title">Project 2 — Beta</h2>
-          <p class="project-desc">Short description for project two — editable content and demo data.</p>
-          <div class="project-actions">
-            <a class="btn" href="project_detail.html?id=2">Open</a>
-            <a class="btn ghost" href="project_detail.html?id=2">Details</a>
-          </div>
-        </div>
-      </article>
-
-      <!-- Project card 3 -->
-      <article class="project-card">
-        <img src="images/goat.png" alt="Project 3 thumbnail" class="project-thumb" />
-        <div class="project-body">
-          <h2 class="project-title">Project 3 — Gamma</h2>
-          <p class="project-desc">Short description for project three — a place for notes and tasks.</p>
-          <div class="project-actions">
-            <a class="btn" href="project_detail.html?id=3">Open</a>
-            <a class="btn ghost" href="project_detail.html?id=3">Details</a>
-          </div>
-        </div>
-      </article>
+  <main class="main-content" id="main" role="main">
+    <section class="projects-header">
+      <h1>Projects</h1>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <a id="createProject" class="new-project-btn" href="#">+ New Project</a>
+      </div>
     </section>
+
+    <section id="projectsList" class="projects-grid" aria-label="Project list">
+      <!-- JS will render project cards here -->
+    </section>
+
+    <div id="noProjects" class="empty-note" style="display:none;">
+      No projects yet. Click <strong>+ New Project</strong> to create one.
+    </div>
   </main>
 
-  <!-- Footer -->
-  <footer class="site-footer">
+  <footer class="site-footer" style="padding:12px 24px;">
     <small>© Aries</small>
   </footer>
 
-  <!-- Load app script (non-module) -->
   <script src="app.js" defer></script>
 
-  <!-- Small page-specific script: update aria-expanded on toggle -->
+  <!-- Page-specific script: projects manager -->
   <script>
     (function(){
-      const toggle = document.getElementById('projectDropdownToggle');
-      const menu = document.getElementById('projectDropdownMenu');
-      if (!toggle || !menu) return;
-      toggle.addEventListener('click', () => {
-        const open = menu.classList.toggle('visible');
-        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-        // let app.js handle repositioning/keyboard closing
+      const projectsKey = 'aries_projects_v1';
+      const projectsList = document.getElementById('projectsList');
+      const createBtn = document.getElementById('createProject');
+      const noProjects = document.getElementById('noProjects');
+
+      function loadProjects() {
+        try {
+          const raw = localStorage.getItem(projectsKey);
+          return raw ? JSON.parse(raw) : [];
+        } catch (e) { return []; }
+      }
+
+      function saveProjects(list) {
+        localStorage.setItem(projectsKey, JSON.stringify(list));
+      }
+
+      function makeId() {
+        return Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+      }
+
+      function openWorkspace(id) {
+        window.location.href = `project_detail.html?id=${encodeURIComponent(id)}`;
+      }
+
+      function render() {
+        const projects = loadProjects();
+        projectsList.innerHTML = '';
+        if (!projects.length) {
+          noProjects.style.display = 'block';
+          return;
+        } else {
+          noProjects.style.display = 'none';
+        }
+
+        projects.forEach(p => {
+          const card = document.createElement('article');
+          card.className = 'project-card';
+          card.innerHTML = `
+            <img class="project-thumb" src="images/goat.png" alt="Project thumbnail">
+            <div style="flex:1;">
+              <h3 class="project-title">${escapeHtml(p.name)}</h3>
+              <p class="project-desc">${escapeHtml(p.description || 'No description')}</p>
+              <div class="project-actions">
+                <a class="btn" href="#" data-open="${p.id}">Open</a>
+                <a class="btn ghost" href="#" data-edit="${p.id}">Edit</a>
+                <a class="btn ghost" href="#" data-delete="${p.id}">Delete</a>
+              </div>
+            </div>
+          `;
+          // click handlers
+          card.querySelector('[data-open]').addEventListener('click', (e) => {
+            e.preventDefault(); openWorkspace(p.id);
+          });
+          card.querySelector('[data-edit]').addEventListener('click', (e) => {
+            e.preventDefault();
+            const newName = prompt('Edit project name:', p.name);
+            if (newName !== null) {
+              p.name = newName.trim() || p.name;
+              saveProjects(projects);
+              render();
+            }
+          });
+          card.querySelector('[data-delete]').addEventListener('click', (e) => {
+            e.preventDefault();
+            if (!confirm('Delete this project? This cannot be undone.')) return;
+            const idx = projects.findIndex(x => x.id === p.id);
+            if (idx > -1) { projects.splice(idx,1); saveProjects(projects); render(); }
+          });
+
+          projectsList.appendChild(card);
+        });
+      }
+
+      function escapeHtml(s) {
+        if (!s) return '';
+        return s.replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+      }
+
+      createBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const name = prompt('Project name', 'New Project');
+        if (!name) return;
+        const projects = loadProjects();
+        const id = makeId();
+        const newProject = {
+          id,
+          name: name.trim(),
+          description: 'New workspace',
+          createdAt: Date.now()
+        };
+        projects.unshift(newProject);
+        saveProjects(projects);
+        render();
+        // open immediately
+        openWorkspace(id);
       });
+
+      // bootstrap with sample data if empty (optional)
+      (function seedIfEmpty(){
+        const p = loadProjects();
+        if (!p.length) {
+          const sample = [
+            { id:'1', name:'Alpha — Product Plan', description:'Product & roadmap board', createdAt: Date.now()-86400000 },
+            { id:'2', name:'Beta — Growth Ideas', description:'Marketing experiments & funnels', createdAt: Date.now()-3600000 }
+          ];
+          saveProjects(sample);
+        }
+      })();
+
+      render();
     })();
   </script>
 </body>
