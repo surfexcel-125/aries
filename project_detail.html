@@ -3,62 +3,146 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Workspace — Aries</title>
+<title>Workspace — Aries (project_detail)</title>
 <link rel="stylesheet" href="main.css" />
 <style>
-/* ... KEEP YOUR EXISTING CSS FOR WORKSPACE (Node styles, Canvas, etc) HERE ... */
-/* Paste the content inside <style> from your previous project_detail.html here */
-/* I am omitting it to save space, but DO NOT DELETE IT from your file */
-:root{ --accent:#0b74ff; --muted:#6b7280; --bg:#ffffff; --grid-color:rgba(15,23,42,0.04); }
-html,body{height:100%;margin:0;font-family:Inter,sans-serif;background:var(--bg)}
+/* NOTE: Keeping all existing styles for your workspace design */
+:root{
+  --accent:#0b74ff; --muted:#6b7280; --panel:#ffffffee; --bg:#ffffff;
+  --grid-color:rgba(15,23,42,0.04); --node-shadow:0 10px 28px rgba(15,23,42,0.08);
+  --link-color:#0f172a; --link-selected:#ff7a59;
+}
+html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial;background:var(--bg)}
 .site-header{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #f1f1f1;background:#fff;position:sticky;top:0;z-index:40}
-.btn{padding:8px 12px;border-radius:8px;border:0;cursor:pointer;font-weight:600;font-size:0.9rem}
+.icon-btn{background:transparent;border:0;font-size:18px;cursor:pointer;padding:6px;border-radius:999px}
+.header-title{font-weight:700;font-size:0.98rem}
+.btn{padding:8px 12px;border:0;border-radius:6px;cursor:pointer;font-weight:600}
 .btn.primary{background:var(--accent);color:#fff}
-/* Add the rest of your CSS here */
+.btn.ghost{background:transparent;color:var(--muted);border:1px solid #e5e7eb}
+.btn:hover{opacity:0.9}
+.tool-btn{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12px;cursor:pointer;padding:8px;border-radius:8px;border:1px solid transparent;user-select:none;transition:all 0.1s}
+.tool-btn:hover{background:var(--panel)}
+.tool-btn.active{background:var(--panel);border:1px solid #e5e7eb}
+.tool-icon{font-size:20px;line-height:1}
+.tool-btn.disabled{opacity:0.5;pointer-events:none}
+.canvas-wrap{flex-grow:1;overflow:hidden;position:relative}
+#canvas{width:100%;height:100%;position:absolute;top:0;left:0;cursor:grab}
+#board{transform-origin:top left;transition:transform 0.15s ease-out}
+#panLayer{position:absolute;top:0;left:0;width:100%;height:100%;z-index:20;cursor:grab}
+#svg{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10}
+.node{position:absolute;padding:16px 20px;min-width:180px;min-height:80px;box-shadow:var(--node-shadow);border-radius:12px;background:var(--panel);cursor:pointer;transition:all 0.15s;border:2px solid transparent}
+.node.soft{border-radius:20px}
+.node.pill{border-radius:999px}
+.node.outline{background:transparent;border:2px solid #333;box-shadow:none}
+.node.selected{border-color:var(--accent)}
+.node-title{font-weight:700;font-size:1.1rem;margin-bottom:8px}
+.node-body{font-size:0.9rem;color:#374151}
+.anchor{position:absolute;width:10px;height:10px;border-radius:50%;background:var(--link-selected);opacity:0;transition:opacity 0.1s;pointer-events:auto;z-index:30}
+.node:hover .anchor{opacity:1}
+#floatingTools{position:fixed;bottom:20px;right:20px;display:flex;gap:10px;background:var(--panel);padding:10px;border-radius:12px;box-shadow:0 10px 20px rgba(0,0,0,0.1);z-index:50}
+#floatingTools button{background:var(--panel)}
+#floatingTools.open{display:flex}
+.controls-panel{position:fixed;bottom:20px;left:20px;padding:12px;background:var(--panel);border-radius:8px;box-shadow:0 5px 15px rgba(0,0,0,0.1);z-index:50;display:flex;gap:15px;align-items:center}
+.field label{font-weight:600;display:block;margin-bottom:4px}
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:none;justify-content:center;align-items:center;z-index:1000}
+.modal-backdrop[aria-hidden="false"]{display:flex}
+.modal{background:#fff;padding:25px;width:400px;max-width:90%;border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,0.3)}
 </style>
 </head>
 <body>
-  <header class="topbar" style="justify-content:space-between; height:auto; padding:10px;">
-    <div style="display:flex; align-items:center; gap:10px;">
-        <button class="hamburger" style="position:static; color:white;">☰</button>
-        <a href="projects.html" style="color:white; text-decoration:none; font-weight:bold;">&larr; Back</a>
-    </div>
-    <div class="brand" id="workspaceTitle">LOADING...</div>
-    <div style="display:flex; gap:10px;">
-        <button id="saveIndicator" class="btn primary" style="background:green;">Saved</button>
-    </div>
-  </header>
 
-  <aside id="floatingTools" class="floating-tools" style="position:fixed; top:80px; left:20px; background:white; padding:10px; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.1);">
-    <div class="tool-row">
-      <button id="toolAddNode">+ Node</button>
-      <button id="toolConnector">Link</button>
-      <button id="toolDeleteNode">Delete</button>
+<header class="topbar" style="background:white; color:black; border-bottom:1px solid #f1f1f1;">
+    <button class="hamburger" id="menuIcon" style="color:black;">☰</button>
+    <div class="brand header-title" id="headerTitle" style="color:black;">Loading Project...</div>
+    <div style="margin-left:auto; display:flex; gap:10px; align-items:center;">
+      <button id="saveBoard" class="btn primary">Save Board</button>
+      <a href="projects.html" id="backToProjects" class="btn ghost">← Projects</a>
     </div>
-  </aside>
+</header>
 
-  <main class="viewport" style="height:calc(100vh - 60px); position:relative; overflow:hidden;">
-    <div id="panLayer" class="pan-layer" style="width:100%; height:100%;">
-      <div id="board" class="board" style="transform-origin:0 0;">
-        <div id="canvas" class="canvas" style="width:2000px; height:2000px; position:relative;"></div>
-        <svg id="svg" class="link-layer" style="position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none;"></svg>
-      </div>
+
+<div class="canvas-wrap">
+  <div id="canvas">
+    <div id="board">
+      <svg id="svg"></svg>
     </div>
-  </main>
-
-  <div id="nodeModal" class="modal-backdrop">
-      <div class="modal-box">
-          <div class="modal-title">Edit Node</div>
-          <input id="nodeTitleInput" class="modal-input" placeholder="Title">
-          <textarea id="nodeBodyInput" class="modal-input" rows="3" placeholder="Description"></textarea>
-          <div class="modal-actions">
-              <button id="closeNodeModal" class="btn-ghost">Close</button>
-              <button id="saveNodeBtn" class="btn-primary">Update</button>
-          </div>
-      </div>
+    <div id="panLayer"></div>
   </div>
+</div>
 
-  <script type="module" src="app.js"></script>
-  <script type="module" src="workspace.js"></script>
+
+<div id="floatingTools" role="toolbar" aria-label="Workspace Tools">
+  <button id="toolAddNode" class="tool-btn" aria-label="Add New Node">
+    <span class="tool-icon">+</span>
+    <span>Node</span>
+  </button>
+  <button id="toolConnector" class="tool-btn" aria-label="Connect Nodes" disabled>
+    <span class="tool-icon">🔗</span>
+    <span>Connect</span>
+  </button>
+  <button id="toolDeleteNode" class="tool-btn disabled" disabled aria-label="Delete Selected Node">
+    <span class="tool-icon">🗑️</span>
+    <span>Delete Node</span>
+  </button>
+  <button id="toolDeleteLink" class="tool-btn disabled" disabled aria-label="Delete Selected Link">
+    <span class="tool-icon">✂️</span>
+    <span>Delete Link</span>
+  </button>
+</div>
+
+
+<div class="controls-panel">
+  <div class="field">
+    <button id="zoomOutCorner" class="icon-btn" aria-label="Zoom Out" style="font-size:24px; color:#333;">-</button>
+    <span id="zoomIndicator" style="font-weight:600; width:50px; text-align:center;">100%</span>
+    <button id="zoomInCorner" class="icon-btn" aria-label="Zoom In" style="font-size:24px; color:#333;">+</button>
+  </div>
+  <div class="field">
+    <label><input id="showGrid" type="checkbox" checked> Grid</label>
+    <label>Size <input id="gridSize" type="number" value="20" min="5" max="200"></label>
+    <button id="centerBtn" class="tutorial-btn" style="background:#f3f4f6;">Center</button>
+  </div>
+</div>
+
+
+<div id="modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="modal">
+    <h3>Block settings</h3>
+    <div class="field"><label>Title</label><input id="modalTitle" type="text"></div>
+    <div class="field"><label>Body</label><textarea id="modalBody" rows="4"></textarea></div>
+    <div class="field"><label>Color</label><input id="modalColor" type="color" value="#ffffff"></div>
+    <div class="field"><label>Shape</label>
+      <select id="modalShape"><option value="card">Card</option><option value="soft">Soft</option><option value="pill">Pill</option><option value="outline">Outline</option></select>
+    </div>
+    <div class="modal-actions" style="display:flex;justify-content:space-between;margin-top:12px">
+      <button id="deleteBlock" class="btn ghost">Delete</button>
+      <div style="display:flex;gap:8px"><button id="cancelModal" class="btn ghost">Cancel</button><button id="saveModal" class="btn primary">Save</button></div>
+    </div>
+  </div>
+</div>
+
+
+<script type="module" src="firebase-config.js"></script>
+<script type="module" src="app.js"></script>
+
+<script type="module">
+  function getProjectIdFromUrl() {
+      const urlParams = new URLSearchParams(window.location.search);
+      return urlParams.get('id');
+  }
+
+  // Set the project ID globally so workspace.js can access it
+  window.currentProjectId = getProjectIdFromUrl(); 
+  
+  // Basic check and redirect if ID is missing
+  if (!window.currentProjectId) {
+      alert("Error: No Project ID found in URL. Returning to Projects.");
+      window.location.href = "projects.html";
+  } else {
+    // Optionally update the header now
+    document.getElementById('headerTitle').textContent = `Project ${window.currentProjectId.substring(0, 5)}...`;
+  }
+</script>
+<script src="workspace.js" defer></script>
 </body>
 </html>
