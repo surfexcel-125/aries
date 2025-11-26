@@ -1,15 +1,17 @@
 /* workspace.js — full replacement
-   Fixes:
-   - Accurate pointer -> board coordinate mapping using board.getBoundingClientRect()
-   - Show link-label prompt ONLY when mouseup occurs inside target node bounding box
-   - Keeps parallel link displacement, inspector protections, DOM-anchor anchors
+   Behavior changes:
+   - pointer->board mapping using board.getBoundingClientRect()
+   - anchors computed from DOM offsets
+   - parallel-link displacement
+   - label prompt shown AFTER link creation (user can cancel to remove)
+   - inspector click-ignore and typing protections
 */
 (function(){
   function ready() {
     const projectId = window.currentProjectId;
     if (!projectId) { console.error("Missing projectId"); return; }
 
-    // DOM
+    // DOM references
     const canvas = document.getElementById('canvas');
     const board = document.getElementById('board');
     const svg = document.getElementById('svg');
@@ -68,25 +70,20 @@
     const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
     const gridSize = () => parseInt(gridSizeInput.value || 25);
 
-    // Convert page/client coordinates to board coordinates (inverse of CSS transform)
+    // Convert clientX/clientY to board coordinates reliably
     function screenToBoard(sx, sy) {
       const rect = board.getBoundingClientRect();
-      // rect.left/top are where the board appears on screen after CSS transforms.
-      // To get untransformed board coords we:
-      // 1) subtract the board rect origin (rect.left/top),
-      // 2) divide by current scale to invert scale.
-      // This yields coordinates that match node positions (node.x/node.y are in board-space).
+      // Subtract board's screen origin then divide by scale to get board-space coordinates
       const x = (sx - rect.left) / transform.scale;
       const y = (sy - rect.top) / transform.scale;
       return { x, y };
     }
-
     function boardToScreen(bx, by) {
       const rect = board.getBoundingClientRect();
       return { x: rect.left + bx * transform.scale, y: rect.top + by * transform.scale };
     }
 
-    // Detect typing/focus in inspector to prevent accidental delete
+    // typing detector (to avoid accidental delete)
     function isTyping() {
       try {
         const ae = document.activeElement;
@@ -99,7 +96,7 @@
       } catch (e) { return false; }
     }
 
-    // Anchor calculation using DOM offsets (preferred) with model fallback
+    // Anchor calculation from DOM offsets (preferred), fallback to model coords
     function getAnchor(node, isTarget=false) {
       const el = document.getElementById(`node-${node.id}`);
       if (el) {
@@ -152,11 +149,11 @@
       updateInspector();
     }
 
-    // Render links & preview, with parallel splitting
+    // render links (with preview and parallel separation)
     function renderLinks() {
       while (svg.firstChild) svg.removeChild(svg.firstChild);
 
-      // preview path while drawing (dashed)
+      // dashed preview while drawing
       if (linkDraw) {
         const p = document.createElementNS('http://www.w3.org/2000/svg','path');
         const a = { x: linkDraw.x, y: linkDraw.y };
@@ -171,7 +168,7 @@
         svg.appendChild(p);
       }
 
-      // group by directional pair
+      // group links by directional pair to separate parallels
       const pairs = {};
       model.links.forEach(link => {
         const key = `${link.source}::${link.target}`;
@@ -187,6 +184,7 @@
         const s = model.nodes.find(n => n.id === link.source);
         const t = model.nodes.find(n => n.id === link.target);
         if (!s || !t) return;
+
         const p1 = getAnchor(s, false);
         const p2 = getAnchor(t, true);
 
@@ -249,7 +247,7 @@
       });
     }
 
-    // transform & grid
+    // transform + grid
     function applyTransform() {
       board.style.transform = `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`;
       zoomIndicator && (zoomIndicator.textContent = `${Math.round(transform.scale*100)}%`);
@@ -268,7 +266,6 @@
       canvas.style.backgroundSize = `${scaled}px ${scaled}px`;
       canvas.style.backgroundPosition = `${ox}px ${oy}px`;
     }
-
     function repaintUI() {
       try {
         const uiEls = document.querySelectorAll('.topbar, .header-actions, #floatingTools, .controls-panel, .header-title');
@@ -404,7 +401,7 @@
       markDirty(); renderNodes();
     });
 
-    // link draw start
+    // LINK DRAWING
     function startLinkDraw(e, sourceId) {
       e.stopPropagation();
       const src = model.nodes.find(n=>n.id===sourceId);
@@ -414,49 +411,66 @@
       canvas.style.cursor = 'crosshair';
     }
 
-    // finalize link only if release point lies inside target's DOM box
+    // finalize: create link immediately (no modal blocking), then open label modal.
     async function finalizeLinkIfPossible(evt) {
       if (!linkDraw) { linkDraw = null; canvas.style.cursor = 'default'; renderLinks(); return; }
 
-      // compute release board coords robustly using event client coordinates
-      let clientX = (evt && evt.clientX) || (window._lastMouse && window._lastMouse.clientX) || 0;
-      let clientY = (evt && evt.clientY) || (window._lastMouse && window._lastMouse.clientY) || 0;
+      // compute release client coords and board coords
+      const clientX = (evt && evt.clientX) || (window._lastMouse && window._lastMouse.clientX) || 0;
+      const clientY = (evt && evt.clientY) || (window._lastMouse && window._lastMouse.clientY) || 0;
       const boardPt = screenToBoard(clientX, clientY);
 
-      const targetEl = document.elementFromPoint(clientX, clientY) ? document.elementFromPoint(clientX, clientY).closest('.node') : null;
+      // element at point
+      const elementAt = document.elementFromPoint(clientX, clientY);
+      const targetEl = elementAt ? elementAt.closest('.node') : null;
 
-      if (targetEl && linkDraw) {
+      if (targetEl) {
         const targetId = targetEl.id.replace('node-','');
         if (targetId !== linkDraw.sourceId) {
-          // check if boardPt is inside targetEl bounding box (using offsetLeft/top/width/height)
+          // verify boardPt is inside the target element bounding box (offsetLeft/Top measured in board-space)
           const left = targetEl.offsetLeft;
           const top = targetEl.offsetTop;
           const w = targetEl.offsetWidth;
           const h = targetEl.offsetHeight;
           const inside = boardPt.x >= left && boardPt.x <= (left + w) && boardPt.y >= top && boardPt.y <= (top + h);
           if (inside) {
+            // create link first (so user sees it), with empty label
+            const newLink = { id: uid('l'), source: linkDraw.sourceId, target: targetId, label: '' };
+            model.links.push(newLink);
+            markDirty();
+            renderLinks();
+
+            // Now ask for label — if user cancels, remove the link
             try {
-              // ask for label only when released inside the target node
               const label = (window.requestTransitionLabel && typeof window.requestTransitionLabel === 'function')
                               ? await window.requestTransitionLabel('Next')
                               : window.prompt('Enter transition label (e.g., Next, Success):', 'Next');
               if (label !== null && label !== '') {
-                model.links.push({ id: uid('l'), source: linkDraw.sourceId, target: targetId, label: label.trim() });
-                markDirty();
+                // apply label and re-render
+                const linkObj = model.links.find(l => l.id === newLink.id);
+                if (linkObj) { linkObj.label = label.trim(); markDirty(); renderLinks(); }
+              } else {
+                // user cancelled or empty => remove the link we just added
+                model.links = model.links.filter(l => l.id !== newLink.id);
+                renderLinks();
               }
-            } catch (e) {
-              console.error('Label modal error', e);
+            } catch (err) {
+              console.error('Label modal error', err);
+              // if error, remove link to be safe
+              model.links = model.links.filter(l => l.id !== newLink.id);
+              renderLinks();
             }
-          } // else: release not inside target => ignore
+          }
         }
       }
 
+      // Reset preview state
       linkDraw = null;
       canvas.style.cursor = 'default';
       renderLinks();
     }
 
-    // on mouse up ends draws/drags
+    // mouse up handling
     function onUp(e) {
       if (linkDraw) {
         finalizeLinkIfPossible(e);
@@ -478,7 +492,7 @@
       }
     }
 
-    // context menu
+    // context menu & inspector open
     function nodeContext(e, nodeId) {
       e.preventDefault();
       setSelectedNodesFromClick(nodeId, e);
@@ -492,7 +506,6 @@
       document.getElementById('contextEdit').onclick = ()=> { cm.style.display='none'; openNodeInspector(model.nodes.find(n=>n.id===nodeId)); };
       document.getElementById('contextDelete').onclick = ()=> { cm.style.display='none'; deleteSelectedNode(nodeId); };
     }
-
     function openNodeInspector(node) {
       selectedNodes.clear();
       selectedNodes.add(node.id);
@@ -530,7 +543,7 @@
       canvas.style.cursor = 'grabbing';
     }
 
-    // Save the last mouse position globally to fall back if event not passed to finalize
+    // store last mouse to help finalize when event not passed
     window._lastMouse = { clientX: 0, clientY: 0 };
 
     function onMove(e) {
@@ -558,7 +571,6 @@
         }
         renderLinks();
       } else if (linkDraw) {
-        // use robust conversion from client -> board coords
         const b = screenToBoard(e.clientX, e.clientY);
         linkDraw.currentX = b.x;
         linkDraw.currentY = b.y;
@@ -566,7 +578,7 @@
       }
     }
 
-    // keyboard (with typing protection)
+    // keyboard with typing protection
     function onKey(e) {
       if (isTyping()) return;
       if ((e.key === 'Delete' || e.key === 'Backspace')) {
