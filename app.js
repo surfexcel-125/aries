@@ -5,6 +5,7 @@ import { collection, addDoc, getDocs, doc, getDoc, updateDoc, serverTimestamp, q
 /* --- 1. UI INJECTION SYSTEM --- */
 // Allows us to maintain one sidebar code for all pages
 function injectLayout() {
+    // 1. Inject Sidebar
     const sidebarHTML = `
     <div id="sidebar" class="sidebar">
         <div class="sidebar-header">
@@ -15,13 +16,18 @@ function injectLayout() {
         <a href="#" class="sidebar-button">SETTINGS</a>
     </div>`;
 
-    // Only inject sidebar if it doesn't exist
     if (!document.getElementById('sidebar')) {
         document.body.insertAdjacentHTML('afterbegin', sidebarHTML);
     }
+    
+    // 2. Inject Header elements if needed (specifically the status)
+    const topbar = document.querySelector('.topbar');
+    if (topbar && !document.getElementById('statusIndicator')) {
+        topbar.insertAdjacentHTML('beforeend', `<span id="statusIndicator" class="online-indicator offline">OFFLINE</span>`);
+    }
 
     // Logic for Sidebar Toggle
-    const menuIcon = document.querySelector('.hamburger'); // Works for both pages
+    const menuIcon = document.querySelector('.hamburger');
     const closeIcon = document.getElementById('closeIcon');
     const sidebar = document.getElementById('sidebar');
 
@@ -33,17 +39,34 @@ function injectLayout() {
     }
 }
 
+// Function to update the status text in the header
+function updateStatus(status) {
+    const statusEl = document.getElementById('statusIndicator');
+    if (statusEl) {
+        statusEl.innerText = status.toUpperCase();
+        statusEl.classList.remove('online', 'offline');
+        statusEl.classList.add(status.toLowerCase());
+    }
+}
+
+
 /* --- 2. AUTHENTICATION SERVICE --- */
 // Auto-login user anonymously so they can read/write to database immediately
 function initAuth() {
+    updateStatus('Offline'); // Initial status while connecting
+    
     onAuthStateChanged(auth, (user) => {
         if (user) {
             console.log("User logged in:", user.uid);
             window.currentUser = user;
+            updateStatus('Online'); // Change to Online upon success
             // Dispatch event for pages waiting for auth
             window.dispatchEvent(new CustomEvent('auth-ready', { detail: user }));
         } else {
-            signInAnonymously(auth).catch((error) => console.error("Auth Failed", error));
+            signInAnonymously(auth).catch((error) => {
+                console.error("Auth Failed", error);
+                updateStatus('Offline'); // Keep Offline on failure
+            });
         }
     });
 }
