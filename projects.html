@@ -5,22 +5,40 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Projects — Project Manager</title>
 
+  <!-- Montserrat for UI (short & bold) -->
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700&display=swap" rel="stylesheet">
+
   <style>
     :root{
       --page-bg: #ffffff;
-      --accent: #0b2830; /* dark teal for outlines */
+      --accent: #0b2830; /* dark teal outline */
       --muted: #cfcfcf;
       --card-bg: #dfdfdf; /* inner grey */
-      --black: #000;
       --header-black: #070707;
-      --container-border: #0b2830;
-      --pill-bg: #f6f6f6;
+      --pill-border: #4a6468;
     }
 
     /* Reset & base */
     *{box-sizing:border-box}
-    html,body{height:100%; margin:0; font-family: "Helvetica Neue", Arial, sans-serif; background:var(--page-bg); color:#111}
+    html,body{height:100%; margin:0; font-family: "Montserrat", "Segoe UI", Arial, sans-serif; background:var(--page-bg); color:#111}
     a{color:inherit; text-decoration:none}
+    button{font-family:inherit}
+
+    /* --- Typography specifics --- */
+    /* Headings use Sitka Small Semibold if available, then Sitka, then Georgia, then serif fallback */
+    .sitka-heading {
+      font-family: "Sitka Small", "Sitka", Georgia, "Times New Roman", serif;
+      font-weight: 600; /* semibold */
+      text-transform: uppercase;
+      letter-spacing: 1.8px;
+    }
+
+    /* Montserrat (short, bold) for UI labels and pills */
+    .ui-bold {
+      font-family: "Montserrat", "Segoe UI", Arial, sans-serif;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
 
     /* Top header (black) */
     .topbar{
@@ -40,8 +58,11 @@
       background:transparent; border:0; color:#fff; font-size:20px; cursor:pointer;
     }
     .brand{
-      font-weight:700; letter-spacing:2px; font-size:20px; text-align:center; min-width:200px;
+      font-size:24px; /* close to screenshot */
+      text-align:center; min-width:220px;
     }
+    .brand .sitka-heading{ font-size:24px; }
+
     .logo{
       width:36px; height:36px; object-fit:contain; margin-left:8px;
     }
@@ -55,7 +76,7 @@
     .container{
       width:100%;
       max-width:980px; /* match screenshot width */
-      border:3px solid var(--container-border);
+      border:3px solid var(--accent);
       background:#fff;
       box-shadow: 0 4px 0 rgba(0,0,0,0.02);
     }
@@ -64,17 +85,18 @@
     .projects-bar{
       display:flex; align-items:center; justify-content:space-between;
       background:var(--header-black); color:#fff; padding:14px 18px;
-      border-bottom:2px solid var(--container-border);
+      border-bottom:2px solid var(--accent);
     }
-    .projects-bar h2{ margin:0; font-size:22px; font-weight:800; letter-spacing:1px; }
+    .projects-bar h2{ margin:0; font-size:22px; }
+    .projects-bar .sitka-heading{ font-size:20px; }
+
     .new-project {
       background: linear-gradient(#e6e6e6,#cfcfcf);
       color: #111;
       border:2px solid #666;
       padding:8px 14px;
       border-radius:8px;
-      font-weight:600;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.4);
+      font-weight:700;
       cursor:pointer;
     }
 
@@ -114,15 +136,18 @@
       display:flex;
       align-items:center;
       gap:12px;
-      background:var(--pill-bg);
+      background:#f3f3f3;
       border-radius:999px;
       padding:14px 26px;
       min-width:320px;
       max-width:60%;
-      border:2px solid #4a6468;
+      border:2px solid var(--pill-border);
       font-size:20px;
-      font-weight:600;
+      font-weight:700;
+      color:#111;
     }
+    .project-name-pill.ui-bold { font-weight:700; font-family:"Montserrat", "Segoe UI", Arial, sans-serif; }
+
     .project-thumb{
       width:56px; height:56px; object-fit:cover; border-radius:8px; flex-shrink:0;
       border:1px solid rgba(0,0,0,0.06);
@@ -132,11 +157,12 @@
     .project-right{
       display:flex; flex-direction:column; align-items:flex-end; gap:8px; min-width:180px;
     }
-    .status-label{ font-size:13px; font-weight:800; letter-spacing:1px; color:var(--accent); }
+    .status-label{ font-size:13px; font-weight:800; letter-spacing:1px; color:var(--accent); font-family:"Montserrat", "Segoe UI", Arial, sans-serif; }
     .status-pill{
       display:inline-flex; align-items:center; justify-content:center;
       padding:10px 18px; border-radius:999px; border:2px solid #355a61; background:#fff; font-weight:700;
       box-shadow: 0 2px 0 rgba(0,0,0,0.05); cursor:pointer;
+      font-family:"Montserrat", "Segoe UI", Arial, sans-serif;
     }
 
     /* Action buttons row for smaller screens */
@@ -166,13 +192,12 @@
 <body>
 
   <header class="topbar" role="banner">
-    <div class="top-left">
+    <div class="top-left" aria-hidden="false">
       <button class="hamburger" aria-label="open menu">☰</button>
-      <div style="width:6px"></div>
-      <div class="brand">PROJECT MANAGER</div>
+      <div class="brand sitka-heading">PROJECT MANAGER</div>
     </div>
 
-    <!-- right logo -->
+    <!-- right logo (keeps your goat image) -->
     <img src="images/goat.png" alt="" class="logo" style="opacity:0.95">
   </header>
 
@@ -180,8 +205,8 @@
     <div class="container" role="main" aria-label="Projects container">
 
       <div class="projects-bar">
-        <h2>PROJECTS</h2>
-        <button id="createProject" class="new-project">New Project</button>
+        <h2 class="sitka-heading">PROJECTS</h2>
+        <button id="createProject" class="new-project ui-bold">New Project</button>
       </div>
 
       <div id="projectsList" class="projects-list" aria-live="polite">
@@ -246,15 +271,15 @@
             <div class="inner" role="article" aria-labelledby="proj-${p.id}">
               <div style="display:flex;align-items:center;gap:12px;">
                 <img class="project-thumb" src="${escapeHtml(p.thumb || 'images/goat.png')}" alt="thumb">
-                <div class="project-name-pill" id="proj-${p.id}">
+                <div class="project-name-pill ui-bold" id="proj-${p.id}">
                   ${escapeHtml(p.name)}
                 </div>
               </div>
 
               <div class="project-right" aria-hidden="false">
-                <div class="status-label">STATUS</div>
+                <div class="status-label ui-bold">STATUS</div>
                 <div style="display:flex; gap:8px; align-items:center;">
-                  <button class="status-pill" data-id="${p.id}" aria-haspopup="true"> 
+                  <button class="status-pill ui-bold" data-id="${p.id}" aria-haspopup="true"> 
                     ${escapeHtml(p.status || 'DROPDOWN')}
                   </button>
                 </div>
