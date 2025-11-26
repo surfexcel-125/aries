@@ -19,6 +19,14 @@
         display: inline-block;
         font-size: 12px;
     }
+
+    /* New: Explicit initial loading screen style */
+    #initialLoader {
+        text-align: center;
+        padding: 50px;
+        font-size: 1.2rem;
+        color: #666;
+    }
   </style>
 </head>
 <body>
@@ -36,8 +44,12 @@
         <button id="openNewProjectModal" class="new-project-btn">+ NEW PROJECT</button>
       </div>
 
-      <div id="projectsList" class="projects-list">
+      <div id="projectsList" class="projects-list" style="display:none;">
+        </div>
+      
+      <div id="initialLoader">
         <div class="loader-spinner"></div>
+        <p>Connecting to Aries Cloud... Please wait.</p>
       </div>
 
       <div id="noProjects" style="display:none; padding:40px; text-align:center; color:#666;">
@@ -58,10 +70,10 @@
   </div>
 
   <script type="module">
-    // Import app.js to ensure layout injection and DB helpers are available
     import './app.js'; 
 
     const listEl = document.getElementById('projectsList');
+    const initialLoader = document.getElementById('initialLoader');
     const modal = document.getElementById('newProjectModal');
     const input = document.getElementById('projectNameInput');
     const confirmBtn = document.getElementById('confirmProjectBtn');
@@ -85,47 +97,43 @@
         return row;
     }
 
-    // 1. Load Projects - This function is now the main entry point
+    // 1. Load Projects
     async function loadProjects() {
-        const projects = await window.AriesDB.getProjects();
-        
-        listEl.innerHTML = ''; // Clear spinner
-        
-        if(projects.length === 0) {
-            document.getElementById('noProjects').style.display = 'block';
-            return;
+        try {
+            // This is the line that will pause until app.js resolves the Firebase auth
+            const projects = await window.AriesDB.getProjects();
+            
+            initialLoader.style.display = 'none'; // Hide the loading message
+            listEl.style.display = 'flex'; // Show the project list
+            listEl.innerHTML = ''; // Clear any loading content
+            
+            if(projects.length === 0) {
+                document.getElementById('noProjects').style.display = 'block';
+                return;
+            }
+            document.getElementById('noProjects').style.display = 'none';
+
+            projects.forEach(p => listEl.appendChild(createProjectRow(p)));
+            
+        } catch (error) {
+            console.error("Failed to load projects:", error);
+            initialLoader.innerHTML = '<p style="color:red;">Error connecting to Aries Cloud. Check your console (F12) for network errors.</p>';
+            listEl.style.display = 'none';
         }
-        document.getElementById('noProjects').style.display = 'none';
-
-        projects.forEach(p => listEl.appendChild(createProjectRow(p)));
-        
-        // Add event listeners for status pills here if needed for status dropdown logic
     }
 
-    // 2. Event Listeners
-    // Use an IIFE and run loadProjects immediately. 
-    // The AriesDB functions in app.js wait for auth implicitly, so we still ensure data consistency, 
-    // but the UI update starts as soon as the DOM is ready, improving perceived performance.
-    
-    // We only wait for auth-ready if the user isn't already logged in (checked in app.js).
-    // The load will be quick if the user is already authenticated.
-    window.addEventListener('auth-ready', loadProjects); 
-    
-    // If the browser session is already authenticated, we don't wait for the event,
-    // we start loading right away to minimize the delay.
-    if(window.currentUser) {
-        loadProjects();
-    }
+    // Start loading immediately after DOM is ready
+    document.addEventListener('DOMContentLoaded', loadProjects);
 
 
-    // Modal Logic
+    // Modal Logic (New Project Creation)
     document.getElementById('openNewProjectModal').onclick = () => {
         modal.classList.add('active');
         input.focus();
     };
     
     document.getElementById('cancelProjectBtn').onclick = () => modal.classList.remove('active');
-    modal.addEventListener('click', (e) => { // Close if clicking outside the modal box
+    modal.addEventListener('click', (e) => { 
         if (e.target === modal) modal.classList.remove('active');
     });
 
@@ -138,7 +146,6 @@
         
         const newId = await window.AriesDB.createProject(name);
         
-        // Redirect to the workspace upon successful creation
         if (newId) {
             window.location.href = `project_detail.html?id=${newId}`;
         } else {
