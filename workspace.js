@@ -1,11 +1,8 @@
 /* workspace.js — full replacement
-   Fix: anchors computed from DOM offsets (offsetLeft/offsetTop/offsetWidth/offsetHeight)
-   Includes:
-   - anchor coordinates from DOM offsets (robust under CSS transforms)
-   - parallel link displacement to avoid overlaps
-   - in-page modal for labels (requires project_detail.html helper requestTransitionLabel)
-   - inspector click-ignore fix so inspector interactions don't clear selection
-   - typing protection to avoid deleting while editing inputs
+   Fixes:
+   - Accurate pointer -> board coordinate mapping using board.getBoundingClientRect()
+   - Show link-label prompt ONLY when mouseup occurs inside target node bounding box
+   - Keeps parallel link displacement, inspector protections, DOM-anchor anchors
 */
 (function(){
   function ready() {
@@ -60,7 +57,7 @@
     let selectedNodes = new Set();
     let selectedLinkId = null;
     let dragInfo = null;
-    let linkDraw = null;
+    let linkDraw = null; // { sourceId, x, y, currentX, currentY }
     let highestZ = 15;
     let dirty = false;
     const DEBOUNCE = 800;
@@ -70,10 +67,26 @@
     const uid = (p='n') => p + Math.random().toString(36).slice(2,9);
     const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
     const gridSize = () => parseInt(gridSizeInput.value || 25);
-    const screenToBoard = (sx, sy) => ({ x: (sx - transform.x)/transform.scale, y: (sy - transform.y)/transform.scale });
-    const boardToScreen = (bx, by) => ({ x: bx*transform.scale + transform.x, y: by*transform.scale + transform.y });
 
-    // Detect if user is typing in an input/textarea/select/contentEditable or inside the inspector.
+    // Convert page/client coordinates to board coordinates (inverse of CSS transform)
+    function screenToBoard(sx, sy) {
+      const rect = board.getBoundingClientRect();
+      // rect.left/top are where the board appears on screen after CSS transforms.
+      // To get untransformed board coords we:
+      // 1) subtract the board rect origin (rect.left/top),
+      // 2) divide by current scale to invert scale.
+      // This yields coordinates that match node positions (node.x/node.y are in board-space).
+      const x = (sx - rect.left) / transform.scale;
+      const y = (sy - rect.top) / transform.scale;
+      return { x, y };
+    }
+
+    function boardToScreen(bx, by) {
+      const rect = board.getBoundingClientRect();
+      return { x: rect.left + bx * transform.scale, y: rect.top + by * transform.scale };
+    }
+
+    // Detect typing/focus in inspector to prevent accidental delete
     function isTyping() {
       try {
         const ae = document.activeElement;
@@ -83,39 +96,34 @@
         if (ae.isContentEditable) return true;
         if (ae.closest && ae.closest('#inspector')) return true;
         return false;
-      } catch (e) {
-        return false;
-      }
+      } catch (e) { return false; }
     }
 
-    // --- anchor calculation using DOM offsets (robust) ---
+    // Anchor calculation using DOM offsets (preferred) with model fallback
     function getAnchor(node, isTarget=false) {
-      // Prefer DOM element measurements (offsetLeft/Top/Width/Height)
       const el = document.getElementById(`node-${node.id}`);
       if (el) {
-        // offsetLeft/offsetTop are relative to offsetParent (board) and unaffected by CSS transform.
         const left = el.offsetLeft;
         const top = el.offsetTop;
         const w = el.offsetWidth;
         const h = el.offsetHeight;
-        if (!isTarget) {
-          return { x: left + w, y: top + (h / 2) };
-        } else {
-          return { x: left, y: top + (h / 2) };
-        }
+        if (!isTarget) return { x: left + w, y: top + (h/2) };
+        return { x: left, y: top + (h/2) };
       }
-      // fallback to model coordinates if DOM not present
       const w = (node.w !== undefined) ? node.w : 220;
       const h = (node.h !== undefined) ? node.h : 100;
-      if (!isTarget) {
-        return { x: node.x + w, y: node.y + (h / 2) };
-      } else {
-        return { x: node.x, y: node.y + (h / 2) };
-      }
+      if (!isTarget) return { x: node.x + w, y: node.y + (h/2) };
+      return { x: node.x, y: node.y + (h/2) };
     }
 
     // render nodes
+    function escapeHtml(str) {
+      if (str == null) return '';
+      return String(str).replace(/[&<>"']/g, function(m){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])});
+    }
+
     function clearNodes() { document.querySelectorAll('.node').forEach(n=>n.remove()); }
+
     function renderNodes() {
       clearNodes();
       model.nodes.forEach(node => {
@@ -144,17 +152,11 @@
       updateInspector();
     }
 
-    // escape HTML helper
-    function escapeHtml(str) {
-      if (str == null) return '';
-      return String(str).replace(/[&<>"']/g, function(m){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])});
-    }
-
-    // --- renderLinks with parallel offsets ---
+    // Render links & preview, with parallel splitting
     function renderLinks() {
       while (svg.firstChild) svg.removeChild(svg.firstChild);
 
-      // preview while drawing
+      // preview path while drawing (dashed)
       if (linkDraw) {
         const p = document.createElementNS('http://www.w3.org/2000/svg','path');
         const a = { x: linkDraw.x, y: linkDraw.y };
@@ -169,30 +171,25 @@
         svg.appendChild(p);
       }
 
-      // Group links by directional pair to handle parallel offsets
+      // group by directional pair
       const pairs = {};
       model.links.forEach(link => {
         const key = `${link.source}::${link.target}`;
         if (!pairs[key]) pairs[key] = [];
         pairs[key].push(link);
       });
-
-      // assign parallel index for each link in its bucket
       Object.keys(pairs).forEach(key => {
         const arr = pairs[key];
         arr.forEach((link, idx) => { link._parallelIndex = idx; link._parallelCount = arr.length; });
       });
 
-      // render each link
       model.links.forEach(link => {
         const s = model.nodes.find(n => n.id === link.source);
         const t = model.nodes.find(n => n.id === link.target);
         if (!s || !t) return;
-
         const p1 = getAnchor(s, false);
         const p2 = getAnchor(t, true);
 
-        // perpendicular normal for offset
         const dx = p2.x - p1.x;
         const dy = p2.y - p1.y;
         const length = Math.sqrt(dx*dx + dy*dy) || 1;
@@ -204,7 +201,6 @@
         const count = (link._parallelCount !== undefined) ? link._parallelCount : 1;
         const middle = (count - 1) / 2;
         const offset = (idx - middle) * baseGap;
-
         const offsetX = nx * offset;
         const offsetY = ny * offset;
 
@@ -216,7 +212,6 @@
         const c1y = start.y;
         const c2x = end.x - cpDist;
         const c2y = end.y;
-
         const d = `M${start.x} ${start.y} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${end.x} ${end.y}`;
 
         const path = document.createElementNS('http://www.w3.org/2000/svg','path');
@@ -254,7 +249,7 @@
       });
     }
 
-    // transform + grid
+    // transform & grid
     function applyTransform() {
       board.style.transform = `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`;
       zoomIndicator && (zoomIndicator.textContent = `${Math.round(transform.scale*100)}%`);
@@ -274,7 +269,6 @@
       canvas.style.backgroundPosition = `${ox}px ${oy}px`;
     }
 
-    // repaint helper to avoid ghosted header/buttons after transforms
     function repaintUI() {
       try {
         const uiEls = document.querySelectorAll('.topbar, .header-actions, #floatingTools, .controls-panel, .header-title');
@@ -410,7 +404,7 @@
       markDirty(); renderNodes();
     });
 
-    // link draw
+    // link draw start
     function startLinkDraw(e, sourceId) {
       e.stopPropagation();
       const src = model.nodes.find(n=>n.id===sourceId);
@@ -420,31 +414,49 @@
       canvas.style.cursor = 'crosshair';
     }
 
+    // finalize link only if release point lies inside target's DOM box
     async function finalizeLinkIfPossible(evt) {
-      const targetEl = evt.target.closest('.node');
+      if (!linkDraw) { linkDraw = null; canvas.style.cursor = 'default'; renderLinks(); return; }
+
+      // compute release board coords robustly using event client coordinates
+      let clientX = (evt && evt.clientX) || (window._lastMouse && window._lastMouse.clientX) || 0;
+      let clientY = (evt && evt.clientY) || (window._lastMouse && window._lastMouse.clientY) || 0;
+      const boardPt = screenToBoard(clientX, clientY);
+
+      const targetEl = document.elementFromPoint(clientX, clientY) ? document.elementFromPoint(clientX, clientY).closest('.node') : null;
+
       if (targetEl && linkDraw) {
         const targetId = targetEl.id.replace('node-','');
         if (targetId !== linkDraw.sourceId) {
-          try {
-            // expects project_detail.html to provide window.requestTransitionLabel()
-            const label = (window.requestTransitionLabel && typeof window.requestTransitionLabel === 'function')
-                            ? await window.requestTransitionLabel('Next')
-                            : window.prompt('Enter transition label (e.g., Next, Success):', 'Next');
-            if (label !== null && label !== '') {
-              model.links.push({ id: uid('l'), source: linkDraw.sourceId, target: targetId, label: label.trim() });
-              markDirty();
+          // check if boardPt is inside targetEl bounding box (using offsetLeft/top/width/height)
+          const left = targetEl.offsetLeft;
+          const top = targetEl.offsetTop;
+          const w = targetEl.offsetWidth;
+          const h = targetEl.offsetHeight;
+          const inside = boardPt.x >= left && boardPt.x <= (left + w) && boardPt.y >= top && boardPt.y <= (top + h);
+          if (inside) {
+            try {
+              // ask for label only when released inside the target node
+              const label = (window.requestTransitionLabel && typeof window.requestTransitionLabel === 'function')
+                              ? await window.requestTransitionLabel('Next')
+                              : window.prompt('Enter transition label (e.g., Next, Success):', 'Next');
+              if (label !== null && label !== '') {
+                model.links.push({ id: uid('l'), source: linkDraw.sourceId, target: targetId, label: label.trim() });
+                markDirty();
+              }
+            } catch (e) {
+              console.error('Label modal error', e);
             }
-          } catch(e) {
-            console.error('Label modal error', e);
-          }
+          } // else: release not inside target => ignore
         }
       }
+
       linkDraw = null;
       canvas.style.cursor = 'default';
       renderLinks();
     }
 
-    // override onUp to call finalizeLinkIfPossible
+    // on mouse up ends draws/drags
     function onUp(e) {
       if (linkDraw) {
         finalizeLinkIfPossible(e);
@@ -518,8 +530,15 @@
       canvas.style.cursor = 'grabbing';
     }
 
+    // Save the last mouse position globally to fall back if event not passed to finalize
+    window._lastMouse = { clientX: 0, clientY: 0 };
+
     function onMove(e) {
+      window._lastMouse.clientX = e.clientX;
+      window._lastMouse.clientY = e.clientY;
+
       if (!dragInfo && !linkDraw) return;
+
       if (dragInfo && dragInfo.mode === 'pan') {
         const dx = e.clientX - dragInfo.startX;
         const dy = e.clientY - dragInfo.startY;
@@ -539,8 +558,10 @@
         }
         renderLinks();
       } else if (linkDraw) {
+        // use robust conversion from client -> board coords
         const b = screenToBoard(e.clientX, e.clientY);
-        linkDraw.currentX = b.x; linkDraw.currentY = b.y;
+        linkDraw.currentX = b.x;
+        linkDraw.currentY = b.y;
         renderLinks();
       }
     }
@@ -548,7 +569,6 @@
     // keyboard (with typing protection)
     function onKey(e) {
       if (isTyping()) return;
-
       if ((e.key === 'Delete' || e.key === 'Backspace')) {
         if (selectedNodes.size > 0) {
           Array.from(selectedNodes).forEach(id => deleteSelectedNode(id));
@@ -581,14 +601,13 @@
       markDirty();
     }
 
-    // buttons & UI bindings
+    // UI bindings
     toolAddPage && toolAddPage.addEventListener('click', ()=> addNodeAt(220,220,'page'));
     toolAddAction && toolAddAction.addEventListener('click', ()=> addNodeAt(420,220,'action'));
     toolAddDecision && toolAddDecision.addEventListener('click', ()=> addNodeAt(640,220,'decision'));
     toolDeleteNode && toolDeleteNode.addEventListener('click', ()=> { Array.from(selectedNodes).forEach(id=>deleteSelectedNode(id)); selectedNodes.clear(); renderNodes(); });
     toolDeleteLink && toolDeleteLink.addEventListener('click', deleteSelectedLink);
 
-    // pan & mouse/touch
     canvas.addEventListener('mousedown', onCanvasDown);
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
@@ -596,7 +615,6 @@
     canvas.addEventListener('touchmove', (ev)=> { const t = ev.touches[0]; onMove({ clientX: t.clientX, clientY: t.clientY }); ev.preventDefault(); }, { passive:false});
     canvas.addEventListener('touchend', (ev)=> { onUp({ clientX:0, clientY:0 }); }, { passive:false});
 
-    // zoom controls
     const zoomFactor = 1.2;
     zoomInCorner && zoomInCorner.addEventListener('click', ()=> { transform.scale = clamp(transform.scale * zoomFactor, 0.25, 2); applyTransform(); });
     zoomOutCorner && zoomOutCorner.addEventListener('click', ()=> { transform.scale = clamp(transform.scale / zoomFactor, 0.25, 2); applyTransform(); });
@@ -606,7 +624,7 @@
     showGrid && showGrid.addEventListener('change', applyTransform);
     gridSizeInput && gridSizeInput.addEventListener('change', applyTransform);
 
-    // export/import logic
+    // export/import
     document.addEventListener('workspace:importJson', (ev) => {
       const payload = ev.detail;
       if (!payload) return;
@@ -674,7 +692,7 @@
       applyTransform();
     }
 
-    // Prevent clicks inside UI panels from clearing selection
+    // prevent clicks inside UI panels from clearing selection
     document.addEventListener('click', (e)=> {
       const target = e.target;
       if (target.closest('.node') || target.closest('.link-path')) return;
