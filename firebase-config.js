@@ -1,7 +1,11 @@
-// This file contains the configuration for your Firebase project.
-// DO NOT COMMIT THIS FILE TO A PUBLIC REPOSITORY WITH REAL KEYS.
+// READY-TO-REPLACE firebase-config.js (modular v9+ example)
+// NOTE: This file must be loaded as a module: <script type="module" src="firebase-config.js"></script>
+// Replace placeholders with your actual Firebase config values. Restrict API keys / rules on server side where possible.
 
-// Replace these placeholders with your actual Firebase configuration values
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+import { getAuth } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
+import { getFirestore } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
+
 const firebaseConfig = {
   apiKey: "AIzaSyCfEZ4gJEMFfwCBq7N4XecRli0qCAThyCE",
   authDomain: "aries-48190.firebaseapp.com",
@@ -10,12 +14,10 @@ const firebaseConfig = {
   messagingSenderId: "1030954306592",
   appId: "1:1030954306592:web:1242fdf52c9b2107424045"
 };
-// Initialize Firebase
-const app = firebase.initializeApp(firebaseConfig);
 
-// Initialize services we will use
-const auth = firebase.auth();
-const db = firebase.firestore();
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
 
-// Export services for use in scripts.js
-export { auth, db };
+// Export for other modules on pages that need Firebase
+export { app, auth, db };
