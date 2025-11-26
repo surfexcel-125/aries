@@ -11,88 +11,108 @@
   <style>
     :root{
       --page-bg: #ffffff;
-      --accent: #0b2830; /* dark teal outline */
+      --accent: #0b2830;
       --muted: #cfcfcf;
-      --card-bg: #dfdfdf; /* inner grey */
+      --card-bg: #dfdfdf;
       --header-black: #070707;
       --pill-border: #4a6468;
     }
 
-    /* Reset & base */
-    *{box-sizing:border-box}
-    html,body{height:100%; margin:0; font-family: "Montserrat", "Segoe UI", Arial, sans-serif; background:var(--page-bg); color:#111}
-    a{color:inherit; text-decoration:none}
-    button{font-family:inherit}
-
-    /* --- Typography specifics --- */
-    /* Headings use Sitka Small Semibold if available, then Sitka, then Georgia, then serif fallback */
-    .sitka-heading {
-      font-family: "Sitka Small", "Sitka", Georgia, "Times New Roman", serif;
-      font-weight: 600; /* semibold */
-      text-transform: uppercase;
-      letter-spacing: 1.8px;
+    /* Reset */
+    *{box-sizing:border-box;}
+    html,body{
+      margin:0;
+      height:100%;
+      font-family: "Montserrat","Segoe UI",Arial,sans-serif;
+      background:var(--page-bg);
+      color:#111;
     }
 
-    /* Montserrat (short, bold) for UI labels and pills */
-    .ui-bold {
-      font-family: "Montserrat", "Segoe UI", Arial, sans-serif;
-      font-weight: 700;
-      letter-spacing: 0.2px;
+    /* Typography */
+    .sitka-heading{
+      font-family:"Sitka Small","Sitka",Georgia,serif;
+      font-weight:600;
+      text-transform:uppercase;
+      letter-spacing:1.8px;
+    }
+    .ui-bold{
+      font-family:"Montserrat","Segoe UI",Arial,sans-serif;
+      font-weight:700;
     }
 
-    /* Top header (black) */
+    /* --- Top Black Header --- */
     .topbar{
+      width:100%;
       background:var(--header-black);
-      color:#fff;
+      padding:14px 20px;
+      position:relative;
       display:flex;
       align-items:center;
-      justify-content:space-between;
-      padding:12px 20px;
+      justify-content:center; /* THIS CENTERS THE HEADING */
       border-bottom:3px solid rgba(255,255,255,0.05);
-      position:sticky; top:0;
-      z-index:40;
-    }
-    .top-left{display:flex; align-items:center; gap:14px;}
-    .hamburger{
-      width:34px; height:28px; display:inline-flex; align-items:center; justify-content:center;
-      background:transparent; border:0; color:#fff; font-size:20px; cursor:pointer;
     }
     .brand{
-      font-size:24px; /* close to screenshot */
-      text-align:center; min-width:220px;
+      color:#fff;
+      font-size:24px;
     }
-    .brand .sitka-heading{ font-size:24px; }
 
+    /* Left Menu Icon */
+    .hamburger{
+      position:absolute;
+      left:20px;
+      top:50%;
+      transform:translateY(-50%);
+      color:#fff;
+      background:none;
+      border:none;
+      font-size:22px;
+      cursor:pointer;
+    }
+
+    /* Right Logo */
     .logo{
-      width:36px; height:36px; object-fit:contain; margin-left:8px;
+      position:absolute;
+      right:20px;
+      top:50%;
+      transform:translateY(-50%);
+      width:36px;
+      height:36px;
+      object-fit:contain;
     }
 
-    /* Page center container */
+    /* Page Wrapper */
     .page-wrap{
       display:flex;
       justify-content:center;
       padding:28px 12px 64px;
     }
+
+    /* Main container (border box) */
     .container{
       width:100%;
-      max-width:980px; /* match screenshot width */
+      max-width:980px;
       border:3px solid var(--accent);
       background:#fff;
-      box-shadow: 0 4px 0 rgba(0,0,0,0.02);
     }
 
-    /* Projects header bar */
+    /* PROJECTS black header */
     .projects-bar{
-      display:flex; align-items:center; justify-content:space-between;
-      background:var(--header-black); color:#fff; padding:14px 18px;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      padding:14px 18px;
+      background:var(--header-black);
+      color:#fff;
       border-bottom:2px solid var(--accent);
     }
-    .projects-bar h2{ margin:0; font-size:22px; }
-    .projects-bar .sitka-heading{ font-size:20px; }
+    .projects-bar h2{
+      margin:0;
+      font-size:20px;
+    }
 
-    .new-project {
-      background: linear-gradient(#e6e6e6,#cfcfcf);
-      color: #111;
+    .new-project{
+      background:linear-gradient(#e6e6e6,#cfcfcf);
+      color:#111;
       border:2px solid #666;
       padding:8px 14px;
       border-radius:8px;
@@ -100,120 +120,110 @@
       cursor:pointer;
     }
 
-    /* Projects list area */
+    /* Project list */
     .projects-list{
       padding:22px;
-      display:flex; flex-direction:column; gap:22px;
-    }
-
-    /* Single project row style (outer rounded box with thick outline like screenshot) */
-    .project-row{
-      border-radius:14px;
-      border:3px solid var(--accent);
-      padding:16px;
-      background:transparent;
       display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:18px;
+      flex-direction:column;
+      gap:22px;
     }
 
-    /* Inner grey area */
-    .project-row .inner{
+    /* Project row outer border */
+    .project-row{
+      border:3px solid var(--accent);
+      border-radius:14px;
+      padding:16px;
+    }
+
+    /* Grey inner box */
+    .inner{
       background:var(--card-bg);
       border-radius:12px;
-      width:100%;
-      padding:18px 18px;
+      padding:18px;
       display:flex;
-      align-items:center;
       justify-content:space-between;
+      align-items:center;
       gap:18px;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.25);
     }
 
-    /* Left: project name pill */
+    /* Project pill */
     .project-name-pill{
       display:flex;
       align-items:center;
       gap:12px;
-      background:#f3f3f3;
-      border-radius:999px;
       padding:14px 26px;
-      min-width:320px;
-      max-width:60%;
+      border-radius:999px;
       border:2px solid var(--pill-border);
+      background:#f3f3f3;
       font-size:20px;
+      font-family:"Montserrat";
       font-weight:700;
-      color:#111;
+      cursor:pointer;
     }
-    .project-name-pill.ui-bold { font-weight:700; font-family:"Montserrat", "Segoe UI", Arial, sans-serif; }
 
     .project-thumb{
-      width:56px; height:56px; object-fit:cover; border-radius:8px; flex-shrink:0;
-      border:1px solid rgba(0,0,0,0.06);
+      width:56px;
+      height:56px;
+      object-fit:cover;
+      border-radius:8px;
     }
 
-    /* Right: status block */
+    /* Right status block */
     .project-right{
-      display:flex; flex-direction:column; align-items:flex-end; gap:8px; min-width:180px;
+      min-width:170px;
+      display:flex;
+      flex-direction:column;
+      align-items:flex-end;
+      gap:8px;
     }
-    .status-label{ font-size:13px; font-weight:800; letter-spacing:1px; color:var(--accent); font-family:"Montserrat", "Segoe UI", Arial, sans-serif; }
+    .status-label{
+      font-weight:800;
+      letter-spacing:1px;
+      font-size:13px;
+      font-family:"Montserrat";
+      color:var(--accent);
+    }
     .status-pill{
-      display:inline-flex; align-items:center; justify-content:center;
-      padding:10px 18px; border-radius:999px; border:2px solid #355a61; background:#fff; font-weight:700;
-      box-shadow: 0 2px 0 rgba(0,0,0,0.05); cursor:pointer;
-      font-family:"Montserrat", "Segoe UI", Arial, sans-serif;
+      border:2px solid #355a61;
+      background:#fff;
+      border-radius:999px;
+      padding:10px 18px;
+      font-family:"Montserrat";
+      font-weight:700;
+      cursor:pointer;
     }
 
-    /* Action buttons row for smaller screens */
-    .row-actions{
-      display:flex; gap:10px; margin-left:14px;
+    /* Footer */
+    .page-footer{
+      text-align:center;
+      padding:10px;
+      font-size:12px;
+      color:#444;
     }
-    .btn-ghost{
-      border:1px solid #9a9a9a; background:transparent; padding:8px 12px; border-radius:8px; cursor:pointer;
-    }
-
-    /* Responsive tweaks */
-    @media (max-width:880px){
-      .project-name-pill{ min-width:180px; max-width:55%; padding:12px 18px; font-size:16px; }
-      .project-right{ min-width:140px; }
-      .container{ margin:0 12px; }
-    }
-    @media (max-width:560px){
-      .inner{ flex-direction:column; align-items:flex-start; gap:12px; }
-      .project-row{ padding:12px; }
-      .project-right{ align-self:stretch; width:100%; flex-direction:row; justify-content:space-between; }
-    }
-
-    /* footer */
-    .page-footer{ padding:10px 18px; font-size:12px; color:#444; text-align:center; }
   </style>
 </head>
 <body>
 
-  <header class="topbar" role="banner">
-    <div class="top-left" aria-hidden="false">
-      <button class="hamburger" aria-label="open menu">☰</button>
-      <div class="brand sitka-heading">PROJECT MANAGER</div>
-    </div>
-
-    <!-- right logo (keeps your goat image) -->
-    <img src="images/goat.png" alt="" class="logo" style="opacity:0.95">
+  <!-- TOP HEADER -->
+  <header class="topbar">
+    <button class="hamburger">☰</button>
+    <div class="brand sitka-heading">PROJECT MANAGER</div>
+    <img src="images/goat.png" class="logo">
   </header>
 
   <div class="page-wrap">
-    <div class="container" role="main" aria-label="Projects container">
+    <div class="container">
 
+      <!-- PROJECTS header -->
       <div class="projects-bar">
         <h2 class="sitka-heading">PROJECTS</h2>
         <button id="createProject" class="new-project ui-bold">New Project</button>
       </div>
 
-      <div id="projectsList" class="projects-list" aria-live="polite">
-        <!-- Rendered project rows -->
-      </div>
+      <!-- Project list -->
+      <div id="projectsList" class="projects-list"></div>
 
-      <div id="noProjects" style="display:none; padding:28px 22px; color:#333; text-align:center;">
+      <div id="noProjects" style="display:none; padding:28px 22px; text-align:center;">
         No projects yet. Click <strong>New Project</strong> to create one.
       </div>
 
@@ -221,6 +231,7 @@
     </div>
   </div>
 
+  <!-- JS -->
   <script>
     (function(){
       const projectsKey = 'aries_projects_v1';
@@ -228,103 +239,65 @@
       const createBtn = document.getElementById('createProject');
       const noProjects = document.getElementById('noProjects');
 
-      function loadProjects() {
-        try {
+      function loadProjects(){
+        try{
           const raw = localStorage.getItem(projectsKey);
           return raw ? JSON.parse(raw) : [];
-        } catch (e) { return []; }
+        }catch(e){return [];}
       }
-
-      function saveProjects(list) {
+      function saveProjects(list){
         localStorage.setItem(projectsKey, JSON.stringify(list));
       }
-
-      function makeId() {
+      function makeId(){
         return Date.now().toString(36) + Math.random().toString(36).slice(2,8);
       }
+      function escapeHtml(s){
+        return s.replace(/[&<>"']/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
+      }
 
-      function openWorkspace(id) {
-        // navigate to project detail page (if exists)
+      function openWorkspace(id){
         window.location.href = `project_detail.html?id=${encodeURIComponent(id)}`;
       }
 
-      function escapeHtml(s) {
-        if (s === undefined || s === null) return '';
-        return String(s).replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-      }
-
-      function render() {
+      function render(){
         const projects = loadProjects();
         projectsList.innerHTML = '';
 
-        if (!projects.length) {
-          noProjects.style.display = 'block';
+        if(!projects.length){
+          noProjects.style.display='block';
           return;
-        } else {
-          noProjects.style.display = 'none';
         }
+        noProjects.style.display='none';
 
-        projects.forEach(p => {
+        projects.forEach(p=>{
           const row = document.createElement('div');
-          row.className = 'project-row';
-          row.innerHTML = `
-            <div class="inner" role="article" aria-labelledby="proj-${p.id}">
+          row.className='project-row';
+
+          row.innerHTML=`
+            <div class="inner">
               <div style="display:flex;align-items:center;gap:12px;">
-                <img class="project-thumb" src="${escapeHtml(p.thumb || 'images/goat.png')}" alt="thumb">
-                <div class="project-name-pill ui-bold" id="proj-${p.id}">
-                  ${escapeHtml(p.name)}
-                </div>
+                <img class="project-thumb" src="${p.thumb || 'images/goat.png'}">
+                <div class="project-name-pill ui-bold">${escapeHtml(p.name)}</div>
               </div>
 
-              <div class="project-right" aria-hidden="false">
-                <div class="status-label ui-bold">STATUS</div>
-                <div style="display:flex; gap:8px; align-items:center;">
-                  <button class="status-pill ui-bold" data-id="${p.id}" aria-haspopup="true"> 
-                    ${escapeHtml(p.status || 'DROPDOWN')}
-                  </button>
-                </div>
+              <div class="project-right">
+                <div class="status-label">STATUS</div>
+                <button class="status-pill ui-bold">${escapeHtml(p.status || 'DROPDOWN')}</button>
               </div>
             </div>
           `;
 
-          // attach actions: clicking name pill opens project
-          row.querySelector('.project-name-pill').style.cursor = 'pointer';
-          row.querySelector('.project-name-pill').addEventListener('click', () => openWorkspace(p.id));
+          row.querySelector('.project-name-pill').addEventListener('click',()=>openWorkspace(p.id));
 
-          // status pill click opens a small menu (simple prompt for demo)
-          row.querySelector('.status-pill').addEventListener('click', (e) => {
-            e.preventDefault();
-            const newStatus = prompt('Set status (e.g., Active, Paused, Done)', p.status || 'Active');
-            if (newStatus !== null) {
-              p.status = newStatus.trim() || p.status;
-              const all = loadProjects();
-              const idx = all.findIndex(x => x.id === p.id);
-              if (idx > -1) { all[idx] = p; saveProjects(all); render(); }
-            }
-          });
-
-          // context actions (edit / delete) accessible via right-click menu (fallback buttons on small screens)
-          row.addEventListener('contextmenu', (ev) => {
-            ev.preventDefault();
-            const choice = prompt('Type "edit" to rename, "delete" to remove, or "open" to open project', 'open');
-            if (!choice) return;
-            const action = choice.toLowerCase().trim();
-            if (action === 'open') return openWorkspace(p.id);
-            if (action === 'edit') {
-              const newName = prompt('Edit project name:', p.name);
-              if (newName !== null) {
-                p.name = newName.trim() || p.name;
-                const all = loadProjects();
-                const idx = all.findIndex(x => x.id === p.id);
-                if (idx > -1) { all[idx] = p; saveProjects(all); render(); }
-              }
-            }
-            if (action === 'delete') {
-              if (confirm('Delete this project? This cannot be undone.')) {
-                const all = loadProjects();
-                const idx = all.findIndex(x => x.id === p.id);
-                if (idx > -1) { all.splice(idx,1); saveProjects(all); render(); }
-              }
+          row.querySelector('.status-pill').addEventListener('click',()=>{
+            const newStatus=prompt('Status:', p.status || 'DROPDOWN');
+            if(newStatus!==null){
+              p.status=newStatus.trim();
+              const all=loadProjects();
+              const idx=all.findIndex(x=>x.id===p.id);
+              all[idx]=p;
+              saveProjects(all);
+              render();
             }
           });
 
@@ -332,44 +305,29 @@
         });
       }
 
-      createBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        const name = prompt('Project name', 'New Project');
-        if (!name) return;
-        const projects = loadProjects();
-        const id = makeId();
-        const newProject = {
-          id,
-          name: name.trim(),
-          description: 'New workspace',
-          createdAt: Date.now(),
-          status: 'DROPDOWN',
-          thumb: 'images/goat.png'
-        };
-        projects.unshift(newProject);
+      createBtn.addEventListener('click',()=>{
+        const name=prompt('Project name:','New Project');
+        if(!name) return;
+        const projects=loadProjects();
+        const id=makeId();
+        projects.unshift({ id, name:name.trim(), status:'DROPDOWN', thumb:'images/goat.png' });
         saveProjects(projects);
         render();
-        // open immediately
         openWorkspace(id);
       });
 
-      // bootstrap with sample data if empty
-      (function seedIfEmpty(){
-        const p = loadProjects();
-        if (!p.length) {
-          const sample = [
-            { id:'1', name:'Project Name 1', description:'Task board', createdAt: Date.now()-86400000, status:'DROPDOWN', thumb:'images/goat.png' },
-            { id:'2', name:'Project Name 2', description:'Roadmap', createdAt: Date.now()-3600000, status:'DROPDOWN', thumb:'images/goat.png' },
-            { id:'3', name:'Project Name 3', description:'Design & assets', createdAt: Date.now()-7200000, status:'DROPDOWN', thumb:'images/goat.png' },
-            { id:'4', name:'Project Name 4', description:'Marketing', createdAt: Date.now()-12000000, status:'DROPDOWN', thumb:'images/goat.png' }
-          ];
-          saveProjects(sample);
+      (function seed(){
+        const p=loadProjects();
+        if(!p.length){
+          saveProjects([
+            {id:'1',name:'Project Name 1',status:'DROPDOWN',thumb:'images/goat.png'},
+            {id:'2',name:'Project Name 2',status:'DROPDOWN',thumb:'images/goat.png'}
+          ]);
         }
       })();
 
       render();
     })();
   </script>
-
 </body>
 </html>
