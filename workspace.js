@@ -1,10 +1,10 @@
-/* workspace.js — full replacement
-   Features:
-   - anchor coordinates from model w/h (board coords)
-   - parallel link displacement to avoid overlaps
-   - in-page modal for labels (requires project_detail.html helper requestTransitionLabel)
-   - inspector click-ignore fix so clicks inside inspector don't deselect nodes
-   - repaint helper to avoid header/button ghosting
+/* workspace.js — full replacement (prevent accidental delete while typing)
+   - Avoids deleting nodes/links when user is editing inspector inputs.
+   - Anchor coords from model w/h (board coords)
+   - Parallel link displacement to avoid overlaps
+   - In-page modal supported for labels (window.requestTransitionLabel)
+   - Inspector click-ignore fix so inspector interactions don't clear selection
+   - Repaint helper to avoid header ghosting after zoom/pan
 */
 (function(){
   function ready() {
@@ -72,9 +72,24 @@
     const screenToBoard = (sx, sy) => ({ x: (sx - transform.x)/transform.scale, y: (sy - transform.y)/transform.scale });
     const boardToScreen = (bx, by) => ({ x: bx*transform.scale + transform.x, y: by*transform.scale + transform.y });
 
+    // Detect if user is typing in an input/textarea/select/contentEditable or inside the inspector.
+    function isTyping() {
+      try {
+        const ae = document.activeElement;
+        if (!ae) return false;
+        const tag = (ae.tagName || '').toUpperCase();
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+        if (ae.isContentEditable) return true;
+        // If focus is inside the inspector, treat as typing (covers clicks into inspector controls)
+        if (ae.closest && ae.closest('#inspector')) return true;
+        return false;
+      } catch (e) {
+        return false;
+      }
+    }
+
     // --- anchor calculation (board coords) ---
     function getAnchor(node, isTarget=false) {
-      // Use the model's stored width/height (board coords) instead of reading element sizes with scale math.
       const w = (node.w !== undefined) ? node.w : 220;
       const h = (node.h !== undefined) ? node.h : 100;
       if (!isTarget) {
@@ -114,7 +129,7 @@
       updateInspector();
     }
 
-    // small escape helper for innerHTML to avoid injection
+    // escape HTML
     function escapeHtml(str) {
       if (str == null) return '';
       return String(str).replace(/[&<>"']/g, function(m){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])});
@@ -515,8 +530,11 @@
       }
     }
 
-    // keyboard
+    // keyboard (with typing protection)
     function onKey(e) {
+      // if user is typing in an input/textarea/select/contentEditable or inspector, don't trigger delete actions
+      if (isTyping()) return;
+
       if ((e.key === 'Delete' || e.key === 'Backspace')) {
         if (selectedNodes.size > 0) {
           Array.from(selectedNodes).forEach(id => deleteSelectedNode(id));
