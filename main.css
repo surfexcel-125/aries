@@ -342,3 +342,48 @@ header.project-detail-header .header-title {
 .project-card-link:hover .project-card {
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.2); /* Subtle hover effect */
 }
+/* --- Project Switcher Dropdown Styles (New) --- */
+
+.project-dropdown-menu {
+    position: absolute;
+    top: 80px; /* Position right below the header (header height + margin) */
+    left: 10px; /* Aligned with the project name */
+    width: 250px;
+    background-color: black;
+    z-index: 90; /* Below the sidebar (100) but above content */
+    border-radius: 5px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+    display: none; /* Starts hidden */
+    padding: 5px 0;
+}
+
+.project-dropdown-menu.visible {
+    display: block; /* Shown via JavaScript */
+}
+
+/* Styling for the individual project buttons inside the dropdown */
+.dropdown-project-button {
+    padding: 8px 15px;
+    text-decoration: none;
+    font-size: 14px;
+    
+    /* STYLES matching the small Project buttons: */
+    background-color: black; /* Default state */
+    color: white; 
+    border: 1px solid black; /* Matches background for initial look */
+    border-radius: 4px; 
+    
+    display: block; 
+    margin: 5px 10px; /* Spacing between buttons */
+    text-align: center;
+    
+    font-family: Arial, sans-serif;
+    font-weight: bold;
+    transition: background-color 0.2s;
+}
+
+.dropdown-project-button:hover,
+.dropdown-project-button.active {
+    background-color: white; /* White background on hover or active */
+    color: black;
+}
