@@ -1,14 +1,19 @@
-/* workspace.js — replacement module
-   - Drag, pan, zoom, connectors, save/load, keyboard Delete, snap-to-grid, improved anchors
-   - Expects window.AriesDB.loadProjectData and saveProjectWorkspace (from your app.js/firebase helpers).
+/* workspace.js — all-features replacement
+   Features:
+     - Multi-select (Shift+click), group move (drag one node)
+     - Inspector (right-side) edit node properties
+     - Export / Import JSON (download/upload)
+     - Auto-resize board to content & Zoom-to-fit
+     - Improved anchors/connectors, snap-to-grid, keyboard delete
+   Notes:
+     - Expects window.AriesDB.saveProjectWorkspace(projectId, nodes, links) and loadProjectData(projectId)
 */
 (function(){
-  // Helpers & state
-  const ready = () => {
+  function ready() {
     const projectId = window.currentProjectId;
     if (!projectId) { console.error("Missing projectId"); return; }
 
-    // Elements
+    // DOM
     const canvas = document.getElementById('canvas');
     const board = document.getElementById('board');
     const svg = document.getElementById('svg');
@@ -27,61 +32,66 @@
     const zoomInCorner = document.getElementById('zoomInCorner');
     const zoomOutCorner = document.getElementById('zoomOutCorner');
     const centerBtn = document.getElementById('centerBtn');
+    const zoomFitBtn = document.getElementById('zoomFitBtn');
 
-    const modal = document.getElementById('modal');
-    const modalProjectId = document.getElementById('modalProjectId');
-    const modalTitle = document.getElementById('modalTitle');
-    const modalBody = document.getElementById('modalBody');
-    const deleteBlock = document.getElementById('deleteBlock');
-    const cancelModal = document.getElementById('cancelModal');
-    const saveModal = document.getElementById('saveModal');
+    const inspector = document.getElementById('inspector');
+    const selectedCount = document.getElementById('selectedCount');
+    const inspectorSingle = document.getElementById('inspectorSingle');
+    const inspectorMulti = document.getElementById('inspectorMulti');
+    const inspectorId = document.getElementById('inspectorId');
+    const inspectorType = document.getElementById('inspectorType');
+    const inspectorTitle = document.getElementById('inspectorTitle');
+    const inspectorBody = document.getElementById('inspectorBody');
+    const inspectorW = document.getElementById('inspectorW');
+    const inspectorH = document.getElementById('inspectorH');
+    const inspectorSave = document.getElementById('inspectorSave');
+    const inspectorDelete = document.getElementById('inspectorDelete');
+    const statusMeta = document.getElementById('statusMeta');
 
-    const contextMenu = document.getElementById('contextMenu');
-    const contextEdit = document.getElementById('contextEdit');
-    const contextDelete = document.getElementById('contextDelete');
+    const exportBtn = document.getElementById('exportBtn');
+    const importFile = document.getElementById('importFile');
+    const exportJsonBtn = document.getElementById('exportJson');
+    const importJsonBtn = document.getElementById('importJsonBtn');
+    const autosizeBtn = document.getElementById('autosizeBtn');
+    const clearAllBtn = document.getElementById('clearAllBtn');
 
-    // Model
+    // state
     let model = { nodes: [], links: [] };
     let transform = { x: 0, y: 0, scale: 1 };
-    let selectedNodeId = null;
+    let selectedNodes = new Set();
     let selectedLinkId = null;
     let dragInfo = null;
     let linkDraw = null;
     let activeModalNode = null;
     let highestZ = 15;
+    let dirty = false;
+    const DEBOUNCE = 800;
     let autoSaveTimer = null;
-    const DEBOUNCE = 1000;
 
-    // Utilities
+    // helpers
     const uid = (p='n') => p + Math.random().toString(36).slice(2,9);
     const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
     const gridSize = () => parseInt(gridSizeInput.value || 25);
     const screenToBoard = (sx, sy) => ({ x: (sx - transform.x)/transform.scale, y: (sy - transform.y)/transform.scale });
     const boardToScreen = (bx, by) => ({ x: bx*transform.scale + transform.x, y: by*transform.scale + transform.y });
 
-    // Anchor computation: returns board coordinates for anchor on node boundary
+    // anchor position on node edge in board coords
     function getAnchor(node, isTarget=false) {
       const el = document.getElementById(`node-${node.id}`);
-      if (!el) {
-        return { x: node.x + (node.w||200)/2, y: node.y + (node.h||100)/2 };
-      }
+      if (!el) return { x: node.x + (node.w||200)/2, y: node.y + (node.h||100)/2 };
       const w = el.offsetWidth / transform.scale;
       const h = el.offsetHeight / transform.scale;
-      // default to mid-right for output, mid-left for input
-      if (!isTarget) {
-        return { x: node.x + w, y: node.y + h/2 };
-      } else {
-        return { x: node.x, y: node.y + h/2 };
-      }
+      if (!isTarget) return { x: node.x + w, y: node.y + h/2 };
+      return { x: node.x, y: node.y + h/2 };
     }
 
-    // Rendering
-    function clearNodes() { document.querySelectorAll('.node').forEach(n => n.remove()); }
+    // render
+    function clearNodes() { document.querySelectorAll('.node').forEach(n=>n.remove()); }
     function renderNodes() {
       clearNodes();
       model.nodes.forEach(node => {
         const el = document.createElement('div');
-        el.className = `node node-type-${node.type} ${node.id===selectedNodeId ? 'selected' : ''}`;
+        el.className = `node node-type-${node.type} ${selectedNodes.has(node.id) ? 'selected' : ''}`;
         el.id = `node-${node.id}`;
         el.style.left = `${node.x}px`;
         el.style.top = `${node.y}px`;
@@ -91,24 +101,22 @@
           el.style.height = `${node.h}px`;
         }
         el.innerHTML = `<div class="node-title">${node.title}</div><div class="node-body">${node.body}</div>`;
-        // anchor
         const out = document.createElement('div');
         out.className = 'anchor output-anchor';
         out.addEventListener('mousedown', e => startLinkDraw(e, node.id));
         el.appendChild(out);
 
         el.addEventListener('mousedown', e => handleNodeDown(e, node.id));
-        el.addEventListener('dblclick', e => { e.stopPropagation(); openNodeModal(node); });
+        el.addEventListener('dblclick', e => { e.stopPropagation(); openNodeInspector(node); });
         el.addEventListener('contextmenu', e => nodeContext(e, node.id));
         board.appendChild(el);
       });
       renderLinks();
+      updateInspector();
     }
 
     function renderLinks() {
-      // clear svg paths
       while (svg.firstChild) svg.removeChild(svg.firstChild);
-      // temporary link (while drawing)
       if (linkDraw) {
         const p = document.createElementNS('http://www.w3.org/2000/svg','path');
         const a = { x: linkDraw.x, y: linkDraw.y };
@@ -119,7 +127,7 @@
         p.setAttribute('stroke', 'var(--accent)');
         p.setAttribute('stroke-width', 3);
         p.setAttribute('fill', 'none');
-        p.setAttribute('stroke-dasharray','8,8');
+        p.setAttribute('stroke-dasharray','6,6');
         svg.appendChild(p);
       }
 
@@ -143,11 +151,10 @@
         path.classList.add('link-path');
         path.id = `link-${link.id}`;
         path.style.cursor = 'pointer';
-        // make clickable by overlaying invisible path that accepts pointer events
         path.addEventListener('click', e => {
           e.stopPropagation();
           selectedLinkId = link.id;
-          selectedNodeId = null;
+          selectedNodes.clear();
           toolDeleteLink.disabled = false;
           toolDeleteNode.disabled = true;
           renderNodes(); renderLinks();
@@ -168,14 +175,13 @@
       });
     }
 
-    // Transform & grid drawing
+    // transform + grid
     function applyTransform() {
       board.style.transform = `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`;
       zoomIndicator && (zoomIndicator.textContent = `${Math.round(transform.scale*100)}%`);
       updateGrid();
       renderLinks();
     }
-
     function updateGrid() {
       if (!showGrid.checked) { canvas.style.backgroundImage = 'none'; return; }
       const size = gridSize();
@@ -188,102 +194,177 @@
       canvas.style.backgroundPosition = `${ox}px ${oy}px`;
     }
 
-    // Model CRUD
-    function addNodeAt(x, y, type) {
-      // x,y are board coords
-      const snap = gridSize();
-      const nx = Math.round(x / snap) * snap;
-      const ny = Math.round(y / snap) * snap;
+    // model operations
+    function addNodeAt(x,y,type,opts={}) {
+      const s = gridSize();
+      const nx = Math.round(x / s) * s;
+      const ny = Math.round(y / s) * s;
       highestZ++;
-      const base = { id: uid('n'), x: nx, y: ny, w:220, h:100, type, zIndex: highestZ };
-      if (type === 'page') base.title = 'New Page', base.body='Website Page or Screen';
-      else if (type === 'action') base.title='User Action', base.body='User event';
+      const base = { id: uid('n'), x: nx, y: ny, w:220, h:100, type, zIndex: highestZ, title:'New', body:'' };
+      if (type === 'page') base.title = 'New Page', base.body='Website Page';
+      else if (type === 'action') base.title='Action', base.body='User event';
       else if (type === 'decision') { base.title='Decision'; base.body='Condition'; base.w=150; base.h=150; }
+      Object.assign(base, opts);
       model.nodes.push(base);
-      triggerSave();
+      markDirty();
       renderNodes();
+      return base;
     }
 
+    function markDirty() { dirty = true; statusMeta.textContent = 'Unsaved changes'; clearTimeout(autoSaveTimer); autoSaveTimer = setTimeout(saveModel, DEBOUNCE); saveBoardBtn.textContent = 'Saving...'; }
     async function saveModel() {
+      if (!dirty) return;
       if (!window.AriesDB || !window.AriesDB.saveProjectWorkspace) {
         console.warn('No AriesDB.saveProjectWorkspace found');
+        dirty = false; statusMeta.textContent = 'Local only';
+        saveBoardBtn.textContent = 'Save Board';
         return;
       }
       try {
-        saveBoardBtn.textContent = 'Saving...';
         await window.AriesDB.saveProjectWorkspace(projectId, model.nodes, model.links);
+        dirty = false; statusMeta.textContent = 'Saved';
         saveBoardBtn.textContent = 'Saved!';
-        setTimeout(()=> saveBoardBtn.textContent = 'Save Board', 1400);
+        setTimeout(()=> saveBoardBtn.textContent = 'Save Board', 1200);
       } catch (err) {
         console.error('Save failed', err);
+        statusMeta.textContent = 'Save failed';
         saveBoardBtn.textContent = 'Save Failed';
-        setTimeout(()=> saveBoardBtn.textContent = 'Save Board', 2000);
+        setTimeout(()=> saveBoardBtn.textContent = 'Save Board', 1400);
       }
-    }
-
-    function triggerSave() {
-      clearTimeout(autoSaveTimer);
-      autoSaveTimer = setTimeout(saveModel, DEBOUNCE);
-      saveBoardBtn && (saveBoardBtn.textContent = 'Saving...');
     }
 
     async function loadModel() {
-      if (!window.AriesDB || !window.AriesDB.loadProjectData) {
-        seedModel(); return;
-      }
+      if (!window.AriesDB || !window.AriesDB.loadProjectData) { seedModel(); renderNodes(); return; }
       try {
         const d = await window.AriesDB.loadProjectData(projectId);
         if (d) {
           headerTitle && (headerTitle.textContent = d.name || headerTitle.textContent);
-          model.nodes = d.nodes || [];
-          model.links = d.links || [];
+          model.nodes = (d.nodes || []).map(n => ({ ...n }));
+          model.links = (d.links || []).map(l => ({ ...l }));
           highestZ = model.nodes.reduce((m,n)=> Math.max(m,n.zIndex||15), 15);
         } else seedModel();
       } catch (err) { console.error('Load failed', err); seedModel(); }
       applyTransform(); renderNodes();
     }
 
-    function seedModel() {
+    function seedModel(){
       if (model.nodes.length === 0) {
-        addNodeAt(200,200,'page');
-        addNodeAt(480,200,'action');
-        addNodeAt(760,200,'decision');
+        addNodeAt(200,200,'page',{title:'Home'});
+        addNodeAt(520,200,'action',{title:'Login'});
+        addNodeAt(860,200,'decision',{title:'Auth?'});
       }
     }
 
-    // Events & interactions
+    // selection & inspector
+    function setSelectedNodesFromClick(nodeId, ev) {
+      if (ev.shiftKey) {
+        if (selectedNodes.has(nodeId)) selectedNodes.delete(nodeId); else selectedNodes.add(nodeId);
+      } else {
+        selectedNodes.clear();
+        selectedNodes.add(nodeId);
+      }
+      selectedLinkId = null;
+      toolDeleteNode.disabled = false;
+      toolDeleteLink.disabled = true;
+      renderNodes(); renderLinks(); updateInspector();
+    }
+
+    function updateInspector() {
+      selectedCount.textContent = selectedNodes.size;
+      if (selectedNodes.size === 0) {
+        inspectorSingle.style.display = 'none'; inspectorMulti.style.display = 'none';
+      } else if (selectedNodes.size === 1) {
+        inspectorMulti.style.display = 'none'; inspectorSingle.style.display = 'block';
+        const id = Array.from(selectedNodes)[0];
+        const node = model.nodes.find(n=>n.id===id);
+        if (node) {
+          inspectorId.textContent = node.id;
+          inspectorType.value = node.type;
+          inspectorTitle.value = node.title;
+          inspectorBody.value = node.body;
+          inspectorW.value = parseInt(node.w||220);
+          inspectorH.value = parseInt(node.h||100);
+        }
+      } else {
+        inspectorSingle.style.display = 'none'; inspectorMulti.style.display = 'block';
+      }
+    }
+
+    function applyInspectorToNode() {
+      if (selectedNodes.size !== 1) return;
+      const id = Array.from(selectedNodes)[0];
+      const node = model.nodes.find(n=>n.id===id);
+      if (!node) return;
+      node.type = inspectorType.value;
+      node.title = inspectorTitle.value;
+      node.body = inspectorBody.value;
+      node.w = parseInt(inspectorW.value) || node.w;
+      node.h = parseInt(inspectorH.value) || node.h;
+      markDirty(); renderNodes();
+    }
+
+    inspectorSave.addEventListener('click', applyInspectorToNode);
+    inspectorDelete.addEventListener('click', ()=> { if (selectedNodes.size === 1) { deleteSelectedNode(Array.from(selectedNodes)[0]); }});
+    document.getElementById('alignLeft').addEventListener('click', ()=> {
+      if (selectedNodes.size<2) return;
+      const arr = Array.from(selectedNodes).map(id=>model.nodes.find(n=>n.id===id));
+      const left = Math.min(...arr.map(n=>n.x));
+      arr.forEach(n=> n.x = left);
+      markDirty(); renderNodes();
+    });
+    document.getElementById('alignTop').addEventListener('click', ()=> {
+      if (selectedNodes.size<2) return;
+      const arr = Array.from(selectedNodes).map(id=>model.nodes.find(n=>n.id===id));
+      const top = Math.min(...arr.map(n=>n.y));
+      arr.forEach(n=> n.y = top);
+      markDirty(); renderNodes();
+    });
+
+    // events: link draw
     function startLinkDraw(e, sourceId) {
       e.stopPropagation();
       const src = model.nodes.find(n=>n.id===sourceId);
       if (!src) return;
-      const anchor = getAnchor(src, false);
+      const anchor = getAnchor(src,false);
       linkDraw = { sourceId, x: anchor.x, y: anchor.y, currentX: anchor.x, currentY: anchor.y };
       canvas.style.cursor = 'crosshair';
     }
 
     function nodeContext(e, nodeId) {
       e.preventDefault();
-      selectedNodeId = nodeId;
-      selectedLinkId = null;
-      toolDeleteNode.disabled = false;
-      toolDeleteLink.disabled = true;
-      renderNodes();
-      contextMenu.style.left = `${e.clientX}px`;
-      contextMenu.style.top = `${e.clientY}px`;
-      contextMenu.style.display = 'block';
-      contextEdit.onclick = () => { contextMenu.style.display='none'; openNodeModal(model.nodes.find(n=>n.id===nodeId)); };
-      contextDelete.onclick = () => { contextMenu.style.display='none'; deleteSelectedNode(); };
+      setSelectedNodesFromClick(nodeId, e);
+      contextMenuAt(e.clientX, e.clientY, nodeId);
     }
 
+    function contextMenuAt(x,y,nodeId) {
+      const cm = document.getElementById('contextMenu');
+      cm.style.left = `${x}px`;
+      cm.style.top = `${y}px`;
+      cm.style.display = 'block';
+      document.getElementById('contextEdit').onclick = ()=> { cm.style.display='none'; openNodeInspector(model.nodes.find(n=>n.id===nodeId)); };
+      document.getElementById('contextDelete').onclick = ()=> { cm.style.display='none'; deleteSelectedNode(nodeId); };
+    }
+
+    function openNodeInspector(node) {
+      selectedNodes.clear();
+      selectedNodes.add(node.id);
+      updateInspector();
+    }
+
+    // node drag / pan
     function handleNodeDown(e, nodeId) {
       if (e.button !== 0) return;
       e.stopPropagation();
-      contextMenu.style.display = 'none';
-      selectedNodeId = nodeId;
+      document.getElementById('contextMenu').style.display = 'none';
+      if (!selectedNodes.has(nodeId)) {
+        setSelectedNodesFromClick(nodeId, e);
+      }
       selectedLinkId = null;
-      toolDeleteNode.disabled = false;
-      toolDeleteLink.disabled = true;
-
+      // prepare drag: record start positions for all selected nodes
+      const startPositions = {};
+      Array.from(selectedNodes).forEach(id => {
+        const n = model.nodes.find(x=>x.id===id); if (n) startPositions[id] = { x: n.x, y: n.y };
+      });
       const node = model.nodes.find(n=>n.id===nodeId);
       if (node) { highestZ++; node.zIndex = highestZ; document.getElementById(`node-${nodeId}`).style.zIndex = highestZ; }
       dragInfo = {
@@ -291,18 +372,16 @@
         startX: e.clientX,
         startY: e.clientY,
         nodeId,
-        startNodeX: node.x,
-        startNodeY: node.y
+        startPositions
       };
       renderNodes();
     }
 
-    function onCanvasDown(e){
-      // clicking empty space -> start panning
+    function onCanvasDown(e) {
       if (e.target.closest('.node') || e.target.closest('#contextMenu')) return;
-      selectedNodeId = null; selectedLinkId = null;
+      selectedNodes.clear(); selectedLinkId = null;
       toolDeleteNode.disabled = true; toolDeleteLink.disabled = true;
-      renderNodes(); renderLinks();
+      renderNodes(); renderLinks(); updateInspector();
       dragInfo = { mode:'pan', startX: e.clientX, startY: e.clientY, startTransformX: transform.x, startTransformY: transform.y };
       canvas.style.cursor = 'grabbing';
     }
@@ -318,12 +397,14 @@
       } else if (dragInfo && dragInfo.mode === 'node') {
         const deltaX = (e.clientX - dragInfo.startX) / transform.scale;
         const deltaY = (e.clientY - dragInfo.startY) / transform.scale;
-        const node = model.nodes.find(n=>n.id===dragInfo.nodeId);
-        if (!node) return;
-        node.x = dragInfo.startNodeX + deltaX;
-        node.y = dragInfo.startNodeY + deltaY;
-        const el = document.getElementById(`node-${node.id}`);
-        if (el) { el.style.left = `${node.x}px`; el.style.top = `${node.y}px`; }
+        for (let id of Object.keys(dragInfo.startPositions)) {
+          const n = model.nodes.find(x=>x.id===id);
+          if (!n) continue;
+          n.x = dragInfo.startPositions[id].x + deltaX;
+          n.y = dragInfo.startPositions[id].y + deltaY;
+          const el = document.getElementById(`node-${n.id}`);
+          if (el) { el.style.left = `${n.x}px`; el.style.top = `${n.y}px`; }
+        }
         renderLinks();
       } else if (linkDraw) {
         const b = screenToBoard(e.clientX, e.clientY);
@@ -333,6 +414,7 @@
     }
 
     function onUp(e) {
+      // finalize link
       if (linkDraw) {
         const targetEl = e.target.closest('.node');
         if (targetEl) {
@@ -341,7 +423,7 @@
             const label = prompt("Enter transition label (e.g., Next, Success):","Next");
             if (label !== null) {
               model.links.push({ id: uid('l'), source: linkDraw.sourceId, target: targetId, label: label.trim() });
-              triggerSave();
+              markDirty();
             }
           }
         }
@@ -352,41 +434,45 @@
 
       if (dragInfo) {
         if (dragInfo.mode === 'node') {
-          const node = model.nodes.find(n=>n.id===dragInfo.nodeId);
-          if (node) {
-            const s = gridSize();
-            node.x = Math.round(node.x / s) * s;
-            node.y = Math.round(node.y / s) * s;
+          // snap all selected to grid
+          const s = gridSize();
+          for (let id of Object.keys(dragInfo.startPositions)) {
+            const n = model.nodes.find(x=>x.id===id);
+            if (!n) continue;
+            n.x = Math.round(n.x / s) * s;
+            n.y = Math.round(n.y / s) * s;
           }
-          renderNodes();
-          triggerSave();
+          markDirty(); renderNodes();
         }
         dragInfo = null;
         canvas.style.cursor = 'default';
       }
     }
 
-    // keyboard handlers
+    // keyboard
     function onKey(e) {
-      if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (selectedNodeId) { deleteSelectedNode(); }
-        else if (selectedLinkId) { deleteSelectedLink(); }
+      if ((e.key === 'Delete' || e.key === 'Backspace')) {
+        if (selectedNodes.size > 0) {
+          Array.from(selectedNodes).forEach(id => deleteSelectedNode(id));
+          selectedNodes.clear(); renderNodes();
+        } else if (selectedLinkId) {
+          deleteSelectedLink();
+        }
       } else if (e.key === 'Escape') {
         linkDraw = null; dragInfo = null;
-        modal.setAttribute('aria-hidden','true');
-        contextMenu.style.display = 'none';
+        document.getElementById('contextMenu').style.display = 'none';
         renderLinks();
       }
     }
 
-    function deleteSelectedNode() {
-      if (!selectedNodeId) return;
-      model.nodes = model.nodes.filter(n=>n.id !== selectedNodeId);
-      model.links = model.links.filter(l => l.source !== selectedNodeId && l.target !== selectedNodeId);
-      selectedNodeId = null;
+    function deleteSelectedNode(nodeId) {
+      if (!nodeId) return;
+      model.nodes = model.nodes.filter(n=>n.id !== nodeId);
+      model.links = model.links.filter(l => l.source !== nodeId && l.target !== nodeId);
+      selectedNodes.delete(nodeId);
       toolDeleteNode.disabled = true;
       renderNodes();
-      triggerSave();
+      markDirty();
     }
     function deleteSelectedLink() {
       if (!selectedLinkId) return;
@@ -394,86 +480,156 @@
       selectedLinkId = null;
       toolDeleteLink.disabled = true;
       renderLinks();
-      triggerSave();
+      markDirty();
     }
 
-    function openNodeModal(node) {
-      activeModalNode = node;
-      modalProjectId.textContent = node.id;
-      modalTitle.value = node.title;
-      modalBody.value = node.body;
-      modal.setAttribute('aria-hidden','false');
-    }
-    function saveModalChanges() {
-      if (!activeModalNode) return;
-      activeModalNode.title = modalTitle.value;
-      activeModalNode.body = modalBody.value;
-      renderNodes();
-      modal.setAttribute('aria-hidden','true');
-      triggerSave();
-    }
+    // inspector open/save handled above
 
-    // Controls & buttons
+    // buttons & UI
     saveBoardBtn && saveBoardBtn.addEventListener('click', saveModel);
-    toolAddPage && toolAddPage.addEventListener('click', ()=> addNodeAt(200,200,'page'));
-    toolAddAction && toolAddAction.addEventListener('click', ()=> addNodeAt(420,200,'action'));
-    toolAddDecision && toolAddDecision.addEventListener('click', ()=> addNodeAt(640,200,'decision'));
-    toolDeleteNode && toolDeleteNode.addEventListener('click', deleteSelectedNode);
+    toolAddPage && toolAddPage.addEventListener('click', ()=> addNodeAt(220,220,'page'));
+    toolAddAction && toolAddAction.addEventListener('click', ()=> addNodeAt(420,220,'action'));
+    toolAddDecision && toolAddDecision.addEventListener('click', ()=> addNodeAt(640,220,'decision'));
+    toolDeleteNode && toolDeleteNode.addEventListener('click', ()=> { Array.from(selectedNodes).forEach(id=>deleteSelectedNode(id)); selectedNodes.clear(); renderNodes(); });
     toolDeleteLink && toolDeleteLink.addEventListener('click', deleteSelectedLink);
 
-    // pan & mouse
+    // pan & mouse/touch
     canvas.addEventListener('mousedown', onCanvasDown);
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
-
-    // touch support (basic)
-    canvas.addEventListener('touchstart', (ev) => {
-      const t = ev.touches[0];
-      onCanvasDown({ clientX: t.clientX, clientY: t.clientY, target: ev.target });
-      ev.preventDefault();
-    }, { passive:false });
-    canvas.addEventListener('touchmove', (ev) => {
-      const t = ev.touches[0];
-      onMove({ clientX: t.clientX, clientY: t.clientY });
-      ev.preventDefault();
-    }, { passive:false });
-    canvas.addEventListener('touchend', (ev) => { onUp({ clientX:0, clientY:0 }); }, { passive:false });
+    canvas.addEventListener('touchstart', (ev)=> { const t = ev.touches[0]; onCanvasDown({ clientX: t.clientX, clientY: t.clientY, target: ev.target }); ev.preventDefault(); }, { passive:false});
+    canvas.addEventListener('touchmove', (ev)=> { const t = ev.touches[0]; onMove({ clientX: t.clientX, clientY: t.clientY }); ev.preventDefault(); }, { passive:false});
+    canvas.addEventListener('touchend', (ev)=> { onUp({ clientX:0, clientY:0 }); }, { passive:false});
 
     // zoom controls
     const zoomFactor = 1.2;
     zoomInCorner && zoomInCorner.addEventListener('click', ()=> { transform.scale = clamp(transform.scale * zoomFactor, 0.25, 2); applyTransform(); });
     zoomOutCorner && zoomOutCorner.addEventListener('click', ()=> { transform.scale = clamp(transform.scale / zoomFactor, 0.25, 2); applyTransform(); });
     centerBtn && centerBtn.addEventListener('click', ()=> { transform = { x: 0, y: 0, scale: 1 }; applyTransform(); });
+    zoomFitBtn && zoomFitBtn.addEventListener('click', zoomToFit);
 
-    // grid toggle
     showGrid && showGrid.addEventListener('change', applyTransform);
     gridSizeInput && gridSizeInput.addEventListener('change', applyTransform);
 
-    // modal buttons
-    cancelModal && cancelModal.addEventListener('click', ()=> modal.setAttribute('aria-hidden','true'));
-    saveModal && saveModal.addEventListener('click', saveModalChanges);
-    deleteBlock && deleteBlock.addEventListener('click', ()=> { if (activeModalNode) { selectedNodeId = activeModalNode.id; deleteSelectedNode(); modal.setAttribute('aria-hidden','true'); }});
+    // export/import
+    exportBtn && exportBtn.addEventListener('click', ()=> downloadJSON());
+    exportJsonBtn && exportJsonBtn.addEventListener('click', ()=> downloadJSON());
+    importFile && (importFile.onchange = (ev)=> {
+      const f = ev.target.files[0]; if (!f) return;
+      const reader = new FileReader();
+      reader.onload = e => { try { const obj = JSON.parse(e.target.result); loadFromJSON(obj); } catch(err){ alert('Invalid JSON'); } };
+      reader.readAsText(f);
+    });
+    importJsonBtn && importJsonBtn.addEventListener('click', ()=> importFile.click());
+    document.getElementById('importJsonBtn').addEventListener('click', ()=> importFile.click());
 
-    // keyboard
-    document.addEventListener('keydown', onKey);
+    // autosize & clear
+    autosizeBtn && autosizeBtn.addEventListener('click', autoResizeBoard);
+    clearAllBtn && clearAllBtn.addEventListener('click', ()=> { if (confirm('Clear entire board?')) { model.nodes=[]; model.links=[]; selectedNodes.clear(); markDirty(); renderNodes(); }});
 
-    // clicking canvas clears selections
+    // helper: download JSON
+    function downloadJSON() {
+      const payload = { nodes: model.nodes, links: model.links, exportedAt: new Date().toISOString(), projectId };
+      const data = JSON.stringify(payload, null, 2);
+      const blob = new Blob([data], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `workflow-${projectId || 'board'}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function loadFromJSON(obj) {
+      if (!obj) return;
+      model.nodes = (obj.nodes || []).map(n => ({ ...n }));
+      model.links = (obj.links || []).map(l => ({ ...l }));
+      highestZ = model.nodes.reduce((m,n)=> Math.max(m,n.zIndex||15), 15);
+      selectedNodes.clear(); selectedLinkId = null;
+      markDirty(); applyTransform(); renderNodes();
+    }
+
+    // autosize board to content
+    function autoResizeBoard() {
+      if (model.nodes.length === 0) { board.style.width = '1200px'; board.style.height = '900px'; return; }
+      const pad = 140;
+      const maxX = Math.max(...model.nodes.map(n => n.x + (n.w||220)));
+      const maxY = Math.max(...model.nodes.map(n => n.y + (n.h||100)));
+      const minX = Math.min(...model.nodes.map(n => n.x));
+      const minY = Math.min(...model.nodes.map(n => n.y));
+      const w = Math.max(1200, (maxX - minX) + pad*2);
+      const h = Math.max(800, (maxY - minY) + pad*2);
+      board.style.width = `${Math.round(w)}px`;
+      board.style.height = `${Math.round(h)}px`;
+      // shift nodes so minX/minY become pad
+      const dx = pad - minX, dy = pad - minY;
+      model.nodes.forEach(n => { n.x += dx; n.y += dy; });
+      markDirty(); renderNodes(); applyTransform();
+    }
+
+    // zoom-to-fit
+    function zoomToFit() {
+      if (model.nodes.length === 0) { transform = { x:0, y:0, scale:1 }; applyTransform(); return; }
+      // compute bounding box in board coords
+      const minX = Math.min(...model.nodes.map(n=>n.x));
+      const minY = Math.min(...model.nodes.map(n=>n.y));
+      const maxX = Math.max(...model.nodes.map(n=>n.x + (n.w||220)));
+      const maxY = Math.max(...model.nodes.map(n=>n.y + (n.h||100)));
+      const pad = 80;
+      const bboxW = (maxX - minX) + pad*2;
+      const bboxH = (maxY - minY) + pad*2;
+      const viewW = canvas.clientWidth;
+      const viewH = canvas.clientHeight;
+      const scaleX = viewW / bboxW;
+      const scaleY = viewH / bboxH;
+      const scale = clamp(Math.min(scaleX, scaleY, 1.6), 0.2, 1.6);
+      transform.scale = scale;
+      // center: compute board offset so bbox centered
+      const centerBoardX = (minX + maxX)/2;
+      const centerBoardY = (minY + maxY)/2;
+      transform.x = (viewW/2) - (centerBoardX * transform.scale);
+      transform.y = (viewH/2) - (centerBoardY * transform.scale);
+      applyTransform();
+    }
+
+    // simple click handler for nodes & linking
     document.addEventListener('click', (e)=> {
       if (!e.target.closest('.node') && !e.target.closest('.link-path')) {
-        selectedNodeId = null; selectedLinkId = null;
+        selectedNodes.clear(); selectedLinkId = null;
         toolDeleteNode.disabled = true; toolDeleteLink.disabled = true;
-        contextMenu.style.display = 'none';
-        renderNodes(); renderLinks();
+        document.getElementById('contextMenu').style.display = 'none';
+        renderNodes(); renderLinks(); updateInspector();
       }
     });
+
+    // save/load hooks
+    saveBoardBtn && saveBoardBtn.addEventListener('click', saveModel);
+    async function saveModel() {
+      if (!window.AriesDB || !window.AriesDB.saveProjectWorkspace) {
+        console.warn('No AriesDB.saveProjectWorkspace found'); dirty=false; statusMeta.textContent='Local only'; saveBoardBtn.textContent='Save Board'; return;
+      }
+      try {
+        saveBoardBtn.textContent='Saving...';
+        await window.AriesDB.saveProjectWorkspace(projectId, model.nodes, model.links);
+        dirty = false; statusMeta.textContent='Saved';
+        saveBoardBtn.textContent='Saved!';
+        setTimeout(()=> saveBoardBtn.textContent='Save Board', 1200);
+      } catch(err) {
+        console.error(err);
+        statusMeta.textContent='Save failed'; saveBoardBtn.textContent='Save Failed';
+        setTimeout(()=> saveBoardBtn.textContent='Save Board', 1400);
+      }
+    }
 
     // initial load
     loadModel();
 
-    // expose for debugging (optional)
-    window._wf = { model, addNodeAt, renderNodes, saveModel };
+    // keyboard
+    document.addEventListener('keydown', onKey);
 
-  };
+    // expose for debugging
+    window._wf = { model, renderNodes, saveModel, zoomToFit, autoResizeBoard };
+  }
 
   document.addEventListener('DOMContentLoaded', ready);
 })();
