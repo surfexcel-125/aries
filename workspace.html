@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Idea Visualizer — Firebase Module Integration</title>
+<title>Idea Visualizer — Save Button Enabled</title>
 <style>
   :root{--bg:#071019; --card:#0f1720; --muted:#90a0b8; --accent:#8b5cf6; --glass: rgba(255,255,255,0.03);} *{box-sizing:border-box}
   body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;color:#e6eef8;background:linear-gradient(180deg,var(--bg),#041018)}
@@ -46,12 +46,13 @@
 </head>
 <body>
 <header>
-  <h1>Idea Visualizer — Firebase Module</h1>
+  <h1>Idea Visualizer — Save Button Enabled</h1>
   <div style="display:flex;gap:8px;align-items:center">
     <button id="btn-undo" class="btn small" title="Undo (Ctrl+Z)">Undo</button>
     <button id="btn-redo" class="btn small" title="Redo (Ctrl+Y)">Redo</button>
     <button id="btn-fit" class="btn">Fit</button>
     <button id="btn-export" class="btn">Export SVG</button>
+    <button id="btn-save" class="btn" title="Save now">Save</button>
     <span class="status" id="saveStatus">Unsaved</span>
   </div>
 </header>
@@ -69,7 +70,7 @@
     <button id="btn-delete" class="btn" style="background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted)">Delete Selected</button>
     <button id="btn-clear" class="btn" style="background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted)">Clear</button>
   </div>
-  <div style="margin-top:12px" class="muted">Tips: Drag empty background to pan. Use mouse wheel to zoom. Click connector dot then click target node to link. Double-click a node to edit. Undo/redo and autosave are enabled.</div>
+  <div style="margin-top:12px" class="muted">Tips: Drag empty background to pan. Use mouse wheel to zoom. Click connector dot then click target node to link. Double-click a node to edit. Use Save to force persist immediately.</div>
 </aside>
 <div id="canvasWrap">
   <div id="boardArea">
@@ -93,51 +94,40 @@
   </div>
 </div>
 
-<!-- Main app script (module) -->
+<!-- Place your firebase-config.js next to this file (exports { app, auth, db }) -->
 <script type="module">
-/*
-  Expectations:
-  - Place `firebase-config.js` in the same folder; it must export { app, auth, db } as you shared.
-  - This script will attempt to import it dynamically. If it exists, Firestore will be used for cloud save.
-  - If not present, the app falls back to localStorage-only.
-*/
-
+/* ========== Configurable keys ========== */
 import { doc as docRefFunc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
 import { signInAnonymously } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
 
 const LS_KEY = 'idea_visual_workspace';
 const WORKSPACE_ID_KEY = 'idea_visual_workspace_id';
 
-let db = null;           // Firestore DB from your firebase-config.js
-let auth = null;         // Auth from firebase-config.js
-let firebaseUid = null;  // anonymous uid (if available)
+/* ========== Firestore dynamic import (optional) ========== */
+let db = null;
+let auth = null;
+let firebaseUid = null;
 let workspaceId = localStorage.getItem(WORKSPACE_ID_KEY) || null;
 
-// Try to import the user's firebase-config.js (dynamic import so page still works if file missing)
 try{
   const mod = await import('./firebase-config.js');
   if(mod && mod.db) db = mod.db;
   if(mod && mod.auth) auth = mod.auth;
 } catch(err){
-  // no firebase-config.js or import failed; continue with localStorage-only
   console.warn('firebase-config.js not found or failed to import:', err);
 }
 
-// if auth provided, attempt anonymous sign-in (so we can set ownerId)
 if(auth){
   try{
     const res = await signInAnonymously(auth);
     firebaseUid = res && res.user ? res.user.uid : (auth.currentUser ? auth.currentUser.uid : null);
   }catch(e){
-    // sign-in might fail if rules prevent it or remote config — ignore and fallback to local save
     console.warn('anonymous sign-in failed:', e);
     firebaseUid = auth.currentUser ? auth.currentUser.uid : null;
   }
 }
 
-/* ----------------- core app code (kept compact) ----------------- */
-
-// state & history
+/* ========== Core app (state, history, UI) ========== */
 const state = { nodes: [], links: [], selected: null, nodeId: 1, view: { x: 0, y: 0, scale: 1 }, connecting: null };
 const history = { past: [], future: [], max: 60 };
 function snapshot(){ return { nodes: state.nodes.map(n=>({ id:n.id,x:n.x,y:n.y,title:n.title,notes:n.notes })), links: state.links.map(l=>({from:l.from,to:l.to})), nodeId: state.nodeId, view: {...state.view}, selected: state.selected }; }
@@ -145,8 +135,8 @@ function applySnapshot(snap){
   state.nodes.forEach(n=>{ if(n.el && n.el.parentNode) n.el.parentNode.removeChild(n.el); });
   state.nodes = []; state.links = []; state.nodeId = snap.nodeId || 1;
   state.view = snap.view ? { ...snap.view } : { x:0,y:0,scale:1 };
-  snap.nodes.forEach(n => createNode(n.x,n.y,n.title,n.notes,{ id: n.id, addToState: true, skipHistory: true }));
-  state.links = snap.links.map(l=>({ from:l.from, to:l.to }));
+  (snap.nodes||[]).forEach(n => createNode(n.x,n.y,n.title,n.notes,{ id: n.id, addToState: true, skipHistory: true }));
+  state.links = (snap.links||[]).map(l=>({ from:l.from, to:l.to }));
   state.selected = snap.selected || null;
   applyView(); drawLinks(); updateSelectionVisual();
 }
@@ -155,7 +145,7 @@ function undo(){ if(history.past.length===0) return; const cur=snapshot(); histo
 function redo(){ if(history.future.length===0) return; const cur=snapshot(); history.past.push(cur); const next=history.future.pop(); applySnapshot(next); updateUndoRedoButtons(); scheduleSave(); }
 function updateUndoRedoButtons(){ document.getElementById('btn-undo').disabled = history.past.length===0; document.getElementById('btn-redo').disabled = history.future.length===0; }
 
-// DOM refs
+/* ========== DOM refs ========== */
 const wrap = document.getElementById('canvasWrap');
 const board = document.getElementById('boardArea');
 const svg = document.getElementById('svgLayer');
@@ -163,21 +153,22 @@ const modal = document.getElementById('modal');
 const modalTitle = document.getElementById('modalTitle');
 const modalBody = document.getElementById('modalBody');
 const saveStatusEl = document.getElementById('saveStatus');
+const btnSave = document.getElementById('btn-save');
 let editingNodeId = null;
 
-// view transform
+/* ========== view ========== */
 function applyView(){ board.style.transform = `translate(${state.view.x}px, ${state.view.y}px) scale(${state.view.scale})`; }
 applyView();
 
-// helpers
+/* ========== helpers ========== */
 function escapeHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-// convert client coords to board coords MINUS the board's bounding rect; do NOT subtract state.view.x/y because CSS transform affects rect
+// client -> board coords (board.getBoundingClientRect accounts for CSS transform)
 function clientToBoard(clientX, clientY){ const rect = board.getBoundingClientRect(); return { x: (clientX - rect.left)/state.view.scale, y: (clientY - rect.top)/state.view.scale }; }
 function getNode(el){ while(el && el !== document){ if(el.classList && el.classList.contains('node')) return el; el = el.parentNode; } return null; }
 function findNodeById(id){ return state.nodes.find(n=>n.id===id); }
 function updateSelectionVisual(){ state.nodes.forEach(n=>n.el.classList.toggle('selected', state.selected === n.id)); }
 
-// create node
+/* ========== create node ========== */
 function createNode(x,y,title='New',notes='',options={}){
   const addToState = options.addToState !== false;
   let id = options.id;
@@ -210,7 +201,7 @@ function createNode(x,y,title='New',notes='',options={}){
   return id;
 }
 
-// drag (fixed math)
+/* ========== drag ========== */
 function makeDraggable(el){
   let ox=0, oy=0, dragging=false, moved=false, moveHandler, upHandler;
   el.addEventListener('pointerdown', e=>{
@@ -245,10 +236,10 @@ function makeDraggable(el){
   });
 }
 
-// selection
+/* ========== selection ========== */
 function selectNode(id){ state.selected = id; updateSelectionVisual(); }
 
-// connections
+/* ========== connections ========== */
 let previewPath = null;
 function startConnect(id){
   state.connecting = id;
@@ -294,7 +285,7 @@ function cancelConnect(){
   state.connecting = null;
 }
 
-// draw links
+/* ========== draw links ========== */
 function drawLinks(){
   while(svg.firstChild) svg.removeChild(svg.firstChild);
   state.links.forEach(l=>{
@@ -309,7 +300,7 @@ function drawLinks(){
   });
 }
 
-// fit
+/* ========== fit, create, workflow ========== */
 function fitAll(padding=80){
   if(state.nodes.length===0) return;
   let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
@@ -324,7 +315,6 @@ function fitAll(padding=80){
   applyView();
 }
 
-// create from text & workflow
 document.getElementById('btn-create').addEventListener('click', ()=>{
   const rawTitles = document.getElementById('ideaText').value || '';
   const rawBodies = document.getElementById('cardBody').value || '';
@@ -337,6 +327,7 @@ document.getElementById('btn-create').addEventListener('click', ()=>{
   titles.forEach((t,i)=>{ createNode(x,y,t,bodies[i]||''); y+=140; });
   drawLinks();
 });
+
 document.getElementById('btn-workflow').addEventListener('click', ()=>{
   const rawTitles = document.getElementById('ideaText').value || '';
   const rawBodies = document.getElementById('cardBody').value || '';
@@ -352,7 +343,7 @@ document.getElementById('btn-workflow').addEventListener('click', ()=>{
   pushHistory(); drawLinks();
 });
 
-// clear/delete/undo/redo UI & keybindings
+/* ========== clear/delete/undo/redo ========== */
 document.getElementById('btn-clear').addEventListener('click', ()=>{
   pushHistory();
   state.nodes.forEach(n=>{ if(n.el && n.el.parentNode) n.el.parentNode.removeChild(n.el); });
@@ -370,13 +361,12 @@ document.getElementById('btn-undo').addEventListener('click', ()=> undo());
 document.getElementById('btn-redo').addEventListener('click', ()=> redo());
 updateUndoRedoButtons();
 
-// pan
+/* ========== pan/zoom ========== */
 let panning=false,sx=0,sy=0;
 wrap.addEventListener('pointerdown', e=>{ if(getNode(e.target)) return; panning=true; sx=e.clientX; sy=e.clientY; try{ wrap.setPointerCapture && wrap.setPointerCapture(e.pointerId); }catch(err){} });
 window.addEventListener('pointermove', e=>{ if(!panning) return; const dx=e.clientX-sx, dy=e.clientY-sy; sx=e.clientX; sy=e.clientY; state.view.x += dx; state.view.y += dy; applyView(); scheduleSave(); });
 window.addEventListener('pointerup', e=>{ panning=false; try{ wrap.releasePointerCapture && wrap.releasePointerCapture(e.pointerId);}catch(e){} });
 
-// zoom (cursor-centered)
 wrap.addEventListener('wheel', e=>{
   e.preventDefault();
   const delta = -e.deltaY;
@@ -391,7 +381,7 @@ wrap.addEventListener('wheel', e=>{
   applyView(); scheduleSave();
 }, { passive:false });
 
-// export svg
+/* ========== export ========== */
 document.getElementById('btn-export').addEventListener('click', ()=>{
   const exportSvg = document.createElementNS('http://www.w3.org/2000/svg','svg');
   exportSvg.setAttribute('xmlns','http://www.w3.org/2000/svg');
@@ -427,14 +417,14 @@ document.getElementById('btn-export').addEventListener('click', ()=>{
   const a = document.createElement('a'); a.href = url; a.download = 'idea-visual.svg'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
 });
 
-// initial sample
+/* ========== initial sample ========== */
 createNode(220,160,'Central idea','Double-click to edit', { skipHistory: true });
 createNode(520,120,'Branch A','', { skipHistory: true });
 createNode(520,320,'Branch B','', { skipHistory: true });
 pushHistory();
 drawLinks();
 
-// modal edit
+/* ========== modal edit ========== */
 function openEditModal(id){ const node = findNodeById(id); if(!node) return; editingNodeId = id; modalTitle.value = node.title || ''; modalBody.value = node.notes || ''; modal.style.display = 'flex'; modal.setAttribute('aria-hidden','false'); modalTitle.focus(); }
 function closeModal(){ editingNodeId = null; modal.style.display = 'none'; modal.setAttribute('aria-hidden','true'); }
 document.getElementById('modalCancel').addEventListener('click', ()=> closeModal());
@@ -445,13 +435,12 @@ document.getElementById('modalSave').addEventListener('click', ()=>{
 });
 modal.addEventListener('click', e=>{ if(e.target === modal) closeModal(); });
 
-// svg size
+/* ========== svg sizing ========== */
 function syncSvgSize(){ svg.setAttribute('width', board.offsetWidth); svg.setAttribute('height', board.offsetHeight); }
 window.addEventListener('resize', ()=>{ syncSvgSize(); applyView(); });
 syncSvgSize();
 
-/* ---------------- Persistence: localStorage + Firestore (using modular SDK) ---------------- */
-
+/* ========== Persistence: save/load ========== */
 let saveTimer = null;
 let lastSavedSnapshotHash = null;
 function setStatus(text){ saveStatusEl.innerText = text; }
@@ -464,9 +453,9 @@ async function saveWorkspace(){
   if(stringified === lastSavedSnapshotHash){ setStatus('Saved'); return; }
   lastSavedSnapshotHash = stringified;
   setStatus('Saving...');
-  // always store local copy
+  // local copy
   try{ localStorage.setItem(LS_KEY, JSON.stringify(snap)); }catch(e){ console.warn('localStorage save failed', e); }
-  // attempt cloud save if db available
+  // cloud copy if available
   if(db){
     try{
       if(!workspaceId){ workspaceId = generateId(10); localStorage.setItem(WORKSPACE_ID_KEY, workspaceId); }
@@ -487,7 +476,6 @@ async function saveWorkspace(){
 }
 
 async function loadWorkspace(){
-  // prefer cloud if configured & doc exists
   if(db){
     try{
       if(!workspaceId) workspaceId = localStorage.getItem(WORKSPACE_ID_KEY);
@@ -496,17 +484,11 @@ async function loadWorkspace(){
         const dc = await getDoc(docRef);
         if(dc && dc.exists()){
           const data = dc.data();
-          if(data && data.workspace){
-            applySnapshot(data.workspace);
-            lastSavedSnapshotHash = hashSnapshot(data.workspace);
-            setStatus('Loaded (cloud)');
-            return;
-          }
+          if(data && data.workspace){ applySnapshot(data.workspace); lastSavedSnapshotHash = hashSnapshot(data.workspace); setStatus('Loaded (cloud)'); return; }
         }
       }
     }catch(err){ console.warn('cloud load failed', err); }
   }
-  // fallback to localStorage
   try{
     const ls = localStorage.getItem(LS_KEY);
     if(ls){ const parsed = JSON.parse(ls); applySnapshot(parsed); lastSavedSnapshotHash = hashSnapshot(parsed); setStatus(db ? 'Loaded (local backup)' : 'Loaded (local)'); return; }
@@ -516,12 +498,24 @@ async function loadWorkspace(){
 
 function generateId(len=8){ const chars='abcdefghijklmnopqrstuvwxyz0123456789'; let s=''; for(let i=0;i<len;i++) s+=chars[Math.floor(Math.random()*chars.length)]; return s; }
 
-// startup: load workspace
+/* ========== Save button wiring (explicit manual save) ========== */
+btnSave.addEventListener('click', async ()=>{
+  btnSave.disabled = true;
+  setStatus('Saving...');
+  try{
+    await saveWorkspace();
+  }catch(err){
+    console.error('Manual save failed', err);
+    setStatus('Save failed');
+  }finally{
+    btnSave.disabled = false;
+  }
+});
+
+/* ========== startup ========== */
 await loadWorkspace();
 updateUndoRedoButtons();
 window.addEventListener('beforeunload', ()=>{ try{ const snap = snapshot(); localStorage.setItem(LS_KEY, JSON.stringify(snap)); }catch(e){} });
-
-// expose scheduleSave if needed
 window.idea_visual_schedule_save = scheduleSave;
 
 </script>
