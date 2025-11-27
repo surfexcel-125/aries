@@ -1,8 +1,9 @@
-/* workspace.js — anchors + snap-to-anchor full replacement
-   - 8 visible anchor dots per node (corners + side midpoints)
-   - Start link drag from an anchor; snap to nearest anchor on target node
-   - Orthogonal routing with parallel separation & rounded corners
-   - Defensive DOM guards to avoid runtime errors
+/* workspace.js — anchor + snap + editable connector handles
+   - Connectors created silently (no prompt)
+   - Each link gets a control point cp {x,y} (board coords)
+   - Draggable handle shown at cp; drag to modify path
+   - Double-click path opens prompt to edit label (or delete)
+   - Defensive DOM guards kept
 */
 (function(){
   function ready() {
@@ -84,6 +85,9 @@
     const DEBOUNCE = 800;
     let autoSaveTimer = null;
 
+    // handleDrag for moving cp
+    let handleDrag = null; // {linkId, startClientX, startClientY, startCpX, startCpY}
+
     // helpers
     const uid = (p='n') => p + Math.random().toString(36).slice(2,9);
     const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
@@ -104,12 +108,12 @@
     function isTyping() {
       try {
         const ae = document.activeElement; if (!ae) return false;
-        const tag = (ae.tagName||'').toUpperCase();
-        if (tag==='INPUT' || tag==='TEXTAREA' || tag==='SELECT') return true;
+        const tag = (ae.tagName || '').toUpperCase();
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
         if (ae.isContentEditable) return true;
         if (ae.closest && ae.closest('#inspector')) return true;
         return false;
-      } catch(e){ return false; }
+      } catch(e) { return false; }
     }
 
     function escapeHtml(str) {
@@ -118,7 +122,6 @@
     }
 
     // anchor helpers: compute 8 anchor points for node in board coords
-    // order: top-left, top-mid, top-right, right-mid, bottom-right, bottom-mid, bottom-left, left-mid
     function computeAnchorsForNode(node) {
       const w = node.w || 220;
       const h = node.h || 100;
@@ -136,7 +139,6 @@
       ];
     }
 
-    // find nearest anchor on node to a board point
     function nearestAnchorIndex(node, boardPoint) {
       const anchors = computeAnchorsForNode(node);
       let best = 0; let bestD = Infinity;
@@ -169,7 +171,7 @@
         el.style.padding = '14px';
         el.innerHTML = `<div class="node-title" style="font-weight:700;margin-bottom:8px;">${escapeHtml(node.title)}</div><div class="node-body" style="color:#3b4b54;">${escapeHtml(node.body)}</div>`;
 
-        // create anchor container to host anchor dots (so they overlay correctly)
+        // anchor container (dots)
         const anchorsContainer = document.createElement('div');
         anchorsContainer.className = 'anchors';
         anchorsContainer.style.position = 'absolute';
@@ -177,10 +179,9 @@
         anchorsContainer.style.top = '0';
         anchorsContainer.style.width = '100%';
         anchorsContainer.style.height = '100%';
-        anchorsContainer.style.pointerEvents = 'none'; // enable pointer events on dots individually
+        anchorsContainer.style.pointerEvents = 'none';
         el.appendChild(anchorsContainer);
 
-        // compute anchors (local coords)
         const w = node.w || 220, h = node.h || 100;
         const anchors = [
           { left: 0,      top: 0 },         // top-left
@@ -210,13 +211,11 @@
           dot.style.pointerEvents = 'auto';
           dot.style.cursor = 'crosshair';
           dot.title = 'Anchor';
-          dot.addEventListener('mouseenter', (ev)=> dot.style.borderColor = 'var(--accent-hover, #2e86ff)');
-          dot.addEventListener('mouseleave', (ev)=> dot.style.borderColor = 'rgba(0,0,0,0.12)');
+          dot.addEventListener('mouseenter', ()=> dot.style.borderColor = 'var(--accent-hover, #2e86ff)');
+          dot.addEventListener('mouseleave', ()=> dot.style.borderColor = 'rgba(0,0,0,0.12)');
           dot.addEventListener('mousedown', (ev)=> {
             ev.stopPropagation();
             // start link draw from this anchor
-            const rect = board.getBoundingClientRect();
-            // compute board coords of anchor
             const boardAnchor = computeAnchorsForNode(node)[idx];
             linkDraw = {
               sourceId: node.id,
@@ -228,11 +227,12 @@
             };
             if (canvas) canvas.style.cursor = 'crosshair';
             if (svg) svg.style.pointerEvents = 'auto';
+            renderLinks();
           });
           anchorsContainer.appendChild(dot);
         });
 
-        // node events: dragging, dbl click to open inspector etc.
+        // node events
         el.addEventListener('mousedown', e => handleNodeDown(e, node.id));
         el.addEventListener('dblclick', e => { e.stopPropagation(); openNodeInspector(node); });
         el.addEventListener('contextmenu', e => nodeContext(e, node.id));
@@ -288,26 +288,26 @@
       }
     }
 
-    // render links (uses anchors and snaps)
+    // render links, handles, and label; supports handle drag
     function renderLinks() {
       if (!svg) return;
       while (svg.firstChild) svg.removeChild(svg.firstChild);
 
-      // dashed preview while drawing
+      // preview while drawing
       if (linkDraw) {
+        const p = document.createElementNS('http://www.w3.org/2000/svg','path');
         const a = { x: linkDraw.startX, y: linkDraw.startY };
         const b = { x: linkDraw.currentX, y: linkDraw.currentY };
-        const p = document.createElementNS('http://www.w3.org/2000/svg','path');
-        p.setAttribute('d', orthogonalPath(a,b,0,0,6));
+        p.setAttribute('d', orthogonalPath(a, b, 0, 0, 6));
         p.setAttribute('stroke', getComputedStyle(document.documentElement).getPropertyValue('--accent') || '#2e86ff');
         p.setAttribute('stroke-width', 3);
-        p.setAttribute('fill','none');
+        p.setAttribute('fill', 'none');
         p.setAttribute('stroke-dasharray','6,6');
         p.setAttribute('stroke-linecap','round');
         svg.appendChild(p);
       }
 
-      // bucket parallel links
+      // bucket parallels
       const pairs = {};
       model.links.forEach(link => {
         const key = `${link.source}::${link.target}`;
@@ -319,23 +319,28 @@
         arr.forEach((link, idx) => { link._parallelIndex = idx; link._parallelCount = arr.length; });
       });
 
-      // actual links
+      // draw each link
       model.links.forEach(link => {
         const sNode = model.nodes.find(n => n.id === link.source);
         const tNode = model.nodes.find(n => n.id === link.target);
         if (!sNode || !tNode) return;
 
-        // Use anchor indexes if stored, else compute mid anchors
         const sAnchors = computeAnchorsForNode(sNode);
         const tAnchors = computeAnchorsForNode(tNode);
 
+        // source/target anchor indices stored when created
         const sIndex = (typeof link.sourceAnchorIdx === 'number') ? link.sourceAnchorIdx : nearestAnchorIndex(sNode, { x: (sNode.x + tNode.x)/2, y: (sNode.y + tNode.y)/2 });
         const tIndex = (typeof link.targetAnchorIdx === 'number') ? link.targetAnchorIdx : nearestAnchorIndex(tNode, { x: (sNode.x + tNode.x)/2, y: (sNode.y + tNode.y)/2 });
 
         const p1 = sAnchors[sIndex];
         const p2 = tAnchors[tIndex];
 
-        // parallel offset
+        // ensure cp exists — midpoint if missing
+        if (!link.cp || typeof link.cp.x !== 'number' || typeof link.cp.y !== 'number') {
+          link.cp = { x: (p1.x + p2.x)/2, y: (p1.y + p2.y)/2 };
+        }
+
+        // parallel offset using cp influence subtly: we still compute perpendicular spread
         const dx = p2.x - p1.x, dy = p2.y - p1.y;
         const len = Math.sqrt(dx*dx + dy*dy) || 1;
         const nx = -dy / len, ny = dx / len;
@@ -346,7 +351,13 @@
         const offset = (idx - middle) * baseGap;
         const offsetX = nx * offset, offsetY = ny * offset;
 
-        const d = orthogonalPath(p1, p2, offsetX, offsetY, 8);
+        // apply small adjustment from cp relative to midpoint
+        const midBase = { x: (p1.x + p2.x)/2 + offsetX, y: (p1.y + p2.y)/2 + offsetY };
+        const extraX = link.cp.x - midBase.x;
+        const extraY = link.cp.y - midBase.y;
+
+        const d = orthogonalPath(p1, p2, offsetX + extraX, offsetY + extraY, 8);
+
         const path = document.createElementNS('http://www.w3.org/2000/svg','path');
         const isSel = selectedLinkId === link.id;
         const strokeColor = isSel ? (getComputedStyle(document.documentElement).getPropertyValue('--link-selected') || '#1b74ff') : (getComputedStyle(document.documentElement).getPropertyValue('--link-color') || '#334155');
@@ -360,6 +371,8 @@
         path.id = `link-${link.id}`;
         path.style.cursor = 'pointer';
         path.style.pointerEvents = 'auto';
+
+        // single click selects, dblclick edits label / delete
         path.addEventListener('click', e => {
           e.stopPropagation();
           selectedLinkId = link.id;
@@ -368,23 +381,62 @@
           if (toolDeleteNode) toolDeleteNode.disabled = true;
           renderNodes(); renderLinks();
         });
+
+        path.addEventListener('dblclick', e => {
+          e.stopPropagation();
+          // open prompt to edit label or delete
+          const curLabel = link.label || '';
+          const newLabel = window.prompt('Edit link label (leave empty to remove label). Type DELETE to remove the link.', curLabel);
+          if (newLabel === null) return; // cancelled
+          const trimmed = (newLabel || '').trim();
+          if (trimmed.toUpperCase() === 'DELETE') {
+            if (confirm('Delete this connection?')) {
+              model.links = model.links.filter(l => l.id !== link.id);
+              markDirty(); renderNodes(); renderLinks();
+            }
+            return;
+          }
+          link.label = trimmed;
+          markDirty(); renderLinks();
+        });
+
         svg.appendChild(path);
 
-        // label near midpoint of anchors
+        // label
         if (link.label) {
-          const midBoard = { x: (p1.x + p2.x)/2 + offsetX, y: (p1.y + p2.y)/2 + offsetY };
+          const midBoard = { x: link.cp.x, y: link.cp.y - 12 };
           const text = document.createElementNS('http://www.w3.org/2000/svg','text');
           text.setAttribute('x', midBoard.x);
-          text.setAttribute('y', midBoard.y - 8);
+          text.setAttribute('y', midBoard.y);
           text.setAttribute('class','link-label');
           text.setAttribute('text-anchor','middle');
           text.textContent = link.label;
           svg.appendChild(text);
         }
-      });
-    }
 
-    // transform + grid
+        // handle (draggable) - circle at cp
+        const handle = document.createElementNS('http://www.w3.org/2000/svg','circle');
+        handle.setAttribute('cx', link.cp.x);
+        handle.setAttribute('cy', link.cp.y);
+        handle.setAttribute('r', 6);
+        handle.setAttribute('class','link-handle');
+        handle.setAttribute('data-link-id', link.id);
+        handle.style.fill = isSel ? (getComputedStyle(document.documentElement).getPropertyValue('--link-selected') || '#1b74ff') : '#ffffff';
+        handle.style.stroke = isSel ? (getComputedStyle(document.documentElement).getPropertyValue('--link-selected') || '#1b74ff') : '#333';
+        handle.style.strokeWidth = 1.5;
+        handle.style.cursor = 'move';
+        handle.style.pointerEvents = 'auto';
+        svg.appendChild(handle);
+
+        // start handle drag
+        handle.addEventListener('mousedown', (ev) => {
+          ev.stopPropagation(); ev.preventDefault();
+          handleDrag = { linkId: link.id, startClientX: ev.clientX, startClientY: ev.clientY, startCpX: link.cp.x, startCpY: link.cp.y };
+        });
+      }); // end model.links.forEach
+    } // end renderLinks
+
+    // transform & grid
     function applyTransform() {
       if (board) board.style.transform = `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`;
       if (zoomIndicator) zoomIndicator.textContent = `${Math.round(transform.scale*100)}%`;
@@ -462,6 +514,10 @@
           model.nodes = (d.nodes || []).map(n => ({ ...n }));
           model.links = (d.links || []).map(l => ({ ...l }));
           highestZ = model.nodes.reduce((m,n)=> Math.max(m,n.zIndex||15), 15);
+          // ensure links have cp
+          model.links.forEach(link => {
+            if (!link.cp) link.cp = null;
+          });
         } else seedModel();
       } catch (err) { console.error('Load failed', err); seedModel(); }
       applyTransform(); renderNodes();
@@ -535,26 +591,14 @@
       if (selectedNodes.size < 2) return; const arr = Array.from(selectedNodes).map(id=>model.nodes.find(n=>n.id===id)); const top = Math.min(...arr.map(n=>n.y)); arr.forEach(n=> n.y = top); markDirty(); renderNodes();
     });
 
-    // link drawing & snapping
-    function startLinkDrawFromAnchor(sourceNodeId, anchorIdx) {
-      const src = model.nodes.find(n=>n.id===sourceNodeId);
-      if (!src) return;
-      const anchor = computeAnchorsForNode(src)[anchorIdx];
-      linkDraw = { sourceId: sourceNodeId, sourceAnchorIdx: anchorIdx, startX: anchor.x, startY: anchor.y, currentX: anchor.x, currentY: anchor.y };
-      if (canvas) canvas.style.cursor = 'crosshair';
-      if (svg) svg.style.pointerEvents = 'auto';
-      renderLinks();
-    }
-
-    // called on mouseup: attempts to snap to target anchor and create link
-    async function finalizeLinkIfPossible(evt) {
+    // link drawing & snapping (without prompt)
+    function finalizeLinkIfPossible(evt) {
       if (!linkDraw) { if (canvas) canvas.style.cursor='default'; if (svg) svg.style.pointerEvents='none'; renderLinks(); return; }
 
       const clientX = (evt && evt.clientX) || (window._lastMouse && window._lastMouse.clientX) || 0;
       const clientY = (evt && evt.clientY) || (window._lastMouse && window._lastMouse.clientY) || 0;
       const boardPt = screenToBoard(clientX, clientY);
 
-      // find node under point
       const elAt = document.elementFromPoint(clientX, clientY);
       const targetNodeEl = elAt ? elAt.closest('.node') : null;
       if (targetNodeEl) {
@@ -562,31 +606,16 @@
         if (targetId && targetId !== linkDraw.sourceId) {
           const targetNode = model.nodes.find(n=>n.id === targetId);
           if (targetNode) {
-            // find nearest anchor index on target node
             const targetIdx = nearestAnchorIndex(targetNode, boardPt);
-            // create link object, storing both anchor indexes
-            const newLink = { id: uid('l'), source: linkDraw.sourceId, target: targetId, sourceAnchorIdx: linkDraw.sourceAnchorIdx, targetAnchorIdx: targetIdx, label: '' };
+            // create link silently; set cp to midpoint
+            const sNode = model.nodes.find(n => n.id === linkDraw.sourceId);
+            const sAnch = computeAnchorsForNode(sNode)[linkDraw.sourceAnchorIdx];
+            const tAnch = computeAnchorsForNode(targetNode)[targetIdx];
+            const cp = { x: (sAnch.x + tAnch.x)/2, y: (sAnch.y + tAnch.y)/2 };
+            const newLink = { id: uid('l'), source: linkDraw.sourceId, target: targetId, sourceAnchorIdx: linkDraw.sourceAnchorIdx, targetAnchorIdx: targetIdx, cp: cp, label: '' };
             model.links.push(newLink);
-            markDirty();
-            renderLinks();
-
-            // prompt for label after link created; if cancelled remove the link
-            try {
-              const label = (window.requestTransitionLabel && typeof window.requestTransitionLabel === 'function')
-                              ? await window.requestTransitionLabel('Next')
-                              : window.prompt('Enter transition label (e.g., Next, Success):', 'Next');
-              if (label !== null && label !== '') {
-                const linkObj = model.links.find(l => l.id === newLink.id);
-                if (linkObj) { linkObj.label = label.trim(); markDirty(); renderLinks(); }
-              } else {
-                model.links = model.links.filter(l => l.id !== newLink.id);
-                renderLinks();
-              }
-            } catch(err) {
-              console.error('Label modal error', err);
-              model.links = model.links.filter(l => l.id !== newLink.id);
-              renderLinks();
-            }
+            markDirty(); renderLinks();
+            // no prompt — editing occurs on double-click of the path
           }
         }
       }
@@ -595,41 +624,6 @@
       if (canvas) canvas.style.cursor = 'default';
       if (svg) svg.style.pointerEvents = 'none';
       renderLinks();
-    }
-
-    // mouse up handler (finalization)
-    function onUp(e) {
-      try {
-        if (linkDraw) finalizeLinkIfPossible(e);
-        if (dragInfo) {
-          if (dragInfo.mode === 'node') {
-            const s = gridSize();
-            for (let id of Object.keys(dragInfo.startPositions)) {
-              const n = model.nodes.find(x=>x.id===id); if (!n) continue;
-              n.x = Math.round(n.x / s) * s; n.y = Math.round(n.y / s) * s;
-            }
-            markDirty(); renderNodes();
-          }
-          dragInfo = null;
-          if (canvas) canvas.style.cursor = 'default';
-        }
-      } catch(ex) { console.error('onUp error', ex); }
-    }
-
-    // context menu
-    function nodeContext(e,nodeId) {
-      e.preventDefault();
-      setSelectedNodesFromClick(nodeId,e);
-      const cm = $('contextMenu'); if (!cm) return;
-      cm.style.left = `${e.clientX}px`; cm.style.top = `${e.clientY}px`; cm.style.display='block';
-      const ce = $('contextEdit'); if (ce) ce.onclick = ()=> { cm.style.display='none'; openNodeInspector(model.nodes.find(n=>n.id===nodeId)); };
-      const cd = $('contextDelete'); if (cd) cd.onclick = ()=> { cm.style.display='none'; deleteSelectedNode(nodeId); };
-    }
-
-    function openNodeInspector(node) {
-      if (!node) return;
-      selectedNodes.clear(); selectedNodes.add(node.id); updateInspector();
-      if (inspector && inspector.classList.contains('hidden')) { inspector.classList.remove('hidden'); inspector.classList.add('visible'); }
     }
 
     // node drag / pan
@@ -663,7 +657,22 @@
     function onMove(e) {
       try {
         window._lastMouse.clientX = e.clientX; window._lastMouse.clientY = e.clientY;
+
+        // handle cp handle drag
+        if (handleDrag) {
+          const dx = (e.clientX - handleDrag.startClientX) / transform.scale;
+          const dy = (e.clientY - handleDrag.startClientY) / transform.scale;
+          const link = model.links.find(l => l.id === handleDrag.linkId);
+          if (link) {
+            link.cp.x = handleDrag.startCpX + dx;
+            link.cp.y = handleDrag.startCpY + dy;
+            renderLinks();
+          }
+          return; // don't process other moves while dragging handle
+        }
+
         if (!dragInfo && !linkDraw) return;
+
         if (dragInfo && dragInfo.mode === 'pan') {
           const dx = e.clientX - dragInfo.startX, dy = e.clientY - dragInfo.startY;
           transform.x = dragInfo.startTransformX + dx; transform.y = dragInfo.startTransformY + dy; applyTransform();
@@ -684,17 +693,56 @@
       } catch(ex) { console.error('onMove error', ex); }
     }
 
-    // keyboard
-    function onKey(e) {
-      if (isTyping()) return;
-      if ((e.key === 'Delete' || e.key === 'Backspace')) {
-        if (selectedNodes.size > 0) { Array.from(selectedNodes).forEach(id => deleteSelectedNode(id)); selectedNodes.clear(); renderNodes(); }
-        else if (selectedLinkId) deleteSelectedLink();
-      } else if (e.key === 'Escape') {
-        linkDraw = null; dragInfo = null; const cm = $('contextMenu'); if (cm) cm.style.display='none'; renderLinks();
-      }
+    function onUp(e) {
+      try {
+        // finish handle drag
+        if (handleDrag) {
+          handleDrag = null;
+          markDirty();
+          renderLinks();
+          return;
+        }
+        if (linkDraw) finalizeLinkIfPossible(e);
+        if (dragInfo) {
+          if (dragInfo.mode === 'node') {
+            const s = gridSize();
+            for (let id of Object.keys(dragInfo.startPositions)) {
+              const n = model.nodes.find(x=>x.id===id); if (!n) continue;
+              n.x = Math.round(n.x / s) * s; n.y = Math.round(n.y / s) * s;
+            }
+            markDirty(); renderNodes();
+          }
+          dragInfo = null;
+          if (canvas) canvas.style.cursor = 'default';
+        }
+      } catch(ex) { console.error('onUp error', ex); }
     }
 
+    // context menu, inspector and selection helpers (unchanged)
+    function nodeContext(e,nodeId) {
+      e.preventDefault();
+      setSelectedNodesFromClick(nodeId,e);
+      const cm = $('contextMenu'); if (!cm) return;
+      cm.style.left = `${e.clientX}px`; cm.style.top = `${e.clientY}px`; cm.style.display='block';
+      const ce = $('contextEdit'); if (ce) ce.onclick = ()=> { cm.style.display='none'; openNodeInspector(model.nodes.find(n=>n.id===nodeId)); };
+      const cd = $('contextDelete'); if (cd) cd.onclick = ()=> { cm.style.display='none'; deleteSelectedNode(nodeId); };
+    }
+
+    function openNodeInspector(node) { if (!node) return; selectedNodes.clear(); selectedNodes.add(node.id); updateInspector(); if (inspector && inspector.classList.contains('hidden')) { inspector.classList.remove('hidden'); inspector.classList.add('visible'); } }
+
+    function setSelectedNodesFromClick(nodeId, ev) {
+      if (ev && ev.shiftKey) {
+        if (selectedNodes.has(nodeId)) selectedNodes.delete(nodeId); else selectedNodes.add(nodeId);
+      } else {
+        selectedNodes.clear(); selectedNodes.add(nodeId);
+      }
+      selectedLinkId = null;
+      if (toolDeleteNode) toolDeleteNode.disabled = false;
+      if (toolDeleteLink) toolDeleteLink.disabled = true;
+      renderNodes(); renderLinks(); updateInspector();
+    }
+
+    // delete helpers
     function deleteSelectedNode(nodeId) {
       if (!nodeId) return;
       model.nodes = model.nodes.filter(n=>n.id !== nodeId);
@@ -711,7 +759,7 @@
       renderLinks(); markDirty();
     }
 
-    // UI bindings (guarded)
+    // UI bindings
     if (toolAddPage) toolAddPage.addEventListener('click', ()=> addNodeAt(220,220,'page'));
     if (toolAddAction) toolAddAction.addEventListener('click', ()=> addNodeAt(420,220,'action'));
     if (toolAddDecision) toolAddDecision.addEventListener('click', ()=> addNodeAt(640,220,'decision'));
@@ -807,7 +855,7 @@
     // debug API
     window._wf = { model, renderNodes, renderLinks, saveModel, zoomToFit, autoResizeBoard, computeAnchorsForNode };
 
-    // If toolbar is missing, create small floating toolbar
+    // floating toolbar fallback
     if (!toolAddPage && !toolAddAction && !toolAddDecision) {
       const t = document.createElement('div'); t.id='floatingTools';
       t.style.position='fixed'; t.style.left='12px'; t.style.bottom='12px'; t.style.zIndex=9999;
