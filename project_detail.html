@@ -20,8 +20,8 @@
   .node{position:absolute;min-width:150px;padding:12px;border-radius:10px;color:#e6eef8;background:linear-gradient(180deg,#0f1820,#071117);border:1px solid rgba(255,255,255,0.04);box-shadow:0 18px 40px rgba(2,6,23,0.6)}
   .node .title{font-weight:700;margin-bottom:4px}
   .node .meta{font-size:12px;color:var(--muted)}
-  .connector{width:10px;height:10px;border-radius:50%;background:var(--accent);position:absolute;right:-6px;top:50%;transform:translateY(-50%);cursor:pointer}
-  svg{position:absolute;inset:0;pointer-events:none}
+  .connector{width:14px;height:14px;border-radius:50%;background:var(--accent);position:absolute;right:8px;top:50%;transform:translateY(-50%);cursor:pointer;box-shadow:0 6px 14px rgba(139,92,246,0.25);border:2px solid rgba(255,255,255,0.06);pointer-events:auto;z-index:20} 
+  svg{position:absolute;left:0;top:0;width:100000px;height:100000px;pointer-events:none}
 </style>
 </head>
 <body>
@@ -40,8 +40,9 @@
   <div style="margin-top:12px;color:var(--muted);font-size:13px">Tips: Use the Card textarea for node titles. Use Body textarea to add descriptive text inside nodes. Click connector dot then another node to link.</div>
 </aside>
 <div id="canvasWrap">
-  <svg id="svgLayer"></svg>
-  <div id="boardArea"></div>
+  <div id="boardArea">
+    <svg id="svgLayer"></svg>
+  </div>
 </div>
 </main>
 <script>
@@ -61,6 +62,8 @@
     el.style.top = y + 'px';
     el.innerHTML = '<div class="title">' + escapeHtml(title) + '</div><div class="meta">' + escapeHtml(notes) + '</div><div class="connector" title="Connect"></div>';
     canvas.appendChild(el);
+    // ensure nodes sit above the svg layer and respect stacking
+    el.style.zIndex = String(state.nodeId * 10);
     makeDraggable(el);
     const conn = el.querySelector('.connector');
     conn.addEventListener('click', (e)=>{ e.stopPropagation(); startConnect(id); });
@@ -93,15 +96,61 @@
   function selectNode(id){ state.selected = id; }
 
   let connecting = null;
-  function startConnect(id){ connecting = id; svg.style.pointerEvents = 'auto'; svg.addEventListener('click', finishConnectOnce); }
+  let tempPath = null;
+  function startConnect(id){
+    connecting = id;
+    svg.style.pointerEvents = 'auto';
+    svg.addEventListener('click', finishConnectOnce);
+    svg.addEventListener('mousemove', followMouse);
+    window.addEventListener('keydown', onConnectKey);
+    const src = state.nodes.find(n=>n.id===id);
+    if(src) src.el.classList.add('connecting');
+  }
+
+  function followMouse(e){
+    if(!connecting) return;
+    const src = state.nodes.find(n=>n.id===connecting);
+    if(!src) return;
+    // mouse coords relative to boardArea (SVG same size)
+    const rect = canvas.getBoundingClientRect();
+    const x2 = e.clientX - rect.left + canvas.scrollLeft;
+    const y2 = e.clientY - rect.top + canvas.scrollTop;
+    const x1 = src.x + src.el.offsetWidth;
+    const y1 = src.y + src.el.offsetHeight/2;
+    const dx = Math.max(40, Math.abs(x2 - x1) / 2);
+    if(!tempPath){
+      tempPath = document.createElementNS('http://www.w3.org/2000/svg','path');
+      tempPath.setAttribute('stroke','#8b5cf6');
+      tempPath.setAttribute('fill','none');
+      tempPath.setAttribute('stroke-width','2');
+      tempPath.setAttribute('stroke-dasharray','6 6');
+      svg.appendChild(tempPath);
+    }
+    const d = `M ${x1} ${y1} C ${x1+dx} ${y1} ${x2-dx} ${y2} ${x2} ${y2}`;
+    tempPath.setAttribute('d', d);
+  }
+
   function finishConnectOnce(e){
     svg.style.pointerEvents = 'none';
     const target = document.elementFromPoint(e.clientX, e.clientY);
     const nodeEl = getNode(target);
-    if(nodeEl && nodeEl.dataset.id !== connecting){ state.links.push({ from: connecting, to: nodeEl.dataset.id }); }
-    connecting = null;
-    svg.removeEventListener('click', finishConnectOnce);
+    if(nodeEl && nodeEl.dataset.id !== connecting){
+      state.links.push({ from: connecting, to: nodeEl.dataset.id });
+    }
+    cleanupConnect();
     drawLinks();
+  }
+
+  function onConnectKey(e){ if(e.key === 'Escape') { cleanupConnect(); drawLinks(); } }
+
+  function cleanupConnect(){
+    svg.style.pointerEvents = 'none';
+    svg.removeEventListener('click', finishConnectOnce);
+    svg.removeEventListener('mousemove', followMouse);
+    window.removeEventListener('keydown', onConnectKey);
+    if(tempPath){ tempPath.remove(); tempPath = null; }
+    if(connecting){ const src = state.nodes.find(n=>n.id===connecting); if(src) src.el.classList.remove('connecting'); }
+    connecting = null;
   }
 
   function getNode(el){ while(el && el !== document){ if(el.classList && el.classList.contains('node')) return el; el = el.parentNode; } return null; }
@@ -229,7 +278,7 @@
   createNode(220,160,'Central idea','Double-click to edit');
   createNode(520,120,'Branch A','');
   createNode(520,320,'Branch B','');
-  state.links.push({ from:'n1', to:'n2' }); state.links.push({ from:'n1', to:'n3' }); drawLinks();
+  // (no automatic links) drawLinks();
 
   // double-click to edit node title/body
   canvas.addEventListener('dblclick', (e) => {
