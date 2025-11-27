@@ -1,356 +1,107 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Visual Workspace — Fixed</title>
-<style>
-  :root{ --bg:#061027; --panel:#04101a; --accent:#06b6d4; --muted:#9aa8b6; --card:#0a1830; }
-  html,body{height:100%;margin:0;font-family:Inter,system-ui,Roboto,Arial;background:linear-gradient(180deg,var(--bg),#031018);color:#e6eef8}
-  .app{display:flex;height:100vh;gap:12px;padding:12px;box-sizing:border-box}
-  .left{width:260px;background:linear-gradient(180deg,var(--panel),#031018);border-radius:10px;padding:12px;box-shadow:0 6px 20px rgba(0,0,0,0.6);display:flex;flex-direction:column;gap:10px}
-  .title{font-weight:700;font-size:16px;color:var(--muted)}
-  .controls{display:flex;gap:8px;flex-wrap:wrap}
-  button{background:var(--accent);border:none;padding:8px 10px;border-radius:8px;color:#022;cursor:pointer;font-weight:700}
-  .ghost{background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--muted);font-weight:600}
-  .small{padding:6px 8px;font-size:13px}
-  .meta{font-size:12px;color:var(--muted)}
-  .canvas-wrap{flex:1;position:relative;border-radius:10px;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,0.6)}
-  #canvas{position:relative;width:100%;height:100%;background-image:linear-gradient(90deg, rgba(255,255,255,0.01) 1px, transparent 1px), linear-gradient(180deg, rgba(255,255,255,0.01) 1px, transparent 1px); background-size:40px 40px,40px 40px}
-  svg#svg{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:1}
-  .nodeLayer{position:absolute;left:0;top:0;width:100%;height:100%;z-index:2;pointer-events:auto}
-  .node{position:absolute;min-width:150px;max-width:420px;padding:10px;border-radius:8px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.12));box-shadow:0 8px 26px rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.03);cursor:grab;user-select:none;pointer-events:auto;z-index:3}
-  .node:active{cursor:grabbing}
-  .node .header{display:flex;align-items:center;justify-content:space-between;gap:8px}
-  .node .title{font-weight:700;font-size:14px}
-  .node .body{margin-top:6px;font-size:13px;color:var(--muted);white-space:pre-wrap}
-  /* anchors: keep them visible & clickable */
-  .anchor{width:14px;height:14px;border-radius:50%;background:transparent;border:2px solid rgba(255,255,255,0.06);position:absolute;display:flex;align-items:center;justify-content:center;opacity:0.95;cursor:pointer;pointer-events:auto}
-  .anchor::after{content:'';width:8px;height:8px;border-radius:50%;background:var(--accent);opacity:0.9}
-  .a-top{left:50%;transform:translate(-50%,-50%);top:0}
-  .a-bottom{left:50%;transform:translate(-50%,50%);bottom:0}
-  .a-left{left:0;top:50%;transform:translate(-50%,-50%)}
-  .a-right{right:0;top:50%;transform:translate(50%,-50%)}
-  .a-tl{left:14%;top:0;transform:translate(-50%,-50%)}
-  .a-tr{right:14%;top:0;transform:translate(50%,-50%)}
-  .a-bl{left:14%;bottom:0;transform:translate(-50%,50%)}
-  .a-br{right:14%;bottom:0;transform:translate(50%,50%)}
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Idea Visualizer</title>
 
-  .conn{stroke:var(--accent);stroke-width:4;fill:none;filter:drop-shadow(0 4px 8px rgba(0,0,0,0.45))}
-  .conn-shadow{stroke:rgba(0,0,0,0.2);stroke-width:10;opacity:0.14;fill:none}
-  .preview{stroke:rgba(255,255,255,0.6);stroke-width:2;stroke-dasharray:6 6;fill:none}
-  .small-muted{font-size:12px;color:var(--muted)}
-  .footer{margin-top:auto;font-size:12px;color:var(--muted)}
-  input[type="file"]{display:none}
-  @media (max-width:800px){ .left{display:none} }
-</style>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f5f5f5;
+      color: #222;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 40px auto;
+      padding: 20px;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 30px;
+      font-size: 32px;
+    }
+
+    textarea {
+      width: 100%;
+      height: 160px;
+      padding: 15px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      resize: none;
+      font-size: 16px;
+    }
+
+    button {
+      margin-top: 20px;
+      padding: 14px 22px;
+      font-size: 16px;
+      border: none;
+      border-radius: 8px;
+      background: #000;
+      color: #fff;
+      cursor: pointer;
+    }
+
+    #visual-area {
+      margin-top: 40px;
+      padding: 25px;
+      border-radius: 12px;
+      background: #fff;
+      border: 1px solid #ddd;
+      min-height: 180px;
+      font-size: 18px;
+      line-height: 1.6;
+    }
+
+    .visual-block {
+      background: #e9e9e9;
+      padding: 12px 18px;
+      margin-bottom: 12px;
+      border-radius: 8px;
+      font-weight: 600;
+    }
+  </style>
 </head>
-<body>
-  <div class="app">
-    <aside class="left panel">
-      <div class="title">Workspace</div>
-      <div class="controls">
-        <button id="addNode">+ Node</button>
-        <button id="clearAll" class="ghost small">Clear</button>
-        <button id="export" class="ghost small">Export</button>
-        <button id="importBtn" class="ghost small">Import</button>
-      </div>
-      <div class="meta">Click anchor A → anchor B to connect. Double-click title/body to edit. Drag to move.</div>
-      <div class="footer">Autosave: localStorage</div>
-      <input id="fileIn" type="file" accept="application/json" />
-    </aside>
 
-    <main class="canvas-wrap">
-      <div id="canvas">
-        <svg id="svg" xmlns="http://www.w3.org/2000/svg"></svg>
-        <div class="nodeLayer" id="nodeLayer"></div>
-      </div>
-    </main>
+<body>
+  <div class="container">
+    <h1>Idea Visualizer</h1>
+
+    <textarea id="ideaInput" placeholder="Write your idea here..."></textarea>
+    <button onclick="generateVisual()">Convert to Visual</button>
+
+    <div id="visual-area"></div>
   </div>
 
-<script>
-/* Fixed workspace: anchors clickable, connectors visible, reliable editable text via contentEditable */
+  <script>
+    function generateVisual() {
+      const input = document.getElementById('ideaInput').value.trim();
+      const visualArea = document.getElementById('visual-area');
+      visualArea.innerHTML = "";
 
-const canvas = document.getElementById('canvas');
-const svg = document.getElementById('svg');
-const nodeLayer = document.getElementById('nodeLayer');
-const addNodeBtn = document.getElementById('addNode');
-const clearAllBtn = document.getElementById('clearAll');
-const exportBtn = document.getElementById('export');
-const importBtn = document.getElementById('importBtn');
-const fileIn = document.getElementById('fileIn');
+      if (!input) {
+        visualArea.innerHTML = "<p>Please write an idea first.</p>";
+        return;
+      }
 
-let nodes = {};
-let conns = {};
-let previewLine = null;
-let drag = null;
-let connecting = null;
+      // Split idea into segments based on keywords
+      const parts = input
+        .replace(/\.|\n/g, " | ")
+        .split("|")
+        .map(p => p.trim())
+        .filter(p => p.length > 0);
 
-function uid(prefix='id'){ return prefix + '_' + (Date.now().toString(36)) + '_' + Math.floor(Math.random()*10000) }
-function escapeHtml(s){ return (s||'').toString().replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;') }
-
-function buildNodeElement(id,x,y,title,body){
-  const el = document.createElement('div');
-  el.className = 'node';
-  el.dataset.id = id;
-  el.style.left = (x||60) + 'px';
-  el.style.top  = (y||60) + 'px';
-  el.innerHTML = `
-    <div class="header">
-      <div class="title" data-editable="title">${escapeHtml(title||'New')}</div>
-      <div style="display:flex;gap:6px;align-items:center">
-        <button title="Duplicate" class="ghost small duplicate">⧉</button>
-        <button title="Delete" class="ghost small delete">✕</button>
-      </div>
-    </div>
-    <div class="body" data-editable="body">${escapeHtml(body||'...')}</div>
-  `;
-  const anchors = ['a-top','a-tr','a-right','a-br','a-bottom','a-bl','a-left','a-tl'];
-  anchors.forEach(c=>{
-    const a = document.createElement('div');
-    a.className = 'anchor '+c;
-    a.dataset.anchor = c;
-    a.title = 'Connect';
-    // ensure clickable
-    a.style.pointerEvents = 'auto';
-    el.appendChild(a);
-  });
-
-  // events
-  const titleEl = el.querySelector('[data-editable="title"]');
-  const bodyEl  = el.querySelector('[data-editable="body"]');
-
-  // double click -> enable contentEditable, focus
-  titleEl.addEventListener('dblclick', ()=>enableEditing(titleEl, id, 'title'));
-  bodyEl.addEventListener('dblclick', ()=>enableEditing(bodyEl, id, 'body'));
-
-  el.querySelector('.delete').addEventListener('click', ()=>removeNode(id));
-  el.querySelector('.duplicate').addEventListener('click', ()=>duplicateNode(id));
-  el.addEventListener('pointerdown', onPointerDownNode);
-
-  el.querySelectorAll('.anchor').forEach(a=>{
-    a.addEventListener('click', (ev)=>{ ev.stopPropagation(); onAnchorClick(id, a.dataset.anchor, ev); });
-  });
-
-  return el;
-}
-
-function enableEditing(el, nodeId, field){
-  // make editable
-  el.contentEditable = 'true';
-  el.focus();
-  // select all
-  const range = document.createRange(); range.selectNodeContents(el);
-  const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
-  function commit(){
-    el.contentEditable = 'false';
-    nodes[nodeId][field] = el.innerText;
-    saveState();
-    el.removeEventListener('blur', commit);
-    el.removeEventListener('keydown', onKey);
-  }
-  function onKey(e){ if(e.key === 'Enter' && field==='title'){ e.preventDefault(); el.blur(); } }
-  el.addEventListener('blur', commit);
-  el.addEventListener('keydown', onKey);
-}
-
-function createNode(x,y,title,body,id){
-  const nid = id || uid('node');
-  const el = buildNodeElement(nid,x,y,title,body);
-  nodeLayer.appendChild(el);
-  nodes[nid] = {id:nid,x:x||60,y:y||60,title:title||'New',body:body||'...',el};
-  saveState();
-  requestAnimationFrame(recomputeAllConns);
-  return nid;
-}
-
-function onAnchorClick(nodeId, anchor, ev){
-  // show preview line while selecting second anchor
-  const pos = anchorPosition(nodeId, anchor);
-  if(!pos) return;
-  if(!connecting){
-    connecting = {nodeId, anchor};
-    highlight(nodeId, anchor, true);
-    // create preview path
-    if(!previewLine){
-      previewLine = document.createElementNS('http://www.w3.org/2000/svg','path'); previewLine.classList.add('preview');
-      svg.appendChild(previewLine);
+      parts.forEach(p => {
+        const block = document.createElement("div");
+        block.classList.add("visual-block");
+        block.innerText = p;
+        visualArea.appendChild(block);
+      });
     }
-    // mousemove binding to update preview
-    function move(evt){
-      const parentRect = canvas.getBoundingClientRect();
-      const mx = evt.clientX - parentRect.left;
-      const my = evt.clientY - parentRect.top;
-      const d = `M ${pos.x} ${pos.y} L ${mx} ${my}`;
-      previewLine.setAttribute('d', d);
-    }
-    window.addEventListener('pointermove', move);
-    // store cleanup func
-    previewLine._cleanup = ()=>{ window.removeEventListener('pointermove', move); if(previewLine){ previewLine.remove(); previewLine=null; } };
-  } else {
-    const src = connecting;
-    const dst = {nodeId, anchor};
-    highlight(connecting.nodeId, connecting.anchor, false);
-    if(previewLine && previewLine._cleanup){ previewLine._cleanup(); }
-    previewLine = null;
-    connecting = null;
-    if(!(src.nodeId === dst.nodeId && src.anchor === dst.anchor)){
-      createConnection(src, dst);
-    }
-  }
-}
-
-function highlight(nodeId, anchor, on){
-  const n = nodes[nodeId]; if(!n) return;
-  const el = n.el.querySelector(`.anchor[data-anchor="${anchor}"]`);
-  if(el) el.style.borderColor = on ? 'rgba(6,182,212,0.98)' : 'rgba(255,255,255,0.06)';
-}
-
-function createConnection(src, dst, id){
-  const cid = id || uid('conn');
-  const shadow = document.createElementNS('http://www.w3.org/2000/svg','path'); shadow.classList.add('conn-shadow');
-  const path = document.createElementNS('http://www.w3.org/2000/svg','path'); path.classList.add('conn'); path.dataset.id = cid;
-  svg.appendChild(shadow); svg.appendChild(path);
-  conns[cid] = {id:cid, src, dst, path, shadow};
-  updateConnection(cid);
-  saveState();
-  return cid;
-}
-
-function anchorPosition(nodeId, anchor){
-  const n = nodes[nodeId]; if(!n) return null;
-  const rect = n.el.getBoundingClientRect();
-  const parentRect = canvas.getBoundingClientRect();
-  const cx = rect.left - parentRect.left;
-  const cy = rect.top  - parentRect.top;
-  const w = rect.width, h = rect.height;
-  switch(anchor){
-    case 'a-top': return {x: cx + w/2, y: cy};
-    case 'a-bottom': return {x: cx + w/2, y: cy + h};
-    case 'a-left': return {x: cx, y: cy + h/2};
-    case 'a-right': return {x: cx + w, y: cy + h/2};
-    case 'a-tr': return {x: cx + w*0.85, y: cy};
-    case 'a-tl': return {x: cx + w*0.15, y: cy};
-    case 'a-br': return {x: cx + w*0.85, y: cy + h};
-    case 'a-bl': return {x: cx + w*0.15, y: cy + h};
-  }
-  return {x: cx + w/2, y: cy + h/2};
-}
-
-function updateConnection(id){
-  const c = conns[id]; if(!c) return;
-  const s = anchorPosition(c.src.nodeId, c.src.anchor);
-  const d = anchorPosition(c.dst.nodeId, c.dst.anchor);
-  if(!s || !d) return;
-  const dx = Math.abs(d.x - s.x), dy = Math.abs(d.y - s.y);
-  const curvature = Math.max(40, Math.min(260, (dx+dy)/1.6));
-  const dirX = d.x > s.x ? 1 : -1;
-  const ctrl1 = {x: s.x + curvature * dirX, y: s.y};
-  const ctrl2 = {x: d.x - curvature * dirX, y: d.y};
-  const dstr = `M ${s.x} ${s.y} C ${ctrl1.x} ${ctrl1.y} ${ctrl2.x} ${ctrl2.y} ${d.x} ${d.y}`;
-  c.path.setAttribute('d', dstr);
-  c.shadow.setAttribute('d', dstr);
-}
-
-function recomputeAllConns(){ Object.keys(conns).forEach(k=>updateConnection(k)); }
-
-function onPointerDownNode(e){
-  if(e.button !== 0) return;
-  // do not start drag if user clicked an editable element (contentEditable etc)
-  if(e.target && (e.target.isContentEditable || e.target.dataset && e.target.dataset.editable)) return;
-  const el = e.currentTarget;
-  drag = { el, startX: e.clientX, startY: e.clientY, origLeft: parseFloat(el.style.left||0), origTop: parseFloat(el.style.top||0) };
-  try{ el.setPointerCapture(e.pointerId); }catch(e){}
-  function move(ev){
-    if(!drag) return;
-    const nx = drag.origLeft + (ev.clientX - drag.startX);
-    const ny = drag.origTop  + (ev.clientY - drag.startY);
-    drag.el.style.left = nx + 'px';
-    drag.el.style.top  = ny + 'px';
-    const id = drag.el.dataset.id;
-    if(nodes[id]){ nodes[id].x = nx; nodes[id].y = ny; }
-    recomputeAllConns();
-  }
-  function up(ev){
-    try{ drag.el.releasePointerCapture(e.pointerId); }catch(e){}
-    drag = null;
-    saveState();
-    window.removeEventListener('pointermove', move);
-    window.removeEventListener('pointerup', up);
-  }
-  window.addEventListener('pointermove', move);
-  window.addEventListener('pointerup', up);
-}
-
-function duplicateNode(id){
-  const n = nodes[id]; if(!n) return;
-  createNode(n.x + 28, n.y + 28, n.title + ' (copy)', n.body);
-}
-
-function removeNode(id){
-  const n = nodes[id]; if(!n) return;
-  n.el.remove(); delete nodes[id];
-  Object.keys(conns).forEach(k=>{ const c=conns[k]; if(c.src.nodeId===id||c.dst.nodeId===id) removeConnection(k); });
-  saveState();
-}
-
-function removeConnection(id){
-  const c = conns[id]; if(!c) return;
-  c.path.remove(); c.shadow.remove(); delete conns[id]; saveState();
-}
-
-// persistence
-function saveState(){
-  try{
-    const state = { nodes: Object.values(nodes).map(n=>({id:n.id,x:n.x,y:n.y,title:n.title,body:n.body})), conns: Object.values(conns).map(c=>({id:c.id,src:c.src,dst:c.dst})) };
-    localStorage.setItem('visual-workspace-fixed', JSON.stringify(state));
-  }catch(e){ console.warn('save failed', e) }
-}
-
-function importState(state){
-  if(!state) return;
-  nodeLayer.innerHTML=''; svg.querySelectorAll('*').forEach(n=>n.remove());
-  nodes = {}; conns = {};
-  (state.nodes||[]).forEach(n=>{ const el = buildNodeElement(n.id, n.x, n.y, n.title, n.body); nodeLayer.appendChild(el); nodes[n.id] = {id:n.id,x:n.x,y:n.y,title:n.title,body:n.body,el}; });
-  (state.conns||[]).forEach(c=>createConnection(c.src, c.dst, c.id));
-  requestAnimationFrame(recomputeAllConns);
-  saveState();
-}
-
-function exportState(){
-  const payload = { nodes: Object.values(nodes).map(n=>({id:n.id,x:n.x,y:n.y,title:n.title,body:n.body})), conns: Object.values(conns).map(c=>({id:c.id,src:c.src,dst:c.dst})) };
-  const data = JSON.stringify(payload, null, 2);
-  const blob = new Blob([data], {type:'application/json'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href = url; a.download = 'workspace.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-}
-
-// UI bindings
-addNodeBtn.addEventListener('click', ()=>createNode(120 + Math.random()*240, 120 + Math.random()*160, 'Idea','Describe...'));
-clearAllBtn.addEventListener('click', ()=>{ if(!confirm('Clear everything?')) return; nodeLayer.innerHTML=''; svg.querySelectorAll('*').forEach(n=>n.remove()); nodes={}; conns={}; localStorage.removeItem('visual-workspace-fixed'); });
-exportBtn.addEventListener('click', exportState);
-importBtn.addEventListener('click', ()=>fileIn.click());
-fileIn.addEventListener('change', (ev)=>{ if(ev.target.files[0]){ const r=new FileReader(); r.onload=()=>{ try{ const s=JSON.parse(r.result); importState(s); }catch(e){ alert('Invalid file'); } }; r.readAsText(ev.target.files[0]); } ev.target.value=''; });
-
-// init
-window.addEventListener('load', ()=>{
-  const raw = localStorage.getItem('visual-workspace-fixed');
-  if(raw){ try{ importState(JSON.parse(raw)); return; }catch(e){ console.warn('load failed', e); } }
-  createNode(40,40,'Homepage','Goal: collect leads');
-  createNode(420,120,'Wireframe','Header\\nHero\\nFeatures');
-  createNode(240,300,'Tasks','Design\\nDev\\nDeploy');
-});
-
-// resize svg & recompute
-function resizeSvg(){ svg.setAttribute('width', canvas.clientWidth); svg.setAttribute('height', canvas.clientHeight); recomputeAllConns(); }
-window.addEventListener('resize', resizeSvg);
-resizeSvg();
-// safety recompute
-setInterval(recomputeAllConns, 300);
-
-// minimal console hook for debugging
-window.workspaceDebug = { nodes, conns, recomputeAllConns };
-
-</script>
+  </script>
 </body>
 </html>
