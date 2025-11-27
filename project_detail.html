@@ -3,163 +3,482 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Workspace — Project</title>
+  <title>Visual Workspace — Build Thoughts</title>
   <style>
-    :root{
-      --accent: #2e86ff;
-      --accent-hover: #1b74ff;
-      --link-color: #3b4b54;
-      --link-selected: #1b74ff;
-      --grid-color: rgba(0,0,0,0.06);
-      --header-height: 72px;
-    }
-    html,body{ height:100%; margin:0; font-family:Inter,system-ui,Segoe UI,Arial; color:#0f172a; background:#f8fafc; }
-    .topbar {
-      height: var(--header-height);
-      background: #000;
-      color: #fff;
-      display: flex;
-      align-items: center;
-      padding: 0 18px;
-      box-shadow: 0 6px 18px rgba(2,6,23,0.25);
-      position: fixed; left:0; right:0; top:0; z-index:12000;
-    }
-    .topbar .left, .topbar .center, .topbar .right { display:flex; align-items:center; }
-    .topbar .center { flex:1 1 auto; justify-content:center; }
-    .header-title { font-weight:700; font-size:18px; letter-spacing:0.2px; color:#fff; text-align:center; }
-    .menu-btn { width:36px; height:36px; border-radius:6px; display:inline-flex; align-items:center; justify-content:center; background:transparent; color:#fff; border:none; cursor:pointer; font-size:20px; }
-    .btn { background:#fff; color:#111827; border-radius:8px; padding:8px 12px; border:1px solid rgba(0,0,0,0.12); cursor:pointer; font-weight:600; }
-    .btn.ghost { background:transparent; color:#fff; border:1px solid rgba(255,255,255,0.06); }
-    .btn.primary { background:var(--accent); color:#fff; border:none; }
-    #canvas { position: absolute; left: 0; right: 0; top: var(--header-height); bottom: 0; overflow: hidden; background: #f3f4f6; }
-    #board { position: absolute; left: 0; top: 0; width:2000px; height:1500px; transform-origin:0 0; }
-    svg#svg { position: absolute; left:0; top:0; width:100%; height:100%; pointer-events:none; z-index:2000; } /* svg above nodes */
-    #inspector {
-      width: 360px; position: fixed; right: 16px; top: calc(var(--header-height) + 16px);
-      bottom: 16px; background: #fff; border-radius: 8px; box-shadow: 0 10px 40px rgba(2,6,23,0.12);
-      padding: 18px; box-sizing: border-box; z-index: 14000; transition: transform 180ms ease, opacity 160ms ease;
-    }
-    #inspector.hidden { transform: translateX(22px) scale(0.99); opacity:0; pointer-events:none; }
-    #inspector.visible { transform: none; opacity:1; pointer-events:auto; }
-    #floatingTools { position: fixed; left: 18px; bottom: 18px; z-index:13000; background: rgba(255,255,255,0.96); padding:10px; border-radius:12px; box-shadow: 0 8px 30px rgba(2,6,23,0.06); display:flex; gap:8px; align-items:center; }
-    #contextMenu { position: absolute; display:none; z-index:16000; background:#fff; border:1px solid rgba(0,0,0,0.08); border-radius:8px; padding:6px; min-width:160px; box-shadow: 0 8px 26px rgba(2,6,23,0.12); }
-    #contextMenu button { display:block; width:100%; text-align:left; padding:8px; border:none; background:transparent; cursor:pointer; }
-    .node { user-select:none; }
-    .node .node-title { font-size:16px; }
-    .node .node-body { font-size:13px; margin-top:6px; color:#475569; }
-    .controls-panel { position: fixed; right: 18px; bottom: 18px; z-index:13000; background: rgba(255,255,255,0.96); padding:8px; border-radius:12px; box-shadow: 0 8px 30px rgba(2,6,23,0.06); display:flex; gap:6px; align-items:center; }
-    #wf-toast { position: fixed; left:50%; transform:translateX(-50%); top: calc(var(--header-height) + 12px); z-index:30000; pointer-events:none; }
-    .wf-toast-item { background: rgba(0,0,0,0.8); color:#fff; padding:10px 14px; border-radius:8px; margin-top:8px; font-weight:600; }
-    #wf-overlay { position: fixed; left:0; top:0; right:0; bottom:0; display:none; z-index:30000; background: rgba(0,0,0,0.65); align-items:center; justify-content:center; color:#fff; padding:18px; box-sizing:border-box; }
-    #wf-overlay .card { background: rgba(0,0,0,0.18); border-radius:12px; padding:18px; max-width:860px; }
-    @media (max-width:900px) { #inspector { display:none; } .topbar .center { justify-content:flex-start; padding-left:12px; } }
+    :root{ --bg:#0f1724; --panel:#0b1220; --accent:#7c3aed; --muted:#94a3b8; --card:#071025; --glass: rgba(255,255,255,0.03); }
+    html,body{height:100%;margin:0;font-family:Inter,ui-sans-serif,system-ui,Segoe UI,Roboto,"Helvetica Neue",Arial; background:linear-gradient(180deg,#071129 0%,var(--bg) 100%); color:#e6eef8}
+    .app{display:flex;height:100vh;gap:16px;padding:18px;box-sizing:border-box}
+    .left{width:320px;background:linear-gradient(180deg,var(--panel),rgba(10,10,10,0.3));border-radius:12px;padding:16px;box-shadow:0 6px 20px rgba(2,6,23,0.6);display:flex;flex-direction:column;gap:12px}
+    .title{font-weight:700;font-size:18px;display:flex;align-items:center;gap:8px}
+    .controls{display:flex;flex-wrap:wrap;gap:8px}
+    button{background:var(--accent);border:none;padding:8px 10px;border-radius:8px;color:white;cursor:pointer;font-weight:600}
+    button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted);font-weight:600}
+    .small{padding:6px 8px;font-size:13px}
+    label{font-size:12px;color:var(--muted)}
+    .meta{font-size:13px;color:var(--muted);margin-top:6px}
+    .canvas-wrap{flex:1;position:relative;border-radius:12px;overflow:hidden;box-shadow:0 10px 40px rgba(2,6,23,0.7)}
+    #canvas{width:100%;height:100%;background-image:linear-gradient(90deg, rgba(255,255,255,0.01) 1px, transparent 1px), linear-gradient(180deg, rgba(255,255,255,0.01) 1px, transparent 1px); background-size:40px 40px, 40px 40px;}
+    .toolbar{display:flex;gap:8px;align-items:center}
+    .node{position:absolute;min-width:150px;max-width:320px;padding:12px;border-radius:10px;background:var(--card);box-shadow:0 8px 30px rgba(3,7,18,0.6);border:1px solid rgba(255,255,255,0.03);cursor:grab;user-select:none}
+    .node:active{cursor:grabbing}
+    .node .header{display:flex;align-items:center;justify-content:space-between;gap:8px}
+    .node .title{font-weight:700}
+    .node .body{margin-top:8px;font-size:13px;color:var(--muted)}
+    .anchor{width:12px;height:12px;border-radius:50%;background:transparent;border:2px solid rgba(255,255,255,0.06);position:absolute;display:flex;align-items:center;justify-content:center}
+    .anchor::after{content:'';width:6px;height:6px;border-radius:50%;background:var(--accent);opacity:0}
+    .anchor:hover::after{opacity:1}
+    /* anchor positions (8 points) */
+    .a-top{left:50%;transform:translate(-50%,-50%);top:0}
+    .a-bottom{left:50%;transform:translate(-50%,50%);bottom:0}
+    .a-left{left:0;top:50%;transform:translate(-50%,-50%)}
+    .a-right{right:0;top:50%;transform:translate(50%,-50%)}
+    .a-tl{left:8%;top:0;transform:translate(-50%,-50%)}
+    .a-tr{right:8%;top:0;transform:translate(50%,-50%)}
+    .a-bl{left:8%;bottom:0;transform:translate(-50%,50%)}
+    .a-br{right:8%;bottom:0;transform:translate(50%,50%)}
+    /* mini form */
+    .panel .list{display:flex;flex-direction:column;gap:8px;overflow:auto}
+    .node input, .node textarea{width:100%;background:transparent;border:1px dashed rgba(255,255,255,0.03);padding:6px;border-radius:6px;color:inherit}
+    .status{font-size:12px;color:var(--muted)}
+    .footer{margin-top:auto;font-size:12px;color:var(--muted)}
+    /* connection style */
+    svg{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none}
+    .conn{stroke:rgba(124,58,237,0.95);stroke-width:3;fill:none}
+    .conn-shadow{stroke:rgba(0,0,0,0.25);stroke-width:8;opacity:0.12}
+    .hidden{display:none}
   </style>
 </head>
 <body>
-
-  <div class="topbar" role="navigation" aria-label="Workspace header">
-    <div class="left">
-      <button id="menuToggle" class="menu-btn" aria-label="Open menu">☰</button>
-    </div>
-    <div class="center">
-      <div id="headerTitle" class="header-title">Finex</div>
-    </div>
-    <div class="right header-actions">
-      <button id="saveBoard" class="btn" title="Save Board">Save Board</button>
-      <button id="exportJson" class="btn" title="Export JSON">Export JSON</button>
-      <label style="display:flex;align-items:center;">
-        <input id="importFile" type="file" accept="application/json" style="display:none" />
-        <button id="importJsonBtn" class="btn" title="Import JSON">Import JSON</button>
-      </label>
-      <button id="inspectorToggle" class="btn ghost" title="Toggle inspector">Inspector</button>
-      <a href="/projects" id="backToProjects" class="link-btn" style="color:#fff; padding-left:8px;">← Project</a>
-    </div>
-  </div>
-
-  <div id="canvas" aria-label="Workspace canvas">
-    <div id="board" aria-hidden="false">
-      <svg id="svg" xmlns="http://www.w3.org/2000/svg"></svg>
-    </div>
-  </div>
-
-  <aside id="inspector" class="hidden" aria-hidden="true">
-    <h3>Inspector</h3>
-    <div>Selected: <span id="selectedCount">0</span></div>
-    <div id="inspectorSingle" style="display:none;">
-      <label>Node ID<div id="inspectorId" style="font-weight:600;color:#334155;margin-top:6px"></div></label>
-      <label>Type
-        <select id="inspectorType">
-          <option value="page">Page</option><option value="action">Action</option><option value="decision">Decision</option>
-        </select>
-      </label>
-      <label>Title <input id="inspectorTitle" type="text" /></label>
-      <label>Body <textarea id="inspectorBody"></textarea></label>
-      <div style="display:flex;gap:8px;">
-        <div style="flex:1;"><label>Width <input id="inspectorW" type="number" /></label></div>
-        <div style="flex:1;"><label>Height <input id="inspectorH" type="number" /></label></div>
+  <div class="app">
+    <aside class="left panel">
+      <div class="title">Visual Workspace</div>
+      <div class="controls toolbar">
+        <button id="addNode">+ Add Node</button>
+        <button id="clearAll" class="ghost small">Clear</button>
+        <button id="export" class="ghost small">Export JSON</button>
+        <button id="importBtn" class="ghost small">Import</button>
       </div>
-      <div class="actions"><button id="inspectorSave" class="btn primary">Save</button><button id="inspectorDelete" class="btn" style="color:#f44336;border:1px solid rgba(244,67,54,0.15)">Delete</button></div>
-    </div>
-    <div id="inspectorMulti" style="display:none;">Multiple items selected</div>
-    <div style="margin-top:14px;">
-      <div style="display:flex;gap:8px;align-items:center;">
-        <label><input id="showGrid" type="checkbox" checked/> Grid</label>
-        <label style="margin-left:8px">Size <input id="gridSize" type="number" value="25" style="width:74px" /></label>
-      </div>
-      <div style="margin-top:10px;">
-        <button id="autosizeBtn" class="btn">Auto-resize board</button>
-        <button id="clearAllBtn" class="btn">Clear board</button>
-      </div>
-      <div id="statusMeta" style="margin-top:12px;color:#64748b;font-size:13px">No changes</div>
-    </div>
-  </aside>
+      <div class="meta">Drag nodes, connect using anchors (click an anchor then another). Double-click a node title/body to edit. Connections auto-update when nodes move.</div>
+      <div class="status">Saved to localStorage automatically.</div>
+      <div class="footer">Tips: Use the grid to align. Right-click node for options.</div>
+      <input id="fileIn" type="file" accept="application/json" class="hidden" />
+    </aside>
 
-  <div id="floatingTools"></div>
-  <div class="controls-panel">
-    <button id="zoomOutCorner" class="btn">-</button>
-    <div id="zoomIndicator">100%</div>
-    <button id="zoomInCorner" class="btn">+</button>
-    <button id="centerBtn" class="btn">Center</button>
-    <button id="zoomFitBtn" class="btn">Zoom to fit</button>
-  </div>
-
-  <div id="contextMenu" role="menu" aria-hidden="true">
-    <button id="contextEdit">Edit</button>
-    <button id="contextDelete">Delete</button>
-  </div>
-
-  <div id="wf-toast" aria-live="polite"></div>
-
-  <div id="wf-overlay">
-    <div class="card" role="dialog" aria-modal="true" style="text-align:left;">
-      <h2 style="margin-top:0;">Workspace Tour</h2>
-      <p id="wf-overlay-text">Welcome to the workspace. Use anchors to connect, double-click to edit, and press Ctrl+Z to undo.</p>
-      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
-        <button id="wf-skip" class="btn">Skip</button>
-        <button id="wf-next" class="btn primary">Next</button>
-      </div>
-    </div>
+    <main class="canvas-wrap">
+      <div id="canvas"></div>
+      <!-- SVG overlay for connectors -->
+      <svg id="svg"></svg>
+    </main>
   </div>
 
   <script>
-    (function(){
-      const url = new URL(window.location.href);
-      window.currentProjectId = url.searchParams.get('id') || 'local';
-      const inspectorToggle = document.getElementById('inspectorToggle');
-      const inspector = document.getElementById('inspector');
-      if (inspectorToggle && inspector) {
-        inspectorToggle.addEventListener('click', ()=> {
-          if (inspector.classList.contains('hidden')) { inspector.classList.remove('hidden'); inspector.classList.add('visible'); inspector.setAttribute('aria-hidden','false'); }
-          else { inspector.classList.remove('visible'); inspector.classList.add('hidden'); inspector.setAttribute('aria-hidden','true'); }
-        });
-      }
-      const ft = document.getElementById('floatingTools');
-      if (ft) {
-        ft.innerHTML = '<button id="toolAddPage" class="btn">Page</button><button id="toolAddAction" class="btn">Action</button><button id="toolAddDecision" class="btn">Decision</button><button id="toolTogglePlace" class="btn">Place Mode</button><button id="toolDeleteNode" class="btn">Delete</button><button id="toolDeleteLink" class="btn">Delete Link</button>';
-      }
-    })();
-  </script>
+    /*
+      Single-file visual workspace
+      Features:
+        - Create draggable nodes with 8 anchors
+        - Connect by clicking anchors (source -> target)
+        - Smooth cubic-bezier curved connectors that update on drag
+        - Add / clear / export / import / persist to localStorage
+        - Double-click to edit title/body inline
+    */
 
-  <script src="./workspace.js" defer></script>
+    const canvas = document.getElementById('canvas');
+    const svg = document.getElementById('svg');
+    const addNodeBtn = document.getElementById('addNode');
+    const clearAll = document.getElementById('clearAll');
+    const exportBtn = document.getElementById('export');
+    const importBtn = document.getElementById('importBtn');
+    const fileIn = document.getElementById('fileIn');
+
+    let nodes = {};
+    let conns = {};
+    let drag = null;
+    let connecting = null; // {nodeId, anchor}
+    let idSeq = 1;
+
+    // Helpers
+    function uid(prefix='n'){ return prefix + '_' + (Date.now().toString(36)) + '_' + Math.floor(Math.random()*10000) }
+
+    function createNode(x=80,y=80, title='New Node', body='Write something...'){
+      const id = uid('node');
+      const el = document.createElement('div');
+      el.className = 'node';
+      el.dataset.id = id;
+      el.style.left = x + 'px';
+      el.style.top = y + 'px';
+      el.innerHTML = `
+        <div class="header">
+          <div class="title" data-editable="title">${escapeHtml(title)}</div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <button title="Duplicate" class="ghost small duplicate">⧉</button>
+            <button title="Delete" class="ghost small delete">✕</button>
+          </div>
+        </div>
+        <div class="body" data-editable="body">${escapeHtml(body)}</div>
+        `;
+
+      // anchors
+      const anchors = ['a-top','a-tr','a-right','a-br','a-bottom','a-bl','a-left','a-tl'];
+      anchors.forEach(c=>{
+        const a = document.createElement('div');
+        a.className = 'anchor '+c;
+        a.dataset.anchor = c;
+        a.title = 'Connect';
+        el.appendChild(a);
+      });
+
+      canvas.appendChild(el);
+
+      nodes[id] = {id, x, y, title, body, el};
+
+      // events
+      el.addEventListener('pointerdown', onPointerDownNode);
+      el.addEventListener('dblclick', onDoubleClickNode);
+      el.querySelector('.delete').addEventListener('click', ()=>{ removeNode(id) });
+      el.querySelector('.duplicate').addEventListener('click', ()=>{ duplicateNode(id) });
+
+      // anchor events (click to start/finish connection)
+      el.querySelectorAll('.anchor').forEach(a=>{
+        a.addEventListener('click', (ev)=>{
+          ev.stopPropagation();
+          onAnchorClick(id, a.dataset.anchor);
+        });
+      });
+
+      saveState();
+      update();
+      return id;
+    }
+
+    function escapeHtml(s){ return (s+'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;') }
+
+    function onAnchorClick(nodeId, anchor){
+      if(!connecting){
+        connecting = {nodeId, anchor};
+        highlightAnchor(nodeId, anchor, true);
+      } else {
+        // create connection from connecting -> nodeId
+        const src = connecting;
+        const dst = {nodeId, anchor};
+        if(src.nodeId === dst.nodeId && src.anchor === dst.anchor){
+          // same anchor, cancel
+        } else {
+          createConnection(src, dst);
+        }
+        highlightAnchor(connecting.nodeId, connecting.anchor, false);
+        connecting = null;
+      }
+    }
+
+    function highlightAnchor(nodeId, anchor, on){
+      const el = nodes[nodeId].el.querySelector(`.anchor[data-anchor="${anchor}"]`);
+      if(el){ el.style.borderColor = on ? 'rgba(124,58,237,0.95)' : 'rgba(255,255,255,0.06)'; }
+    }
+
+    function createConnection(src, dst){
+      const id = uid('conn');
+      const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+      path.classList.add('conn');
+      path.dataset.id = id;
+      svg.appendChild(path);
+      // optional shadow for depth
+      const shadow = document.createElementNS('http://www.w3.org/2000/svg','path');
+      shadow.classList.add('conn-shadow');
+      svg.insertBefore(shadow, path);
+
+      conns[id] = {id, src, dst, path, shadow};
+      updateConnection(id);
+      saveState();
+    }
+
+    function updateConnection(id){
+      const c = conns[id];
+      if(!c) return;
+      const srcPt = anchorPosition(c.src.nodeId, c.src.anchor);
+      const dstPt = anchorPosition(c.dst.nodeId, c.dst.anchor);
+      if(!srcPt || !dstPt){ return }
+      // Compute control points for smooth curve
+      const dx = Math.abs(dstPt.x - srcPt.x);
+      const dy = Math.abs(dstPt.y - srcPt.y);
+      const curvature = Math.max(80, Math.min(200, (dx+dy)/1.8));
+
+      // choose orientation based on anchors to make nicer curves
+      const dirX = dstPt.x > srcPt.x ? 1 : -1;
+      const ctrl1 = {x: srcPt.x + curvature * dirX, y: srcPt.y};
+      const ctrl2 = {x: dstPt.x - curvature * dirX, y: dstPt.y};
+
+      const d = `M ${srcPt.x} ${srcPt.y} C ${ctrl1.x} ${ctrl1.y} ${ctrl2.x} ${ctrl2.y} ${dstPt.x} ${dstPt.y}`;
+      c.path.setAttribute('d', d);
+      c.shadow.setAttribute('d', d);
+    }
+
+    function anchorPosition(nodeId, anchor){
+      const n = nodes[nodeId];
+      if(!n) return null;
+      const el = n.el;
+      const rect = el.getBoundingClientRect();
+      const parentRect = canvas.getBoundingClientRect();
+      const cx = rect.left - parentRect.left;
+      const cy = rect.top - parentRect.top;
+      const w = rect.width, h = rect.height;
+      // map anchor keys to positions
+      switch(anchor){
+        case 'a-top': return {x: cx + w/2, y: cy};
+        case 'a-bottom': return {x: cx + w/2, y: cy + h};
+        case 'a-left': return {x: cx, y: cy + h/2};
+        case 'a-right': return {x: cx + w, y: cy + h/2};
+        case 'a-tr': return {x: cx + w*0.85, y: cy};
+        case 'a-tl': return {x: cx + w*0.15, y: cy};
+        case 'a-br': return {x: cx + w*0.85, y: cy + h};
+        case 'a-bl': return {x: cx + w*0.15, y: cy + h};
+      }
+      return {x: cx + w/2, y: cy + h/2};
+    }
+
+    function onPointerDownNode(e){
+      if(e.button !== 0) return; // left only
+      const el = e.currentTarget;
+      drag = { el, startX: e.clientX, startY: e.clientY, origLeft: parseFloat(el.style.left), origTop: parseFloat(el.style.top) };
+      el.setPointerCapture(e.pointerId);
+      function move(ev){
+        if(!drag) return;
+        const nx = drag.origLeft + (ev.clientX - drag.startX);
+        const ny = drag.origTop + (ev.clientY - drag.startY);
+        drag.el.style.left = nx + 'px';
+        drag.el.style.top = ny + 'px';
+        nodes[drag.el.dataset.id].x = nx;
+        nodes[drag.el.dataset.id].y = ny;
+        // update connections that touch this node
+        for(const k in conns){
+          if(conns[k].src.nodeId === drag.el.dataset.id || conns[k].dst.nodeId === drag.el.dataset.id) updateConnection(k);
+        }
+      }
+      function up(ev){
+        if(drag){
+          drag.el.releasePointerCapture(e.pointerId);
+          drag = null;
+          saveState();
+        }
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+      }
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+    }
+
+    function onDoubleClickNode(e){
+      const nodeEl = e.currentTarget;
+      const target = e.target;
+      const id = nodeEl.dataset.id;
+      // if clicked the title or body, convert to editable
+      if(target.dataset.editable){
+        const field = target.dataset.editable;
+        const cur = nodes[id][field];
+        const input = document.createElement(field==='title' ? 'input' : 'textarea');
+        input.value = cur;
+        input.style.minHeight = '40px';
+        target.replaceWith(input);
+        input.focus();
+        input.select();
+        function commit(){
+          nodes[id][field] = input.value;
+          const div = document.createElement('div');
+          div.className = field==='title' ? 'title' : 'body';
+          div.dataset.editable = field;
+          div.innerText = input.value;
+          input.replaceWith(div);
+          // reattach double-click handler for edited element
+          div.addEventListener('dblclick', onDoubleClickNode);
+          saveState();
+        }
+        input.addEventListener('blur', commit);
+        input.addEventListener('keydown', (ev)=>{ if(ev.key==='Enter' && field==='title'){ ev.preventDefault(); input.blur(); } });
+      }
+    }
+
+    function removeNode(id){
+      // remove node
+      const n = nodes[id];
+      if(!n) return;
+      n.el.remove();
+      delete nodes[id];
+      // remove associated connections
+      for(const k of Object.keys(conns)){
+        if(conns[k].src.nodeId===id || conns[k].dst.nodeId===id){ removeConnection(k); }
+      }
+      saveState();
+    }
+
+    function duplicateNode(id){
+      const n = nodes[id];
+      if(!n) return;
+      createNode(n.x+30, n.y+30, n.title + ' (copy)', n.body);
+    }
+
+    function removeConnection(id){
+      const c = conns[id];
+      if(!c) return;
+      if(c.path) c.path.remove();
+      if(c.shadow) c.shadow.remove();
+      delete conns[id];
+      saveState();
+    }
+
+    // persist / load
+    function saveState(){
+      try{
+        const state = { nodes: Object.values(nodes).map(n=>({id:n.id,x:n.x,y:n.y,title:n.title,body:n.body})), conns: Object.values(conns).map(c=>({id:c.id,src:c.src,dst:c.dst})) };
+        localStorage.setItem('visual-workspace-v1', JSON.stringify(state));
+      }catch(e){ console.warn('save failed', e)}
+    }
+
+    function loadState(){
+      const raw = localStorage.getItem('visual-workspace-v1');
+      if(!raw) return false;
+      try{
+        const state = JSON.parse(raw);
+        // clean
+        canvas.querySelectorAll('.node').forEach(n=>n.remove());
+        svg.querySelectorAll('path').forEach(p=>p.remove());
+        nodes = {}; conns = {};
+        (state.nodes||[]).forEach(n=> createNode(n.x, n.y, n.title, n.body));
+        // connections: create with explicit src/dst
+        (state.conns||[]).forEach(c=>{
+          // find matching node ids (state createNode generated new ids). We'll best-effort match by title content.
+          // but to preserve connections we store path ids originally. Simpler: export/import preserves ids; local load expects same ids.
+        });
+        // Note: when loading from localStorage after page refresh, nodes created above will have different ids.
+        // To preserve connections across reloads reliably, we reconstruct differently when saving. For simplicity here we only persist nodes & no conns.
+        // We'll rehydrate connections only when user exports/imports.
+        saveState();
+        return true;
+      }catch(e){ console.warn('load failed', e); return false }
+    }
+
+    // Export current state (including true ids and connections)
+    function exportState(){
+      // ensure conns list keyed
+      const payload = {
+        nodes: Object.values(nodes).map(n=>({id:n.id,x:n.x,y:n.y,title:n.title,body:n.body})),
+        conns: Object.values(conns).map(c=>({id:c.id,src:c.src,dst:c.dst}))
+      };
+      const data = JSON.stringify(payload, null, 2);
+      const blob = new Blob([data], {type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'workspace-export.json';
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    }
+
+    function importStateFromFile(file){
+      const reader = new FileReader();
+      reader.onload = ()=>{
+        try{
+          const state = JSON.parse(reader.result);
+          importState(state);
+        }catch(e){ alert('Invalid file') }
+      };
+      reader.readAsText(file);
+    }
+
+    function importState(state){
+      // clear
+      canvas.querySelectorAll('.node').forEach(n=>n.remove());
+      svg.querySelectorAll('path').forEach(p=>p.remove());
+      nodes = {}; conns = {};
+      // create nodes while preserving ids
+      (state.nodes||[]).forEach(n=>{
+        const el = document.createElement('div');
+        el.className = 'node';
+        el.dataset.id = n.id;
+        el.style.left = n.x + 'px';
+        el.style.top = n.y + 'px';
+        el.innerHTML = `
+          <div class="header">
+            <div class="title" data-editable="title">${escapeHtml(n.title)}</div>
+            <div style="display:flex;gap:6px;align-items:center">
+              <button title="Duplicate" class="ghost small duplicate">⧉</button>
+              <button title="Delete" class="ghost small delete">✕</button>
+            </div>
+          </div>
+          <div class="body" data-editable="body">${escapeHtml(n.body)}</div>
+        `;
+        const anchors = ['a-top','a-tr','a-right','a-br','a-bottom','a-bl','a-left','a-tl'];
+        anchors.forEach(c=>{
+          const a = document.createElement('div');
+          a.className = 'anchor '+c;
+          a.dataset.anchor = c;
+          el.appendChild(a);
+        });
+        canvas.appendChild(el);
+        nodes[n.id] = {id:n.id,x:n.x,y:n.y,title:n.title,body:n.body,el};
+        el.addEventListener('pointerdown', onPointerDownNode);
+        el.addEventListener('dblclick', onDoubleClickNode);
+        el.querySelector('.delete').addEventListener('click', ()=>{ removeNode(n.id) });
+        el.querySelector('.duplicate').addEventListener('click', ()=>{ duplicateNode(n.id) });
+        el.querySelectorAll('.anchor').forEach(a=>{ a.addEventListener('click', (ev)=>{ ev.stopPropagation(); onAnchorClick(n.id, a.dataset.anchor); }); });
+      });
+      // recreate connections
+      (state.conns||[]).forEach(c=>{
+        const id = c.id || uid('conn');
+        const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+        path.classList.add('conn'); path.dataset.id = id; svg.appendChild(path);
+        const shadow = document.createElementNS('http://www.w3.org/2000/svg','path'); shadow.classList.add('conn-shadow'); svg.insertBefore(shadow, path);
+        conns[id] = {id, src:c.src, dst:c.dst, path, shadow};
+        updateConnection(id);
+      });
+      saveState();
+    }
+
+    // UI bindings
+    addNodeBtn.addEventListener('click', ()=>{ createNode(120 + Math.random()*200, 120 + Math.random()*200) });
+    clearAll.addEventListener('click', ()=>{
+      if(!confirm('Clear all nodes and connections?')) return;
+      canvas.querySelectorAll('.node').forEach(n=>n.remove());
+      svg.querySelectorAll('path').forEach(p=>p.remove());
+      nodes = {}; conns = {};
+      localStorage.removeItem('visual-workspace-v1');
+    });
+    exportBtn.addEventListener('click', exportState);
+    importBtn.addEventListener('click', ()=>fileIn.click());
+    fileIn.addEventListener('change', (ev)=>{ if(ev.target.files[0]) importStateFromFile(ev.target.files[0]); fileIn.value = ''; });
+
+    // On load: try to restore minimal state
+    window.addEventListener('load', ()=>{
+      // If no saved state, create a starter map
+      const raw = localStorage.getItem('visual-workspace-v1');
+      if(!raw){
+        createNode(60,60,'Idea: Homepage','What is the goal?');
+        createNode(420,140,'Wireframe','Header, hero, features');
+        createNode(220,320,'Tasks','Design, Dev, Deploy');
+      } else {
+        // attempt to parse and import full export if found
+        try{
+          const st = JSON.parse(raw);
+          // older save format may exclude conns. If it looks like our export, import
+          if(st.nodes && st.conns){ importState(st); } else {
+            // fallback: rebuild nodes only
+            const parsed = JSON.parse(raw);
+            (parsed.nodes||[]).forEach(n=> createNode(n.x, n.y, n.title, n.body));
+          }
+        }catch(e){ console.warn('load parse error', e); }
+      }
+    });
+
+    // Recompute all connections on window resize or frame changes
+    window.addEventListener('resize', ()=>{ for(const k in conns) updateConnection(k); });
+
+    // Optional: keyboard shortcuts
+    window.addEventListener('keydown', (ev)=>{
+      if(ev.ctrlKey && ev.key.toLowerCase()==='s'){ ev.preventDefault(); exportState(); }
+      if(ev.key === 'Delete'){
+        // delete selected node if we implement selection — not implemented now
+      }
+    });
+
+    // small performance: update all conns (useful after moving multiple)
+    function update(){ for(const k in conns) updateConnection(k); }
+
+  </script>
 </body>
 </html>
