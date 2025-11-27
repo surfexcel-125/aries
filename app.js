@@ -1,349 +1,437 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Aries — Sign In</title>
-  <style>
-    :root {
-      --bg: #050505;
-      --fg: #f9fafb;
-      --muted: #9ca3af;
-      --accent: #fafafa;
-      --error: #f97373;
-    }
-    * { box-sizing: border-box; }
-    html, body {
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
-                   "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background: var(--bg);
-      color: var(--fg);
-    }
-    body {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 16px;
-    }
-    .auth-shell {
-      width: 100%;
-      max-width: 420px;
-      border-radius: 18px;
-      border: 1px solid #111827;
-      background: #020617;
-      box-shadow:
-        0 28px 60px rgba(0,0,0,0.9),
-        0 0 0 1px rgba(255,255,255,0.02);
-      padding: 24px 22px 20px;
-    }
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 18px;
-    }
-    .brand-mark {
-      width: 32px;
-      height: 32px;
-      border-radius: 999px;
-      border: 1px solid rgba(249,250,251,0.2);
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      font-size:18px;
-      font-weight:800;
-    }
-    .brand-text-main {
-      font-weight: 800;
-      font-size: 18px;
-      letter-spacing: 0.08em;
-    }
-    .brand-text-sub {
-      font-size: 12px;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.16em;
-    }
-    .headline {
-      margin: 0 0 4px 0;
-      font-size: 22px;
-      font-weight: 700;
-    }
-    .subheadline {
-      margin: 0 0 18px 0;
-      font-size: 13px;
-      color: var(--muted);
-    }
-    .mode-toggle {
-      display: inline-flex;
-      border-radius: 999px;
-      padding: 2px;
-      border: 1px solid rgba(148,163,184,0.5);
-      background: #020617;
-      margin-bottom: 16px;
-    }
-    .mode-toggle button {
-      border: none;
-      background: transparent;
-      color: var(--muted);
-      font-size: 12px;
-      padding: 6px 12px;
-      border-radius: 999px;
-      cursor: pointer;
-      font-weight: 600;
-    }
-    .mode-toggle button.active {
-      background: #f9fafb;
-      color: #020617;
-    }
-    form {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-    label {
-      font-size: 12px;
-      color: var(--muted);
-      display:block;
-      margin-bottom: 2px;
-    }
-    input[type="email"],
-    input[type="password"] {
-      width: 100%;
-      padding: 9px 10px;
-      border-radius: 9px;
-      border: 1px solid #111827;
-      background: #020617;
-      color: var(--fg);
-      font-size: 13px;
-      outline: none;
-    }
-    input::placeholder {
-      color: #4b5563;
-    }
-    input:focus {
-      border-color: #e5e7eb;
-    }
-    .error {
-      min-height: 18px;
-      font-size: 12px;
-      color: var(--error);
-      margin-top: 2px;
-    }
-    .submit-row {
-      margin-top: 4px;
-    }
-    .btn-primary {
-      width: 100%;
-      border-radius: 999px;
-      border: 1px solid #f9fafb;
-      background: #f9fafb;
-      color: #020617;
-      font-size: 13px;
-      font-weight: 700;
-      padding: 9px 12px;
-      cursor: pointer;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      gap: 8px;
-    }
-    .btn-primary:disabled {
-      opacity: 0.6;
-      cursor: default;
-    }
-    .loader {
-      width: 14px;
-      height: 14px;
-      border-radius: 999px;
-      border: 2px solid rgba(15,23,42,0.4);
-      border-top-color: #020617;
-      animation: spin 0.8s linear infinite;
-    }
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-    .info {
-      margin-top: 10px;
-      font-size: 11px;
-      color: var(--muted);
-    }
-    .footer {
-      margin-top: 18px;
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      font-size: 11px;
-      color: #6b7280;
-    }
-    .pill {
-      border-radius:999px;
-      border: 1px solid #111827;
-      padding:3px 8px;
-      font-size:10px;
-      text-transform:uppercase;
-      letter-spacing:0.14em;
-    }
-    @media (max-width: 480px) {
-      .auth-shell {
-        padding: 20px 16px 16px;
+// app.js — Full ready-to-replace
+// - Expects ./firebase-config.js to export `auth` and `db`
+// - Uses *logged-in* email/password user only (no anonymous sign-in)
+// - If no user on protected pages, redirects to index.html
+// - Provides AriesDB facade with get/create/load/save/delete
+// - Wires header hamburger -> animated sliding sidebar
+// - Populates sidebar with simple static nav
+
+import { auth, db } from './firebase-config.js';
+import {
+  onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
+
+import {
+  collection,
+  getDocs,
+  addDoc,
+  doc,
+  getDoc,
+  updateDoc,
+  deleteDoc,
+  query,
+  orderBy,
+  serverTimestamp
+} from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
+
+/* ===================== Helper: detect login page ===================== */
+
+function isLoginPage() {
+  // Handles /index.html, /, and query strings
+  const path = window.location.pathname || '';
+  const file = path.split('/').pop() || '';
+  if (file === '' || file === 'index.html') return true;
+  // If you ever host login somewhere else, adjust here
+  return false;
+}
+
+/* ===================== Auth boot (authPromise) ===================== */
+/*
+  authPromise:
+    - Resolves with the current user if logged in.
+    - If NOT logged in and NOT on login page -> redirects to index.html and rejects.
+    - If on login page, this file is usually not imported, so it's mostly for safety.
+*/
+
+export const authPromise = new Promise((resolve, reject) => {
+  let settled = false;
+  const TIMEOUT_MS = 10000;
+
+  const timer = setTimeout(() => {
+    if (!settled) {
+      settled = true;
+      console.warn('Firebase auth timeout after 10s.');
+      if (!isLoginPage()) {
+        // Force login if auth state is taking too long
+        window.location.href = 'index.html';
       }
+      reject(new Error('Firebase auth timeout'));
     }
-  </style>
-</head>
-<body>
-<div class="auth-shell">
-  <div class="brand">
-    <div class="brand-mark">A</div>
-    <div>
-      <div class="brand-text-main">ARIES</div>
-      <div class="brand-text-sub">BLACK &amp; WHITE</div>
-    </div>
-  </div>
+  }, TIMEOUT_MS);
 
-  <h1 class="headline">Sign in to Aries</h1>
-  <p class="subheadline" id="modeSubtitle">Use your email and password.</p>
-
-  <div class="mode-toggle" role="tablist" aria-label="Auth mode">
-    <button type="button" id="modeLogin" class="active" role="tab" aria-selected="true">Sign In</button>
-    <button type="button" id="modeSignup" role="tab" aria-selected="false">Create Account</button>
-  </div>
-
-  <form id="authForm" novalidate>
-    <div>
-      <label for="email">Email</label>
-      <input id="email" type="email" autocomplete="email" placeholder="you@example.com" required />
-    </div>
-    <div>
-      <label for="password">Password</label>
-      <input id="password" type="password" autocomplete="current-password" placeholder="••••••••" required />
-    </div>
-
-    <div class="error" id="errorBox"></div>
-
-    <div class="submit-row">
-      <button type="submit" id="submitBtn" class="btn-primary">
-        <span id="submitText">Sign In</span>
-        <span id="submitSpinner" class="loader" style="display:none;"></span>
-      </button>
-    </div>
-
-    <div class="info">
-      Access requires an Aries account. Creating an account is instant and free.
-    </div>
-  </form>
-
-  <div class="footer">
-    <div class="pill">Black &amp; White Mode</div>
-    <div>Aries © <span id="year"></span></div>
-  </div>
-</div>
-
-<script type="module">
-  import { auth } from './firebase-config.js';
-  import {
-    signInWithEmailAndPassword,
-    createUserWithEmailAndPassword,
-    onAuthStateChanged
-  } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
-
-  const REDIRECT_URL = 'home.html';
-
-  const yearEl = document.getElementById('year');
-  yearEl.textContent = new Date().getFullYear().toString();
-
-  const modeLoginBtn = document.getElementById('modeLogin');
-  const modeSignupBtn = document.getElementById('modeSignup');
-  const modeSubtitle = document.getElementById('modeSubtitle');
-  const form = document.getElementById('authForm');
-  const emailInput = document.getElementById('email');
-  const passwordInput = document.getElementById('password');
-  const errorBox = document.getElementById('errorBox');
-  const submitBtn = document.getElementById('submitBtn');
-  const submitText = document.getElementById('submitText');
-  const submitSpinner = document.getElementById('submitSpinner');
-
-  let mode = 'login';
-
-  function setMode(newMode) {
-    mode = newMode;
-    if (mode === 'login') {
-      modeLoginBtn.classList.add('active');
-      modeSignupBtn.classList.remove('active');
-      submitText.textContent = 'Sign In';
-      modeSubtitle.textContent = 'Use your email and password.';
-    } else {
-      modeLoginBtn.classList.remove('active');
-      modeSignupBtn.classList.add('active');
-      submitText.textContent = 'Create Account';
-      modeSubtitle.textContent = 'Create a new Aries account in a few seconds.';
-    }
-    errorBox.textContent = '';
-  }
-
-  modeLoginBtn.addEventListener('click', () => setMode('login'));
-  modeSignupBtn.addEventListener('click', () => setMode('signup'));
-
-  function setLoading(isLoading) {
-    submitBtn.disabled = isLoading;
-    submitSpinner.style.display = isLoading ? 'inline-block' : 'none';
-  }
-
-  function mapErrorMessage(err) {
-    if (!err || !err.code) return 'Something went wrong. Please try again.';
-    switch (err.code) {
-      case 'auth/invalid-email':
-        return 'That email address is not valid.';
-      case 'auth/user-not-found':
-      case 'auth/wrong-password':
-        return 'Incorrect email or password.';
-      case 'auth/email-already-in-use':
-        return 'This email is already in use. Try signing in instead.';
-      case 'auth/weak-password':
-        return 'Password is too weak. Use at least 6 characters.';
-      case 'auth/network-request-failed':
-        return 'Network error. Check your connection and try again.';
-      default:
-        return err.message || 'Authentication failed. Please try again.';
+  try {
+    onAuthStateChanged(
+      auth,
+      (user) => {
+        if (settled) return;
+        if (user) {
+          // Logged in successfully
+          settled = true;
+          clearTimeout(timer);
+          window.currentUser = user;
+          // console.log('Auth: logged in as', user.uid);
+          resolve(user);
+        } else {
+          // Not logged in
+          settled = true;
+          clearTimeout(timer);
+          window.currentUser = null;
+          if (!isLoginPage()) {
+            // On a protected page -> redirect to login
+            console.warn('No user. Redirecting to login.');
+            window.location.href = 'index.html';
+          }
+          reject(new Error('NO_USER'));
+        }
+      },
+      (error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        console.error('Auth observer error:', error);
+        if (!isLoginPage()) {
+          window.location.href = 'index.html';
+        }
+        reject(error);
+      }
+    );
+  } catch (err) {
+    if (!settled) {
+      settled = true;
+      clearTimeout(timer);
+      console.error('Auth init error:', err);
+      if (!isLoginPage()) {
+        window.location.href = 'index.html';
+      }
+      reject(err);
     }
   }
+});
 
-  form.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    errorBox.textContent = '';
+/* ===================== AriesDB facade ===================== */
+/* Safe to use from your pages. They await authPromise internally. */
 
-    const email = emailInput.value.trim();
-    const password = passwordInput.value;
-
-    if (!email || !password) {
-      errorBox.textContent = 'Email and password are required.';
-      return;
-    }
-
-    setLoading(true);
+window.AriesDB = {
+  /**
+   * Returns array of projects: [{id, name, status, ...}, ...]
+   * If error, returns [] and logs to console.
+   */
+  async getProjects() {
+    await authPromise.catch(() => { /* redirect will already have happened */ });
     try {
-      if (mode === 'login') {
-        await signInWithEmailAndPassword(auth, email, password);
-      } else {
-        await createUserWithEmailAndPassword(auth, email, password);
-      }
-      // onAuthStateChanged will handle redirect
-    } catch (err) {
-      console.error(err);
-      errorBox.textContent = mapErrorMessage(err);
-    } finally {
-      setLoading(false);
+      const qRef = query(collection(db, 'projects'), orderBy('createdAt', 'desc'));
+      const snap = await getDocs(qRef);
+      return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch (e) {
+      console.error('AriesDB.getProjects error', e);
+      return [];
     }
-  });
+  },
 
-  onAuthStateChanged(auth, (user) => {
-    if (user) {
-      window.location.href = REDIRECT_URL;
+  /**
+   * Create new project with basic structure. Returns new doc id or null.
+   */
+  async createProject(name) {
+    await authPromise.catch(() => {});
+    try {
+      const ref = await addDoc(collection(db, 'projects'), {
+        name,
+        status: 'Active',
+        owner: window.currentUser?.uid || null,
+        createdAt: serverTimestamp(),
+        nodes: [],
+        links: []
+      });
+      return ref.id;
+    } catch (e) {
+      console.error('AriesDB.createProject error', e);
+      return null;
     }
-  });
-</script>
-</body>
-</html>
+  },
+
+  /**
+   * Load single project data (doc fields) or null if not found.
+   */
+  async loadProjectData(projectId) {
+    await authPromise.catch(() => {});
+    if (!projectId) return null;
+    try {
+      const r = doc(db, 'projects', projectId);
+      const s = await getDoc(r);
+      return s.exists() ? s.data() : null;
+    } catch (e) {
+      console.error('AriesDB.loadProjectData error', e);
+      return null;
+    }
+  },
+
+  /**
+   * Save workspace nodes & links for a project (if you want them on the project doc itself).
+   * NOTE: Your current workspace.html uses a separate 'workspaceBoards' collection,
+   * so this method is extra/optional.
+   */
+  async saveProjectWorkspace(projectId, nodes, links) {
+    await authPromise.catch(() => {});
+    if (!projectId) return false;
+    try {
+      const r = doc(db, 'projects', projectId);
+      await updateDoc(r, {
+        nodes: nodes || [],
+        links: links || [],
+        lastModified: serverTimestamp()
+      });
+      return true;
+    } catch (e) {
+      console.error('AriesDB.saveProjectWorkspace error', e);
+      return false;
+    }
+  },
+
+  /**
+   * Delete a project document. Returns true on success, false otherwise.
+   */
+  async deleteProject(projectId) {
+    await authPromise.catch(() => {});
+    if (!projectId) return false;
+    try {
+      const r = doc(db, 'projects', projectId);
+      await deleteDoc(r);
+      return true;
+    } catch (e) {
+      console.error('AriesDB.deleteProject error', e);
+      return false;
+    }
+  }
+};
+
+/* ===================== UI: Header + Sliding Sidebar ===================== */
+/*
+  - Wires any hamburger button (#aries-hamburger, .aries-hamburger, etc.)
+  - Controls #aries-sidebar / .aries-sidebar using transform (no layout shift)
+  - Uses a persistent overlay (#aries-overlay)
+*/
+
+(function () {
+  const SLIDE_MS = 300;
+  const HAMBURGER_SELECTORS = [
+    '#aries-hamburger',
+    '.aries-hamburger',
+    '.topbar .hamburger',
+    '.hamburger'
+  ];
+  const SIDEBAR_SELECTORS = [
+    '#aries-sidebar',
+    '.aries-sidebar',
+    '.sidebar'
+  ];
+
+  function findFirst(selectors) {
+    for (const s of selectors) {
+      const el = document.querySelector(s);
+      if (el) return el;
+    }
+    return null;
+  }
+
+  function createOverlayIfMissing() {
+    let overlay = document.getElementById('aries-overlay') ||
+                  document.getElementById('legacy-sidebar-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'aries-overlay';
+      overlay.className = 'aries-overlay hidden';
+      overlay.setAttribute('aria-hidden', 'true');
+      document.body.appendChild(overlay);
+      console.info('app.js: created #aries-overlay');
+    }
+    return overlay;
+  }
+
+  function wire(hamburger, sidebar, overlay) {
+    if (!hamburger || !sidebar) return;
+
+    sidebar.classList.remove('open', 'animating');
+    sidebar.classList.add('hidden');
+    sidebar.setAttribute('aria-hidden', 'true');
+    sidebar.dataset.open = 'false';
+
+    hamburger.setAttribute('aria-expanded', 'false');
+
+    overlay.classList.add('hidden');
+    overlay.classList.remove('visible');
+
+    function openSidebar() {
+      if (sidebar.classList.contains('open')) return;
+      sidebar.classList.remove('hidden');
+      sidebar.classList.add('animating');
+      void sidebar.offsetWidth; // force reflow
+      sidebar.classList.add('open');
+
+      overlay.classList.remove('hidden');
+      overlay.classList.add('visible');
+
+      sidebar.setAttribute('aria-hidden', 'false');
+      sidebar.dataset.open = 'true';
+      hamburger.setAttribute('aria-expanded', 'true');
+
+      setTimeout(() => sidebar.classList.remove('animating'), SLIDE_MS);
+    }
+
+    function closeSidebar() {
+      if (!sidebar.classList.contains('open')) {
+        sidebar.classList.remove('animating');
+        sidebar.classList.add('hidden');
+        overlay.classList.remove('visible');
+        overlay.classList.add('hidden');
+        sidebar.setAttribute('aria-hidden', 'true');
+        sidebar.dataset.open = 'false';
+        hamburger.setAttribute('aria-expanded', 'false');
+        return;
+      }
+
+      sidebar.classList.add('animating');
+      sidebar.classList.remove('open');
+
+      overlay.classList.remove('visible');
+      overlay.classList.add('hidden');
+
+      sidebar.setAttribute('aria-hidden', 'true');
+      sidebar.dataset.open = 'false';
+      hamburger.setAttribute('aria-expanded', 'false');
+
+      setTimeout(() => {
+        sidebar.classList.remove('animating');
+        sidebar.classList.add('hidden');
+      }, SLIDE_MS);
+    }
+
+    function toggleSidebar() {
+      if (sidebar.classList.contains('open')) {
+        closeSidebar();
+      } else {
+        openSidebar();
+      }
+    }
+
+    hamburger.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleSidebar();
+    });
+
+    overlay.addEventListener('click', (e) => {
+      e.preventDefault();
+      closeSidebar();
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!sidebar.classList.contains('open')) return;
+      const t = e.target;
+      if (!sidebar.contains(t) &&
+          t !== hamburger &&
+          !hamburger.contains(t) &&
+          t !== overlay) {
+        closeSidebar();
+      }
+    }, true);
+
+    document.addEventListener('keydown', (e) => {
+      const tag = (document.activeElement && document.activeElement.tagName) || '';
+      if (e.key === 'Escape') {
+        if (sidebar.classList.contains('open')) closeSidebar();
+      } else if ((e.key === 'm' || e.key === 'M') && !/INPUT|TEXTAREA/.test(tag)) {
+        toggleSidebar();
+      }
+    });
+
+    console.info('app.js: wired hamburger -> sidebar');
+  }
+
+  function attemptWire() {
+    const hamburger = findFirst(HAMBURGER_SELECTORS);
+    const sidebar = findFirst(SIDEBAR_SELECTORS);
+    const overlay = createOverlayIfMissing();
+    if (hamburger && sidebar) {
+      wire(hamburger, sidebar, overlay);
+      return true;
+    }
+    console.warn('app.js.attemptWire: elements not present yet', {
+      hamburgerFound: !!hamburger,
+      sidebarFound: !!sidebar
+    });
+    return false;
+  }
+
+  function watchAndWire() {
+    const mo = new MutationObserver((m, obs) => {
+      const ok = attemptWire();
+      if (ok) {
+        obs.disconnect();
+        console.info('app.js: MutationObserver disconnected');
+      }
+    });
+    mo.observe(document.documentElement || document.body, {
+      childList: true,
+      subtree: true
+    });
+    setTimeout(() => attemptWire(), 200);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      const ok = attemptWire();
+      if (!ok) watchAndWire();
+    });
+  } else {
+    const ok = attemptWire();
+    if (!ok) watchAndWire();
+  }
+
+  /* ===================== Sidebar population (simple static nav) ===================== */
+  async function populateSidebarContent() {
+    const sidebar =
+      document.querySelector('#aries-sidebar') ||
+      document.querySelector('.aries-sidebar') ||
+      document.querySelector('.sidebar');
+
+    if (!sidebar) return;
+
+    let nav =
+      sidebar.querySelector('.aries-sidebar-nav') ||
+      sidebar.querySelector('.aries-sidebar-content');
+
+    if (!nav) {
+      nav = document.createElement('nav');
+      nav.className = 'aries-sidebar-nav aries-sidebar-content';
+      nav.setAttribute('role', 'navigation');
+      sidebar.appendChild(nav);
+    }
+
+    nav.innerHTML = '';
+
+    const list = document.createElement('ul');
+    list.className = 'aries-sidebar-list';
+
+    function addItem(label, href) {
+      const li = document.createElement('li');
+      const a = document.createElement('a');
+      a.className = 'aries-sidebar-link';
+      a.textContent = label;
+      a.href = href;
+      li.appendChild(a);
+      list.appendChild(li);
+    }
+
+    addItem('Dashboard', 'home.html');
+    addItem('Projects', 'projects.html');
+
+    nav.appendChild(list);
+  }
+
+  // populate sidebar after DOM + (optionally) auth is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => populateSidebarContent());
+  } else {
+    populateSidebarContent();
+  }
+})();
