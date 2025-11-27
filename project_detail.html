@@ -10,7 +10,7 @@
   <header id="aries-topbar" class="aries-topbar" role="banner">
     <button id="aries-hamburger" class="aries-hamburger" aria-controls="aries-sidebar" aria-expanded="false">☰</button>
     <div class="aries-title">PROJECT MANAGER</div>
-    <a href="index.html" class="aries-brand"><img src="images/goat.png" class="aries-logo" alt="Aries"></a>
+    <a href="home.html" class="aries-brand"><img src="images/goat.png" class="aries-logo" alt="Aries"></a>
   </header>
 
   <aside id="aries-sidebar" class="aries-sidebar hidden" role="complementary" aria-label="Project list">
@@ -33,20 +33,38 @@
   </main>
 
   <script type="module">
+    import { auth } from './firebase-config.js';
+    import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
     import './app.js';
+
     const params = new URLSearchParams(location.search);
     const id = params.get('id');
     const elName = document.getElementById('projectName');
     const openWorkspace = document.getElementById('openWorkspace');
 
     async function load() {
+      if (!id) {
+        elName.textContent = 'No project selected';
+        return;
+      }
       const d = await window.AriesDB.loadProjectData(id);
-      if (!d) { elName.textContent = 'Project not found'; return; }
+      if (!d) {
+        elName.textContent = 'Project not found';
+        return;
+      }
       elName.textContent = d.name;
-      document.getElementById('projectMeta').textContent = `Status: ${d.status || 'Active'} — Last modified: ${d.lastModified || 'N/A'}`;
+      document.getElementById('projectMeta').textContent =
+        `Status: ${d.status || 'Active'} — Last modified: ${d.lastModified || 'N/A'}`;
       openWorkspace.href = `workspace.html?id=${id}`;
     }
-    document.addEventListener('DOMContentLoaded', load);
+
+    onAuthStateChanged(auth, (user) => {
+      if (!user) {
+        window.location.href = 'index.html';
+        return;
+      }
+      load();
+    });
   </script>
 </body>
 </html>
