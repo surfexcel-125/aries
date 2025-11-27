@@ -1,7 +1,7 @@
 /* workspace.js — FULL REPLACEMENT
    - Anchor computation uses model coords (reliable under transforms)
    - Anchors hidden until node hover (visible + interactive on hover)
-   - Precise anchor snapping (checks for .anchor-dot on mouseup)
+   - Precise anchor snapping (checks for .anchor-dot on pointerup)
    - Connect-to-connector (junction) preserved
    - Grouping, auto-layout, color themes, icons/images
    - Export SVG & PNG (client-side), shareable read-only export (blob URL)
@@ -431,27 +431,36 @@
         dot.style.cursor = 'crosshair';
         dot.title = 'Anchor — drag from here to create link';
 
-        // Start link draw from dot
-        dot.addEventListener('mousedown', ev => {
+        // Start link draw from dot (use pointer events)
+        dot.addEventListener('pointerdown', ev => {
           ev.stopPropagation();
+          ev.preventDefault();
+          // capture pointer for consistent behavior
+          try { dot.setPointerCapture && dot.setPointerCapture(ev.pointerId); } catch(e){}
           const anchors = computeAnchorsForNode(node);
           const anchor = anchors[idx];
           state.linkDraw = {
             sourceId: node.id,
             sourceAnchorIdx: idx,
             startX: anchor.x, startY: anchor.y,
-            currentX: anchor.x, currentY: anchor.y
+            currentX: anchor.x, currentY: anchor.y,
+            pointerId: ev.pointerId
           };
           canvas.style.cursor = 'crosshair';
           svg.style.pointerEvents = 'auto';
           renderLinks();
         });
 
+        // release pointer capture on up
+        dot.addEventListener('pointerup', ev => {
+          try { dot.releasePointerCapture && dot.releasePointerCapture(ev.pointerId); } catch(e){}
+        });
+
         anchorsContainer.appendChild(dot);
       });
 
       // show anchors on hover (CSS will handle opacity) — but ensure pointer-events none unless hover via CSS
-      el.addEventListener('mousedown', e => handleNodeDown(e, node.id));
+      el.addEventListener('pointerdown', e => handleNodeDown(e, node.id));
       el.addEventListener('dblclick', e => { e.stopPropagation(); openNodeModal(node); });
       el.addEventListener('contextmenu', e => nodeContext(e, node.id));
       board.appendChild(el);
@@ -611,9 +620,10 @@
           c.style.pointerEvents = 'auto';
           svg.appendChild(c);
 
-          c.addEventListener('mousedown', ev => {
+          c.addEventListener('pointerdown', ev => {
             ev.stopPropagation(); ev.preventDefault();
-            state.handleDrag = { linkId: link.id, ptIdx: pidx, startClientX: ev.clientX, startClientY: ev.clientY, startX: pt.x, startY: pt.y };
+            try { c.setPointerCapture && c.setPointerCapture(ev.pointerId); } catch(e){}
+            state.handleDrag = { linkId: link.id, ptIdx: pidx, startClientX: ev.clientX, startClientY: ev.clientY, startX: pt.x, startY: pt.y, pointerId: ev.pointerId };
           });
 
           c.addEventListener('dblclick', ev => {
@@ -622,6 +632,10 @@
             if (confirm('Remove this bend point?')) {
               saveSnapshot(); link.points.splice(pidx, 1); markDirty(); renderLinks();
             }
+          });
+
+          c.addEventListener('pointerup', ev => {
+            try { c.releasePointerCapture && c.releasePointerCapture(ev.pointerId); } catch(e){}
           });
         });
       }
@@ -726,7 +740,7 @@
 
   // ---------- Interaction: node down, pan, drag, handle drag ----------
   function handleNodeDown(e, nodeId) {
-    if (e.button !== 0) return;
+    if (e.button !== 0 && typeof e.button === 'number') return;
     e.stopPropagation();
     const cm = $('contextMenu'); if (cm) cm.style.display = 'none';
     if (!state.selectedNodes.has(nodeId)) {
@@ -738,7 +752,7 @@
     Array.from(state.selectedNodes).forEach(id => { const n = model.nodes.find(x => x.id === id); if (n) startPositions[id] = { x: n.x, y: n.y }; });
     const node = model.nodes.find(n => n.id === nodeId);
     if (node) { state.highestZ++; node.zIndex = state.highestZ; const el = document.getElementById(`node-${nodeId}`); if (el) el.style.zIndex = state.highestZ; }
-    state.dragInfo = { mode: 'node', startX: e.clientX, startY: e.clientY, nodeId, startPositions };
+    state.dragInfo = { mode: 'node', startX: e.clientX, startY: e.clientY, nodeId, startPositions, pointerId: e.pointerId };
     renderNodes();
   }
 
@@ -756,7 +770,7 @@
     if (toolDeleteNode) toolDeleteNode.disabled = true;
     if (toolDeleteLink) toolDeleteLink.disabled = true;
     renderNodes(); renderLinks(); updateInspector();
-    state.dragInfo = { mode: 'pan', startX: e.clientX, startY: e.clientY, startTransformX: state.transform.x, startTransformY: state.transform.y };
+    state.dragInfo = { mode: 'pan', startX: e.clientX, startY: e.clientY, startTransformX: state.transform.x, startTransformY: state.transform.y, pointerId: e.pointerId };
     canvas.style.cursor = 'grabbing';
   }
 
@@ -802,7 +816,8 @@
   }
 
   function onUp(e) {
-    if (state.handleDrag) { saveSnapshot(); state.handleDrag = null; markDirty(); renderLinks(); return; }
+    // finalize capture-based drags
+    if (state.handleDrag) { saveSnapshot(); try { /*release capture if needed*/ } catch(e){} state.handleDrag = null; markDirty(); renderLinks(); return; }
     if (state.linkDraw) finalizeLinkIfPossible(e);
     if (state.dragInfo) {
       if (state.dragInfo.mode === 'node') {
@@ -1146,13 +1161,9 @@
     if (toolDeleteNode) toolDeleteNode.addEventListener('click', ()=> { Array.from(state.selectedNodes).forEach(id => deleteNode(id)); state.selectedNodes.clear(); renderNodes(); });
     if (toolDeleteLink) toolDeleteLink.addEventListener('click', ()=> { if (state.selectedLinkId) deleteLink(state.selectedLinkId); });
 
-    if (canvas) canvas.addEventListener('mousedown', onCanvasDown);
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
-
-    canvas.addEventListener('touchstart', (ev) => { const t = ev.touches[0]; onCanvasDown({ clientX: t.clientX, clientY: t.clientY, target: ev.target }); ev.preventDefault(); }, { passive:false });
-    canvas.addEventListener('touchmove', (ev) => { const t = ev.touches[0]; onMove({ clientX: t.clientX, clientY: t.clientY }); ev.preventDefault(); }, { passive:false });
-    canvas.addEventListener('touchend', (ev) => { onUp({ clientX:0, clientY:0 }); }, { passive:false });
+    if (canvas) canvas.addEventListener('pointerdown', onCanvasDown);
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
 
     const zoomFactor = 1.2;
     if (zoomInCorner) zoomInCorner.addEventListener('click', ()=> { state.transform.scale = clamp(state.transform.scale * zoomFactor, 0.25, 3); applyTransform(); });
@@ -1225,7 +1236,7 @@
 /* anchors hidden until hover */
 .node .anchor-dot { opacity: 0; transition: opacity 140ms ease; pointer-events: none; }
 .node:hover .anchor-dot { opacity: 1; pointer-events: auto; }
-.anchor-dot { transition: border-color 120ms ease, opacity 120ms ease; box-sizing:border-box; }
+.anchor-dot { transition: border-color 120ms ease, opacity 120ms ease; box-sizing:border-box; width:${CONFIG.anchorDotSize}px; height:${CONFIG.anchorDotSize}px; }
 .node.selected { outline: 2px solid rgba(59,132,255,0.12); box-shadow: 0 12px 28px rgba(29,78,216,0.06) inset; }
 .link-label { font-family: sans-serif; font-size: 13px; fill: #111827; pointer-events:none; }
 .wf-toast-item { font-weight:700; }
@@ -1269,30 +1280,22 @@
   }
 
   // ---------- Group operations (move together) ----------
-  // when rendering nodes, group movement is handled by selecting group members and moving them together (already supported).
-  // add a small UI to ungroup (in palette or inspector) - for brevity we add ungroup via console / API
-  // API: window._wf.ungroup(groupId)
   function ungroup(groupId) {
     model.groups = model.groups.filter(g => g.id !== groupId);
     saveSnapshot(); markDirty(); showToast('Group removed');
   }
 
   // ---------- Export SVG & PNG ----------
-  // Export a snapshot SVG by combining link SVG with node foreignObjects (basic approach)
   function exportAsSVG() {
-    // Create a new SVG with same size as board
     const bbox = board.getBoundingClientRect();
     const width = Math.max(board.offsetWidth, bbox.width);
     const height = Math.max(board.offsetHeight, bbox.height);
-    // clone current SVG (links)
     const svgClone = svg.cloneNode(true);
     svgClone.removeAttribute('id');
     svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
     svgClone.setAttribute('width', String(width));
     svgClone.setAttribute('height', String(height));
-    // append nodes as foreignObject
     model.nodes.forEach(node => {
-      // create foreignObject for basic text representation (images/icons may not render cross-origin)
       const fo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
       fo.setAttribute('x', String(node.x));
       fo.setAttribute('y', String(node.y));
@@ -1320,11 +1323,9 @@
   }
 
   function exportAsPNG() {
-    // We will serialize SVG + foreignObjects as above and draw to canvas via an Image
     const bbox = board.getBoundingClientRect();
     const width = Math.max(board.offsetWidth, bbox.width);
     const height = Math.max(board.offsetHeight, bbox.height);
-    // clone and serialize
     const svgClone = svg.cloneNode(true);
     svgClone.removeAttribute('id');
     svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
@@ -1403,7 +1404,6 @@
     const data = JSON.stringify(payload);
     const blob = new Blob([data], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-    // Keep it ephemeral — user can copy this or paste to another app. Show toast with short link?
     showToast('Shareable read-only JSON created (copy from console)');
     console.log('Shareable JSON URL (blob):', url);
     return url;
@@ -1492,33 +1492,7 @@
   }
   document.addEventListener('DOMContentLoaded', boot);
 
-  // ---------- Keep last mouse ----------
-  document.addEventListener('mousemove', (e) => { window._lastMouse = { clientX: e.clientX, clientY: e.clientY }; });
-
-  // ---------- Helper: polyToPath (copied for completeness) ----------
-  function polyToPath(points, cornerRadius) {
-    if (!points || points.length < 2) return '';
-    const r = Math.max(0, cornerRadius || 0);
-    let d = `M ${points[0].x} ${points[0].y}`;
-    for (let i = 1; i < points.length; i++) {
-      const prev = points[i - 1], cur = points[i], next = points[i + 1];
-      if (next && r > 0) {
-        const vx = cur.x - prev.x, vy = cur.y - prev.y;
-        const nx = next.x - cur.x, ny = next.y - cur.y;
-        const inLen = Math.sqrt(vx * vx + vy * vy) || 1;
-        const outLen = Math.sqrt(nx * nx + ny * ny) || 1;
-        const rad = Math.min(r, inLen / 2, outLen / 2);
-        const ux = vx / inLen, uy = vy / inLen;
-        const ox = nx / outLen, oy = ny / outLen;
-        const csx = cur.x - ux * rad, csy = cur.y - uy * rad;
-        const cex = cur.x + ox * rad, cey = cur.y + oy * rad;
-        d += ` L ${csx} ${csy}`;
-        d += ` Q ${cur.x} ${cur.y}, ${cex} ${cey}`;
-      } else {
-        d += ` L ${cur.x} ${cur.y}`;
-      }
-    }
-    return d;
-  }
+  // ---------- Keep last pointer ----------
+  document.addEventListener('pointermove', (e) => { window._lastMouse = { clientX: e.clientX, clientY: e.clientY }; });
 
 })();
