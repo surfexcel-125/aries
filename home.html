@@ -9,15 +9,20 @@
 
   <!-- Load Snap ITC & Magneto fonts -->
   <style>
-    @font-face {
-      font-family: "SnapITC";
-      src: url("SnapITC.ttf") format("truetype");
-    }
+   @font-face {
+  font-family: "SnapITC";
+  src: local("Snap ITC"),
+       url("SnapITC.ttf") format("truetype");
+  font-display: swap;
+}
 
-    @font-face {
-      font-family: "Magneto";
-      src: url("Magneto.ttf") format("truetype");
-    }
+@font-face {
+  font-family: "Magneto";
+  src: local("Magneto"),
+       url("Magneto.ttf") format("truetype");
+  font-display: swap;
+}
+
 
     html, body {
       height: 100%;
@@ -134,4 +139,5 @@
 </script>
 </body>
 </html>
+
 
