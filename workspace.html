@@ -1,44 +1,356 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Workspace — Aries</title>
-  <link rel="stylesheet" href="main.css">
-  <style>
-    /* workspace container quick styles */
-    #board { position:relative; min-height:640px; background:#f8fafc; padding:24px; border-radius:6px; }
-    .wf-node { transition: box-shadow .12s ease; }
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Idea Visualizer — Premium Dark (Fixed)</title>
+<style>
+  :root{--bg:#071019; --card:#0f1720; --muted:#90a0b8; --accent:#8b5cf6; --glass: rgba(255,255,255,0.03);} *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto;color:#e6eef8;background:linear-gradient(180deg,var(--bg),#041018)}
+  header{display:flex;justify-content:space-between;align-items:center;padding:12px 20px;background:#0f1720;border-bottom:1px solid rgba(255,255,255,0.04)}
+  h1{margin:0;font-size:16px;color:#e6eef8}
+  main{display:flex;gap:20px;padding:20px}
+  aside{width:320px;background:#0f1720;border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:16px}
+  label{font-size:13px;color:var(--muted)}
+  textarea,input{width:100%;padding:10px;margin-top:6px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);color:#e6eef8}
+  button{cursor:pointer;border-radius:8px;padding:8px 12px;border:none}
+  .btn{background:linear-gradient(90deg,var(--accent),#06b6d4);color:white}
+
+  /* Canvas area */
+  #canvasWrap{flex:1;height:600px;border:1px solid rgba(255,255,255,0.03);border-radius:12px;position:relative;background:linear-gradient(180deg,#071019,#041018);overflow:hidden}
+  /* boardArea is very large -- but we'll pan/zoom it using transforms so no scrollbars */
+  #boardArea{width:5000px;height:3000px;position:absolute;left:0;top:0;transform-origin:0 0;}
+  .node{position:absolute;min-width:150px;padding:12px;border-radius:10px;color:#e6eef8;background:linear-gradient(180deg,#0f1820,#071117);border:1px solid rgba(255,255,255,0.04);box-shadow:0 18px 40px rgba(2,6,23,0.6);user-select:none}
+  .node .title{font-weight:700;margin-bottom:4px}
+  .node .meta{font-size:12px;color:var(--muted)}
+  .connector{width:14px;height:14px;border-radius:50%;background:var(--accent);position:absolute;right:8px;top:50%;transform:translateY(-50%);cursor:pointer;box-shadow:0 6px 14px rgba(139,92,246,0.25);border:2px solid rgba(255,255,255,0.06);pointer-events:auto;z-index:20}
+  svg{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none}
+
+  /* hide native scrollbars if any */
+  #canvasWrap::-webkit-scrollbar{display:none}
+  #canvasWrap{ -ms-overflow-style: none; scrollbar-width: none; }
+
+  /* visual state while connecting */
+  .node.connecting{box-shadow:0 24px 60px rgba(139,92,246,0.35);border-color:rgba(139,92,246,0.6)}
+</style>
 </head>
 <body>
-  <header id="aries-topbar" class="aries-topbar" role="banner">
-    <button id="aries-hamburger" class="aries-hamburger" aria-controls="aries-sidebar" aria-expanded="false">☰</button>
-    <div class="aries-title">PROJECT MANAGER</div>
-    <a href="index.html" class="aries-brand"><img src="images/goat.png" class="aries-logo" alt="Aries"></a>
-  </header>
+<header>
+  <h1>Idea Visualizer — Premium Dark</h1>
+  <div style="display:flex;gap:8px">
+    <button id="btn-fit" class="btn">Fit</button>
+    <button id="btn-export" class="btn">Export SVG</button>
+  </div>
+</header>
+<main>
+<aside>
+  <label>Card</label>
+  <textarea id="ideaText" rows="3" placeholder="Card titles — one per line"></textarea>
+  <label style="margin-top:10px">Body (one per line)</label>
+  <textarea id="cardBody" rows="5" placeholder="Optional: body text for each node — one per line"></textarea>
+  <div style="display:flex;gap:8px;margin-top:10px">
+    <button id="btn-create" class="btn">Create Nodes</button>
+    <button id="btn-workflow" class="btn">Create Workflow</button>
+  </div>
+  <button id="btn-clear" style="margin-top:10px">Clear</button>
+  <div style="margin-top:12px;color:var(--muted);font-size:13px">Tips: Drag background to pan. Use mouse wheel to zoom. Click connector dot then another node to link. Use <strong>Fit</strong> to center created cards.</div>
+</aside>
+<div id="canvasWrap">
+  <div id="boardArea">
+    <svg id="svgLayer"></svg>
+  </div>
+</div>
+</main>
+<script>
+(() => {
+  const state = { nodes: [], links: [], selected: null, nodeId: 1, view: { x: 0, y: 0, scale: 1 }, pan: { active: false, startX: 0, startY: 0, origX: 0, origY: 0 } };
+  const wrap = document.getElementById('canvasWrap');
+  const canvas = document.getElementById('boardArea');
+  const svg = document.getElementById('svgLayer');
 
-  <aside id="aries-sidebar" class="aries-sidebar hidden" role="complementary" aria-label="Project list">
-    <nav class="aries-sidebar-nav aries-sidebar-content"></nav>
-  </aside>
+  function applyView(){
+    canvas.style.transform = `translate(${state.view.x}px, ${state.view.y}px) scale(${state.view.scale})`;
+  }
+  applyView();
 
-  <main class="page-wrapper">
-    <div class="container">
-      <div style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">
-        <h2 style="margin:0">Workspace</h2>
-        <div id="workspaceActions"></div>
-      </div>
+  function escapeHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-      <div id="board" tabindex="0">
-        <!-- nodes will be rendered here by workspace.js -->
-      </div>
+  function createNode(x, y, title = 'New', notes = ''){
+    const id = 'n' + (state.nodeId++);
+    const el = document.createElement('div');
+    el.className = 'node';
+    el.dataset.id = id;
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+    el.innerHTML = '<div class="title">' + escapeHtml(title) + '</div><div class="meta">' + escapeHtml(notes) + '</div><div class="connector" title="Connect"></div>';
+    canvas.appendChild(el);
+    el.style.zIndex = String(state.nodeId * 10);
+    makeDraggable(el);
+    const conn = el.querySelector('.connector');
+    conn.addEventListener('click', (e)=>{ e.stopPropagation(); startConnect(id); });
+    el.addEventListener('click', ()=> selectNode(id));
+    state.nodes.push({ id, el, x, y, title, notes });
+    drawLinks();
+    return id;
+  }
 
-      <!-- optional SVG for links -->
-      <svg id="workspace-links-svg" style="position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none"></svg>
-    </div>
-  </main>
+  function makeDraggable(el){
+    let ox, oy, drag = false;
+    el.addEventListener('pointerdown', e => {
+      if(e.target.classList && e.target.classList.contains('connector')) return;
+      // start node drag (we'll move element coordinates in board-space)
+      drag = true;
+      const rect = canvas.getBoundingClientRect();
+      ox = (e.clientX - rect.left - state.view.x) / state.view.scale - parseFloat(el.style.left || 0);
+      oy = (e.clientY - rect.top - state.view.y) / state.view.scale - parseFloat(el.style.top || 0);
+      if(el.setPointerCapture) el.setPointerCapture(e.pointerId);
+    });
+    window.addEventListener('pointermove', e => {
+      if(!drag) return;
+      const rect = canvas.getBoundingClientRect();
+      const nx = (e.clientX - rect.left - state.view.x) / state.view.scale - ox;
+      const ny = (e.clientY - rect.top - state.view.y) / state.view.scale - oy;
+      el.style.left = nx + 'px';
+      el.style.top = ny + 'px';
+      const n = state.nodes.find(n => n.id === el.dataset.id);
+      if(n){ n.x = nx; n.y = ny; }
+      drawLinks();
+    });
+    window.addEventListener('pointerup', ()=> drag = false);
+  }
 
-  <script type="module" src="app.js"></script>
-  <script type="module" src="workspace.js"></script>
+  function selectNode(id){ state.selected = id; }
+
+  let connecting = null;
+  let tempPath = null;
+  function startConnect(id){
+    connecting = id;
+    svg.style.pointerEvents = 'auto';
+    svg.addEventListener('click', finishConnectOnce);
+    svg.addEventListener('mousemove', followMouse);
+    window.addEventListener('keydown', onConnectKey);
+    const src = state.nodes.find(n=>n.id===id);
+    if(src) src.el.classList.add('connecting');
+  }
+
+  function clientToBoard(clientX, clientY){
+    const rect = canvas.getBoundingClientRect();
+    const bx = (clientX - rect.left - state.view.x) / state.view.scale;
+    const by = (clientY - rect.top - state.view.y) / state.view.scale;
+    return { x: bx, y: by };
+  }
+
+  function followMouse(e){
+    if(!connecting) return;
+    const src = state.nodes.find(n=>n.id===connecting);
+    if(!src) return;
+    const b = clientToBoard(e.clientX, e.clientY);
+    const x2 = b.x; const y2 = b.y;
+    const x1 = src.x + src.el.offsetWidth;
+    const y1 = src.y + src.el.offsetHeight/2;
+    const dx = Math.max(40, Math.abs(x2 - x1) / 2);
+    if(!tempPath){
+      tempPath = document.createElementNS('http://www.w3.org/2000/svg','path');
+      tempPath.setAttribute('stroke','#8b5cf6');
+      tempPath.setAttribute('fill','none');
+      tempPath.setAttribute('stroke-width','2');
+      tempPath.setAttribute('stroke-dasharray','6 6');
+      svg.appendChild(tempPath);
+    }
+    const d = `M ${x1} ${y1} C ${x1+dx} ${y1} ${x2-dx} ${y2} ${x2} ${y2}`;
+    tempPath.setAttribute('d', d);
+  }
+
+  function finishConnectOnce(e){
+    svg.style.pointerEvents = 'none';
+    const target = document.elementFromPoint(e.clientX, e.clientY);
+    const nodeEl = getNode(target);
+    if(nodeEl && nodeEl.dataset.id !== connecting){
+      state.links.push({ from: connecting, to: nodeEl.dataset.id });
+    }
+    cleanupConnect();
+    drawLinks();
+  }
+
+  function onConnectKey(e){ if(e.key === 'Escape') { cleanupConnect(); drawLinks(); } }
+
+  function cleanupConnect(){
+    svg.style.pointerEvents = 'none';
+    svg.removeEventListener('click', finishConnectOnce);
+    svg.removeEventListener('mousemove', followMouse);
+    window.removeEventListener('keydown', onConnectKey);
+    if(tempPath){ tempPath.remove(); tempPath = null; }
+    if(connecting){ const src = state.nodes.find(n=>n.id===connecting); if(src) src.el.classList.remove('connecting'); }
+    connecting = null;
+  }
+
+  function getNode(el){ while(el && el !== document){ if(el.classList && el.classList.contains('node')) return el; el = el.parentNode; } return null; }
+
+  function drawLinks(){
+    while(svg.firstChild) svg.removeChild(svg.firstChild);
+    state.links.forEach(l => {
+      const a = state.nodes.find(n => n.id === l.from);
+      const b = state.nodes.find(n => n.id === l.to);
+      if(!a || !b) return;
+      const x1 = a.x + a.el.offsetWidth;
+      const y1 = a.y + a.el.offsetHeight / 2;
+      const x2 = b.x;
+      const y2 = b.y + b.el.offsetHeight / 2;
+      const dx = Math.max(40, Math.abs(x2 - x1) / 2);
+      const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+      path.setAttribute('d', `M ${x1} ${y1} C ${x1+dx} ${y1} ${x2-dx} ${y2} ${x2} ${y2}`);
+      path.setAttribute('stroke', '#8b5cf6');
+      path.setAttribute('fill', 'none');
+      path.setAttribute('stroke-width', '2');
+      svg.appendChild(path);
+    });
+  }
+
+  // Helpers: fit all nodes into view
+  function fitAll(padding=80){
+    if(state.nodes.length===0) return;
+    let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+    state.nodes.forEach(n=>{ const r = n.el.getBoundingClientRect(); const left = n.x; const top = n.y; const right = n.x + n.el.offsetWidth; const bottom = n.y + n.el.offsetHeight; minX=Math.min(minX,left); minY=Math.min(minY,top); maxX=Math.max(maxX,right); maxY=Math.max(maxY,bottom); });
+    const boardW = maxX - minX || 1; const boardH = maxY - minY || 1;
+    const wrapRect = wrap.getBoundingClientRect();
+    const scale = Math.min((wrapRect.width - padding*2)/boardW, (wrapRect.height - padding*2)/boardH, 1);
+    const centerX = (minX + maxX)/2; const centerY = (minY + maxY)/2;
+    // set view so center maps to wrap center
+    state.view.scale = Math.max(0.2, scale);
+    state.view.x = wrapRect.width/2 - centerX*state.view.scale;
+    state.view.y = wrapRect.height/2 - centerY*state.view.scale;
+    applyView();
+  }
+
+  // Create from text
+  document.getElementById('btn-create').addEventListener('click', ()=>{
+    try{
+      const rawTitles = document.getElementById('ideaText').value || '';
+      const rawBodies = document.getElementById('cardBody').value || '';
+      const titles = rawTitles.split(/
+?
+/).map(s=>s.trim()).filter(Boolean);
+      const bodies = rawBodies.split(/
+?
+/).map(s=>s.trim());
+      if(titles.length === 0){ console.warn('Create Nodes: no titles provided'); return; }
+      // place nodes near center of current view
+      const wrapRect = wrap.getBoundingClientRect();
+      const centerBoardX = (wrapRect.width/2 - state.view.x)/state.view.scale;
+      const centerBoardY = (wrapRect.height/2 - state.view.y)/state.view.scale;
+      let x = Math.max(60, centerBoardX - 60), y = Math.max(60, centerBoardY - 40);
+      titles.forEach((t,i)=>{ const body = bodies[i] || ''; createNode(x,y,t,body); y += 140; });
+      drawLinks();
+      // after creation, fit them if user wants: do nothing automatic
+    }catch(err){ console.error('Create Nodes error', err); alert('Failed to create nodes: '+(err && err.message)); }
+  });
+
+  document.getElementById('btn-workflow').addEventListener('click', ()=>{
+    const rawTitles = document.getElementById('ideaText').value || '';
+    const rawBodies = document.getElementById('cardBody').value || '';
+    const titles = rawTitles.split(/
+?
+/).map(s=>s.trim()).filter(Boolean);
+    const bodies = rawBodies.split(/
+?
+/).map(s=>s.trim());
+    if(titles.length === 0) return;
+    // horizontal flow centered in view
+    const wrapRect = wrap.getBoundingClientRect();
+    let x = Math.max(80, (wrapRect.width/2 - state.view.x)/state.view.scale - (titles.length*170)/2);
+    let y = Math.max(120, (wrapRect.height/2 - state.view.y)/state.view.scale - 40);
+    const gapX = 340; const created = [];
+    titles.forEach((t,i)=>{ const body = bodies[i] || ''; const id = createNode(x,y,t,body); created.push(id); x += gapX; });
+    for(let i=1;i<created.length;i++) state.links.push({ from: created[i-1], to: created[i] });
+    drawLinks();
+  });
+
+  document.getElementById('btn-clear').addEventListener('click', ()=>{
+    state.nodes.forEach(n => n.el.remove()); state.nodes = []; state.links = []; while(svg.firstChild) svg.removeChild(svg.firstChild); state.nodeId = 1; state.view = { x:0,y:0,scale:1 }; applyView();
+  });
+
+  // Fit button
+  document.getElementById('btn-fit').addEventListener('click', ()=>{ fitAll(); });
+
+  // Pan - drag on background (wrap) to move view
+  let panning=false, px=0, py=0;
+  wrap.addEventListener('pointerdown', (e)=>{
+    // only start pan when clicking the background (board area) and not on nodes
+    const target = e.target;
+    if(getNode(target)) return; // clicked a node - ignore
+    panning = true; px = e.clientX; py = e.clientY; wrap.setPointerCapture && wrap.setPointerCapture(e.pointerId);
+  });
+  window.addEventListener('pointermove', (e)=>{
+    if(!panning) return;
+    const dx = e.clientX - px; const dy = e.clientY - py; px = e.clientX; py = e.clientY;
+    state.view.x += dx; state.view.y += dy; applyView();
+  });
+  window.addEventListener('pointerup', (e)=>{ panning = false; try{ wrap.releasePointerCapture && wrap.releasePointerCapture(e.pointerId); }catch(e){} });
+
+  // Zoom with wheel
+  wrap.addEventListener('wheel', (e)=>{
+    e.preventDefault();
+    const delta = -e.deltaY;
+    const zoomFactor = 1 + (delta>0?0.08:-0.08);
+    const rect = canvas.getBoundingClientRect();
+    // mouse pos in board coords before zoom
+    const before = clientToBoard(e.clientX, e.clientY);
+    state.view.scale = Math.max(0.2, Math.min(3, state.view.scale * zoomFactor));
+    // after zoom, compute where the mouse points to and adjust view so point stays under cursor
+    const afterScreenX = before.x * state.view.scale + state.view.x;
+    const afterScreenY = before.y * state.view.scale + state.view.y;
+    state.view.x += (e.clientX - rect.left) - afterScreenX;
+    state.view.y += (e.clientY - rect.top) - afterScreenY;
+    applyView();
+  }, { passive:false });
+
+  // Export SVG (simple)
+  document.getElementById('btn-export').addEventListener('click', ()=>{
+    const w = 1200; const h = 800;
+    const exportSvg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+    exportSvg.setAttribute('xmlns','http://www.w3.org/2000/svg');
+    exportSvg.setAttribute('width', w);
+    exportSvg.setAttribute('height', h);
+    state.links.forEach(l => {
+      const a = state.nodes.find(n => n.id === l.from);
+      const b = state.nodes.find(n => n.id === l.to);
+      if(!a || !b) return;
+      const x1 = a.x + a.el.offsetWidth;
+      const y1 = a.y + a.el.offsetHeight/2;
+      const x2 = b.x;
+      const y2 = b.y + b.el.offsetHeight/2;
+      const dx = Math.max(40, Math.abs(x2-x1)/2);
+      const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+      path.setAttribute('d', `M ${x1} ${y1} C ${x1+dx} ${y1} ${x2-dx} ${y2} ${x2} ${y2}`);
+      path.setAttribute('stroke', '#8b5cf6'); path.setAttribute('fill','none'); path.setAttribute('stroke-width','2');
+      exportSvg.appendChild(path);
+    });
+    const str = new XMLSerializer().serializeToString(exportSvg);
+    const blob = new Blob([str], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'idea-visual.svg'; a.click(); URL.revokeObjectURL(url);
+  });
+
+  // initial sample nodes (keep small)
+  createNode(220,160,'Central idea','Double-click to edit');
+  createNode(520,120,'Branch A','');
+  createNode(520,320,'Branch B','');
+  drawLinks();
+
+  // double-click to edit node title/body
+  wrap.addEventListener('dblclick', (e) => {
+    const nodeEl = getNode(e.target);
+    if(nodeEl){
+      const id = nodeEl.dataset.id;
+      const n = state.nodes.find(x => x.id === id);
+      const newTitle = prompt('Edit title', n.title);
+      if(newTitle !== null){ n.title = newTitle; n.el.querySelector('.title').innerText = newTitle; }
+      const newBody = prompt('Edit body', n.notes || '');
+      if(newBody !== null){ n.notes = newBody; n.el.querySelector('.meta').innerText = newBody; }
+    }
+  });
+
+})();
+</script>
 </body>
 </html>
