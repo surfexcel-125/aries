@@ -1,299 +1,52 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Idea Visualizer — Premium Dark (Fixed)</title>
-<style>
-  :root{--bg:#071019; --card:#0f1720; --muted:#90a0b8; --accent:#8b5cf6; --glass: rgba(255,255,255,0.03);} *{box-sizing:border-box}
-  body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto;color:#e6eef8;background:linear-gradient(180deg,var(--bg),#041018)}
-  header{display:flex;justify-content:space-between;align-items:center;padding:16px 24px;background:#0f1720;border-bottom:1px solid rgba(255,255,255,0.04)}
-  h1{margin:0;font-size:16px;color:#e6eef8}
-  main{display:flex;gap:20px;padding:20px}
-  aside{width:320px;background:#0f1720;border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:16px}
-  label{font-size:13px;color:var(--muted)}
-  textarea,input{width:100%;padding:10px;margin-top:6px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);color:#e6eef8}
-  button{cursor:pointer;border-radius:8px;padding:8px 12px;border:none}
-  .btn{background:linear-gradient(90deg,var(--accent),#06b6d4);color:white}
-  #canvasWrap{flex:1;height:600px;border:1px solid rgba(255,255,255,0.03);border-radius:12px;position:relative;background:linear-gradient(180deg,#071019,#041018);overflow:auto}
-  #boardArea{width:100000px;height:100000px;position:relative}
-  .node{position:absolute;min-width:150px;padding:12px;border-radius:10px;color:#e6eef8;background:linear-gradient(180deg,#0f1820,#071117);border:1px solid rgba(255,255,255,0.04);box-shadow:0 18px 40px rgba(2,6,23,0.6)}
-  .node .title{font-weight:700;margin-bottom:4px}
-  .node .meta{font-size:12px;color:var(--muted)}
-  .connector{width:14px;height:14px;border-radius:50%;background:var(--accent);position:absolute;right:8px;top:50%;transform:translateY(-50%);cursor:pointer;box-shadow:0 6px 14px rgba(139,92,246,0.25);border:2px solid rgba(255,255,255,0.06);pointer-events:auto;z-index:20} 
-  svg{position:absolute;left:0;top:0;width:100000px;height:100000px;pointer-events:none}
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Project — Aries</title>
+  <link rel="stylesheet" href="main.css">
 </head>
 <body>
-<header><h1>Idea Visualizer — Premium Dark (Fixed)</h1><div><button id="btn-export" class="btn">Export SVG</button></div></header>
-<main>
-<aside>
-  <label>Card</label>
-  <textarea id="ideaText" rows="3" placeholder="Card titles — one per line"></textarea>
-  <label style="margin-top:10px">Body (one per line)</label>
-  <textarea id="cardBody" rows="5" placeholder="Optional: body text for each node — one per line"></textarea>
-  <div style="display:flex;gap:8px;margin-top:10px">
-    <button id="btn-create" class="btn">Create Nodes</button>
-    <button id="btn-workflow" class="btn">Create Workflow</button>
-  </div>
-  <button id="btn-clear" style="margin-top:10px">Clear</button>
-  <div style="margin-top:12px;color:var(--muted);font-size:13px">Tips: Use the Card textarea for node titles. Use Body textarea to add descriptive text inside nodes. Click connector dot then another node to link.</div>
-</aside>
-<div id="canvasWrap">
-  <div id="boardArea">
-    <svg id="svgLayer"></svg>
-  </div>
-</div>
-</main>
-<script>
-(() => {
-  const state = { nodes: [], links: [], selected: null, nodeId: 1, pan: { active: false, startX: 0, startY: 0, orig: [] } };
-  const canvas = document.getElementById('boardArea');
-  const svg = document.getElementById('svgLayer');
+  <header id="aries-topbar" class="aries-topbar" role="banner">
+    <button id="aries-hamburger" class="aries-hamburger" aria-controls="aries-sidebar" aria-expanded="false">☰</button>
+    <div class="aries-title">PROJECT MANAGER</div>
+    <a href="index.html" class="aries-brand"><img src="images/goat.png" class="aries-logo" alt="Aries"></a>
+  </header>
 
-  function escapeHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  <aside id="aries-sidebar" class="aries-sidebar hidden" role="complementary" aria-label="Project list">
+    <nav class="aries-sidebar-nav aries-sidebar-content"></nav>
+  </aside>
 
-  function createNode(x, y, title = 'New', notes = ''){
-    const id = 'n' + (state.nodeId++);
-    const el = document.createElement('div');
-    el.className = 'node';
-    el.dataset.id = id;
-    el.style.left = x + 'px';
-    el.style.top = y + 'px';
-    el.innerHTML = '<div class="title">' + escapeHtml(title) + '</div><div class="meta">' + escapeHtml(notes) + '</div><div class="connector" title="Connect"></div>';
-    canvas.appendChild(el);
-    // ensure nodes sit above the svg layer and respect stacking
-    el.style.zIndex = String(state.nodeId * 10);
-    makeDraggable(el);
-    const conn = el.querySelector('.connector');
-    conn.addEventListener('click', (e)=>{ e.stopPropagation(); startConnect(id); });
-    el.addEventListener('click', ()=> selectNode(id));
-    state.nodes.push({ id, el, x, y, title, notes });
-    drawLinks();
-    return id;
-  }
+  <main class="page-wrapper">
+    <div class="container">
+      <div id="projectHeader" class="projects-bar" style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px">
+        <h2 id="projectName" style="margin:0">Loading…</h2>
+        <div>
+          <a id="openWorkspace" class="btn-primary" href="#">Open Workspace</a>
+        </div>
+      </div>
 
-  function makeDraggable(el){
-    let ox, oy, drag = false;
-    el.addEventListener('pointerdown', e => {
-      if(e.target.classList && e.target.classList.contains('connector')) return;
-      drag = true;
-      ox = e.clientX - el.offsetLeft;
-      oy = e.clientY - el.offsetTop;
-      if(el.setPointerCapture) el.setPointerCapture(e.pointerId);
-    });
-    window.addEventListener('pointermove', e => {
-      if(!drag) return;
-      el.style.left = (e.clientX - ox) + 'px';
-      el.style.top = (e.clientY - oy) + 'px';
-      const n = state.nodes.find(n => n.id === el.dataset.id);
-      if(n){ n.x = el.offsetLeft; n.y = el.offsetTop; }
-      drawLinks();
-    });
-    window.addEventListener('pointerup', ()=> drag = false);
-  }
+      <div id="projectBody" style="padding:18px">
+        <p id="projectMeta">Loading project details...</p>
+      </div>
+    </div>
+  </main>
 
-  function selectNode(id){ state.selected = id; }
+  <script type="module">
+    import './app.js';
+    const params = new URLSearchParams(location.search);
+    const id = params.get('id');
+    const elName = document.getElementById('projectName');
+    const openWorkspace = document.getElementById('openWorkspace');
 
-  let connecting = null;
-  let tempPath = null;
-  function startConnect(id){
-    connecting = id;
-    svg.style.pointerEvents = 'auto';
-    svg.addEventListener('click', finishConnectOnce);
-    svg.addEventListener('mousemove', followMouse);
-    window.addEventListener('keydown', onConnectKey);
-    const src = state.nodes.find(n=>n.id===id);
-    if(src) src.el.classList.add('connecting');
-  }
-
-  function followMouse(e){
-    if(!connecting) return;
-    const src = state.nodes.find(n=>n.id===connecting);
-    if(!src) return;
-    // mouse coords relative to boardArea (SVG same size)
-    const rect = canvas.getBoundingClientRect();
-    const x2 = e.clientX - rect.left + canvas.scrollLeft;
-    const y2 = e.clientY - rect.top + canvas.scrollTop;
-    const x1 = src.x + src.el.offsetWidth;
-    const y1 = src.y + src.el.offsetHeight/2;
-    const dx = Math.max(40, Math.abs(x2 - x1) / 2);
-    if(!tempPath){
-      tempPath = document.createElementNS('http://www.w3.org/2000/svg','path');
-      tempPath.setAttribute('stroke','#8b5cf6');
-      tempPath.setAttribute('fill','none');
-      tempPath.setAttribute('stroke-width','2');
-      tempPath.setAttribute('stroke-dasharray','6 6');
-      svg.appendChild(tempPath);
+    async function load() {
+      const d = await window.AriesDB.loadProjectData(id);
+      if (!d) { elName.textContent = 'Project not found'; return; }
+      elName.textContent = d.name;
+      document.getElementById('projectMeta').textContent = `Status: ${d.status || 'Active'} — Last modified: ${d.lastModified || 'N/A'}`;
+      openWorkspace.href = `workspace.html?id=${id}`;
     }
-    const d = `M ${x1} ${y1} C ${x1+dx} ${y1} ${x2-dx} ${y2} ${x2} ${y2}`;
-    tempPath.setAttribute('d', d);
-  }
-
-  function finishConnectOnce(e){
-    svg.style.pointerEvents = 'none';
-    const target = document.elementFromPoint(e.clientX, e.clientY);
-    const nodeEl = getNode(target);
-    if(nodeEl && nodeEl.dataset.id !== connecting){
-      state.links.push({ from: connecting, to: nodeEl.dataset.id });
-    }
-    cleanupConnect();
-    drawLinks();
-  }
-
-  function onConnectKey(e){ if(e.key === 'Escape') { cleanupConnect(); drawLinks(); } }
-
-  function cleanupConnect(){
-    svg.style.pointerEvents = 'none';
-    svg.removeEventListener('click', finishConnectOnce);
-    svg.removeEventListener('mousemove', followMouse);
-    window.removeEventListener('keydown', onConnectKey);
-    if(tempPath){ tempPath.remove(); tempPath = null; }
-    if(connecting){ const src = state.nodes.find(n=>n.id===connecting); if(src) src.el.classList.remove('connecting'); }
-    connecting = null;
-  }
-
-  function getNode(el){ while(el && el !== document){ if(el.classList && el.classList.contains('node')) return el; el = el.parentNode; } return null; }
-
-  function drawLinks(){
-    while(svg.firstChild) svg.removeChild(svg.firstChild);
-    state.links.forEach(l => {
-      const a = state.nodes.find(n => n.id === l.from);
-      const b = state.nodes.find(n => n.id === l.to);
-      if(!a || !b) return;
-      const x1 = a.x + a.el.offsetWidth;
-      const y1 = a.y + a.el.offsetHeight / 2;
-      const x2 = b.x;
-      const y2 = b.y + b.el.offsetHeight / 2;
-      const dx = Math.max(40, Math.abs(x2 - x1) / 2);
-      const path = document.createElementNS('http://www.w3.org/2000/svg','path');
-      path.setAttribute('d', `M ${x1} ${y1} C ${x1+dx} ${y1} ${x2-dx} ${y2} ${x2} ${y2}`);
-      path.setAttribute('stroke', '#8b5cf6');
-      path.setAttribute('fill', 'none');
-      path.setAttribute('stroke-width', '2');
-      svg.appendChild(path);
-    });
-  }
-
-  // Create nodes from textarea lines (safe splitting)
-  document.getElementById('btn-create').addEventListener('click', ()=>{
-    try{
-      const rawTitles = document.getElementById('ideaText').value || '';
-      const rawBodies = document.getElementById('cardBody').value || '';
-      const titles = rawTitles.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-      const bodies = rawBodies.split(/\r?\n/).map(s=>s.trim());
-      if(titles.length === 0){ console.warn('Create Nodes: no titles provided'); return; }
-      const wrap = document.getElementById('canvasWrap');
-      const rect = wrap.getBoundingClientRect();
-      let baseX = Math.max(60, rect.width / 4);
-      let baseY = Math.max(60, rect.height / 4);
-      let x = baseX, y = baseY;
-      titles.forEach((t,i)=>{ const body = bodies[i] || ''; createNode(x,y,t,body); y += 140; });
-      wrap.scrollLeft = Math.max(0, x - 100);
-      wrap.scrollTop = Math.max(0, baseY - 100);
-    }catch(err){ console.error('Create Nodes error', err); alert('Failed to create nodes: '+(err && err.message)); }
-  });
-
-  // Create workflow (horizontal, sequential with connectors)
-  document.getElementById('btn-workflow').addEventListener('click', ()=>{
-    const rawTitles = document.getElementById('ideaText').value || '';
-    const rawBodies = document.getElementById('cardBody').value || '';
-    const titles = rawTitles.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-      const bodies = rawBodies.split(/\r?\n/).map(s=>s.trim());
-    if(titles.length === 0) return;
-    const wrap = document.getElementById('canvasWrap');
-    const rect = wrap.getBoundingClientRect();
-    let x = Math.max(80, rect.width/6), y = Math.max(120, rect.height/3);
-    const gapX = 340; const created = [];
-    titles.forEach((t,i)=>{ const body = bodies[i] || ''; const id = createNode(x,y,t,body); created.push(id); x += gapX; });
-    for(let i=1;i<created.length;i++) state.links.push({ from: created[i-1], to: created[i] });
-    drawLinks();
-    wrap.scrollLeft = Math.max(0, created.length ? parseInt(state.nodes.find(n=>n.id===created[0]).x) - 100 : 0);
-  });
-
-  // Clear
-  document.getElementById('btn-clear').addEventListener('click', ()=>{
-    state.nodes.forEach(n => n.el.remove()); state.nodes = []; state.links = []; while(svg.firstChild) svg.removeChild(svg.firstChild); state.nodeId = 1;
-  });
-
-  // Background panning: LEFT mouse drag on board
-  canvas.addEventListener('pointerdown', e => {
-    if (e.target !== canvas) return;
-    if (e.button !== 0) return; // left button
-    state.pan.active = true;
-    state.pan.startX = e.clientX;
-    state.pan.startY = e.clientY;
-    state.pan.orig = state.nodes.map(n => ({ id: n.id, x: n.x, y: n.y }));
-  });
-
-  canvas.addEventListener('pointermove', e => {
-    if (!state.pan.active) return;
-    const dx = e.clientX - state.pan.startX;
-    const dy = e.clientY - state.pan.startY;
-    state.pan.orig.forEach(o => {
-      const n = state.nodes.find(x => x.id === o.id);
-      if (n) {
-        n.x = o.x + dx;
-        n.y = o.y + dy;
-        n.el.style.left = n.x + 'px';
-        n.el.style.top = n.y + 'px';
-      }
-    });
-    drawLinks();
-  });
-
-  canvas.addEventListener('pointerup', e => {
-    if (state.pan.active) state.pan.active = false;
-  });
-
-  // Export SVG (simple)
-  document.getElementById('btn-export').addEventListener('click', ()=>{
-    const w = document.getElementById('canvasWrap').clientWidth;
-    const h = document.getElementById('canvasWrap').clientHeight;
-    const exportSvg = document.createElementNS('http://www.w3.org/2000/svg','svg');
-    exportSvg.setAttribute('xmlns','http://www.w3.org/2000/svg');
-    exportSvg.setAttribute('width', w);
-    exportSvg.setAttribute('height', h);
-    state.links.forEach(l => {
-      const a = state.nodes.find(n => n.id === l.from);
-      const b = state.nodes.find(n => n.id === l.to);
-      if(!a || !b) return;
-      const x1 = a.x + a.el.offsetWidth;
-      const y1 = a.y + a.el.offsetHeight/2;
-      const x2 = b.x;
-      const y2 = b.y + b.el.offsetHeight/2;
-      const dx = Math.max(40, Math.abs(x2-x1)/2);
-      const path = document.createElementNS('http://www.w3.org/2000/svg','path');
-      path.setAttribute('d', `M ${x1} ${y1} C ${x1+dx} ${y1} ${x2-dx} ${y2} ${x2} ${y2}`);
-      path.setAttribute('stroke', '#8b5cf6'); path.setAttribute('fill','none'); path.setAttribute('stroke-width','2');
-      exportSvg.appendChild(path);
-    });
-    const str = new XMLSerializer().serializeToString(exportSvg);
-    const blob = new Blob([str], { type: 'image/svg+xml' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = 'idea-visual.svg'; a.click(); URL.revokeObjectURL(url);
-  });
-
-  // initial sample nodes
-  createNode(220,160,'Central idea','Double-click to edit');
-  createNode(520,120,'Branch A','');
-  createNode(520,320,'Branch B','');
-  // (no automatic links) drawLinks();
-
-  // double-click to edit node title/body
-  canvas.addEventListener('dblclick', (e) => {
-    const nodeEl = getNode(e.target);
-    if(nodeEl){
-      const id = nodeEl.dataset.id;
-      const n = state.nodes.find(x => x.id === id);
-      const newTitle = prompt('Edit title', n.title);
-      if(newTitle !== null){ n.title = newTitle; n.el.querySelector('.title').innerText = newTitle; }
-      const newBody = prompt('Edit body', n.notes || '');
-      if(newBody !== null){ n.notes = newBody; n.el.querySelector('.meta').innerText = newBody; }
-    }
-  });
-
-})();
-</script>
+    document.addEventListener('DOMContentLoaded', load);
+  </script>
 </body>
 </html>
