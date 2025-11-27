@@ -1,5 +1,8 @@
-// app.js — full file (ready-to-replace)
-// (keeps Firebase + sidebar wiring as before) — only populateSidebarContent() changed to produce consistent sidebar
+// app.js — ready-to-replace (static-only sidebar)
+// - imports firebase-config.js (expects that file to export `auth` and `db`)
+// - exposes small AriesDB facade (safe to use elsewhere)
+// - robust header + smooth sliding overlay sidebar wiring
+// - populateSidebarContent() now creates a static nav ONLY (Dashboard + Projects)
 
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
@@ -107,8 +110,7 @@ window.AriesDB = {
   }
 };
 
-
-/* ===================== UI: Header + Sliding Sidebar (unchanged wiring) ===================== */
+/* ===================== UI: Header + Sliding Sidebar (robust) ===================== */
 (function () {
   const SLIDE_MS = 300;
   const HAMBURGER_SELECTORS = ['#aries-hamburger', '.aries-hamburger', '.topbar .hamburger', '.hamburger'];
@@ -235,70 +237,47 @@ window.AriesDB = {
     if (!ok) watchAndWire();
   }
 
-/* ===================== Sidebar population: static nav ONLY (NO PROJECT LIST) ===================== */
+  /* ===================== Sidebar population: static nav ONLY (NO PROJECT LIST) ===================== */
 
-async function populateSidebarContent() {
-  const sidebar = document.querySelector('#aries-sidebar') 
-                || document.querySelector('.aries-sidebar') 
-                || document.querySelector('.sidebar');
-  if (!sidebar) return;
+  async function populateSidebarContent() {
+    const sidebar = document.querySelector('#aries-sidebar') || document.querySelector('.aries-sidebar') || document.querySelector('.sidebar');
+    if (!sidebar) return;
 
-  // Create / get nav container
-  let nav = sidebar.querySelector('.aries-sidebar-nav') 
-         || sidebar.querySelector('.aries-sidebar-content');
-  if (!nav) {
-    nav = document.createElement('nav');
-    nav.className = 'aries-sidebar-nav aries-sidebar-content';
-    nav.setAttribute('role', 'navigation');
-    sidebar.appendChild(nav);
-  }
-
-  // CLEAR EVERYTHING (remove demo items + dynamic projects)
-  nav.innerHTML = '';
-
-  // STATIC NAV ONLY
-  const staticNav = document.createElement('div');
-  staticNav.id = 'aries-static-nav';
-  staticNav.style.display = 'flex';
-  staticNav.style.flexDirection = 'column';
-  staticNav.style.gap = '10px';
-
-  const staticLinks = [
-    { title: 'Dashboard', href: 'index.html' },
-    { title: 'Projects', href: 'projects.html' }
-  ];
-
-  staticLinks.forEach(link => {
-    const a = document.createElement('a');
-    a.className = 'aries-project';
-    a.href = link.href;
-    a.textContent = link.title;
-    a.style.display = 'block';
-    a.style.textDecoration = 'none';
-    staticNav.appendChild(a);
-  });
-
-  nav.appendChild(staticNav);
-}
-      const dyn = document.createElement('div');
-      dyn.id = 'aries-dynamic-projects';
-      dyn.style.marginTop = '10px';
-      dyn.style.display = 'flex';
-      dyn.style.flexDirection = 'column';
-      dyn.style.gap = '6px';
-
-      projects.forEach(p => {
-        const btn = document.createElement('a');
-        btn.className = 'aries-project';
-        btn.href = `project_detail.html?id=${p.id}`;
-        btn.textContent = p.name || 'Untitled';
-        dyn.appendChild(btn);
-      });
-
-      nav.appendChild(dyn);
-    } catch (e) {
-      console.warn('populateSidebarContent failed', e);
+    // Create / get nav container
+    let nav = sidebar.querySelector('.aries-sidebar-nav') || sidebar.querySelector('.aries-sidebar-content');
+    if (!nav) {
+      nav = document.createElement('nav');
+      nav.className = 'aries-sidebar-nav aries-sidebar-content';
+      nav.setAttribute('role', 'navigation');
+      sidebar.appendChild(nav);
     }
+
+    // CLEAR EVERYTHING (remove demo items + dynamic projects)
+    nav.innerHTML = '';
+
+    // STATIC NAV ONLY
+    const staticNav = document.createElement('div');
+    staticNav.id = 'aries-static-nav';
+    staticNav.style.display = 'flex';
+    staticNav.style.flexDirection = 'column';
+    staticNav.style.gap = '10px';
+
+    const staticLinks = [
+      { title: 'Dashboard', href: 'index.html' },
+      { title: 'Projects', href: 'projects.html' }
+    ];
+
+    staticLinks.forEach(link => {
+      const a = document.createElement('a');
+      a.className = 'aries-project';
+      a.href = link.href;
+      a.textContent = link.title;
+      a.style.display = 'block';
+      a.style.textDecoration = 'none';
+      staticNav.appendChild(a);
+    });
+
+    nav.appendChild(staticNav);
   }
 
   // run populate shortly after boot (ensures nav is consistent)
@@ -308,7 +287,7 @@ async function populateSidebarContent() {
     setTimeout(populateSidebarContent, 220);
   }
 
-  // expose helper to refresh sidebar (if you change projects)
+  // expose helper to refresh sidebar (keeps API for debugging)
   window.aries = window.aries || {};
   window.aries.refreshSidebar = populateSidebarContent;
 
