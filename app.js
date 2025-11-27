@@ -1,12 +1,19 @@
-// app.js — ready-to-replace (no layout push)
+// app.js — Full ready-to-replace
+// - Expects ./firebase-config.js to export `auth` and `db`
+// - Provides AriesDB facade with get/create/load/save/delete
+// - Wires header hamburger -> animated sliding sidebar (static nav only)
+// - Defensive about DOM readiness and selectors
+
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
 import {
-  collection, getDocs, addDoc, doc, getDoc, updateDoc,
+  collection, getDocs, addDoc, doc, getDoc, updateDoc, deleteDoc,
   query, orderBy, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
 
 /* ===================== Auth boot (authPromise) ===================== */
+/* This promise resolves when auth state is available (or anonymous sign-in completes).
+   Other AriesDB functions await this before touching Firestore. */
 export const authPromise = new Promise((resolve, reject) => {
   let settled = false;
   const TIMEOUT_MS = 10000;
@@ -26,6 +33,7 @@ export const authPromise = new Promise((resolve, reject) => {
         window.currentUser = user;
         resolve(user);
       } else {
+        // try anonymous sign-in if not signed in
         signInAnonymously(auth).catch(err => {
           if (!settled) {
             settled = true;
@@ -47,7 +55,12 @@ export const authPromise = new Promise((resolve, reject) => {
 });
 
 /* ===================== AriesDB facade ===================== */
+/* Methods are safe to call from pages — they wait for authPromise internally. */
 window.AriesDB = {
+  /**
+   * Returns array of projects: [{id, name, status, ...}, ...]
+   * If error, returns [] and logs to console.
+   */
   async getProjects() {
     await authPromise.catch(()=>{});
     try {
@@ -60,6 +73,9 @@ window.AriesDB = {
     }
   },
 
+  /**
+   * Create new project with basic structure. Returns new doc id or null.
+   */
   async createProject(name) {
     await authPromise.catch(()=>{});
     try {
@@ -78,8 +94,12 @@ window.AriesDB = {
     }
   },
 
+  /**
+   * Load single project data (doc fields) or null if not found.
+   */
   async loadProjectData(projectId) {
     await authPromise.catch(()=>{});
+    if (!projectId) return null;
     try {
       const r = doc(db, 'projects', projectId);
       const s = await getDoc(r);
@@ -90,8 +110,13 @@ window.AriesDB = {
     }
   },
 
+  /**
+   * Save workspace nodes & links for a project (partial update).
+   * Returns true on success, false on error.
+   */
   async saveProjectWorkspace(projectId, nodes, links) {
     await authPromise.catch(()=>{});
+    if (!projectId) return false;
     try {
       const r = doc(db, 'projects', projectId);
       await updateDoc(r, {
@@ -102,15 +127,37 @@ window.AriesDB = {
       console.error('AriesDB.saveProjectWorkspace error', e);
       return false;
     }
+  },
+
+  /**
+   * Delete a project document. Returns true on success, false otherwise.
+   * NOTE: Firestore rules must permit delete for the current user.
+   */
+  async deleteProject(projectId) {
+    await authPromise.catch(()=>{});
+    if (!projectId) return false;
+    try {
+      const r = doc(db, 'projects', projectId);
+      await deleteDoc(r);
+      return true;
+    } catch (e) {
+      console.error('AriesDB.deleteProject error', e);
+      return false;
+    }
   }
 };
 
-/* ===================== UI: Header + Sliding Sidebar ===================== */
+/* ===================== UI: Header + Sliding Sidebar (static) ===================== */
+/* This code wires the hamburger icon to show/hide the sidebar using transform only (no layout push).
+   It also ensures an overlay element exists and populates a static sidebar nav (Dashboard, Projects).
+   Defensive: it waits for DOM and uses MutationObserver fallback if elements load later. */
+
 (function () {
   const SLIDE_MS = 300;
   const HAMBURGER_SELECTORS = ['#aries-hamburger', '.aries-hamburger', '.topbar .hamburger', '.hamburger'];
   const SIDEBAR_SELECTORS = ['#aries-sidebar', '.aries-sidebar', '.sidebar'];
 
+  /* find the first existing selector from a list */
   function findFirst(selectors) {
     for (const s of selectors) {
       const el = document.querySelector(s);
@@ -119,6 +166,7 @@ window.AriesDB = {
     return null;
   }
 
+  /* ensure persistent overlay exists (so adding it won't change layout later) */
   function createOverlayIfMissing() {
     let overlay = document.getElementById('aries-overlay') || document.getElementById('legacy-sidebar-overlay');
     if (!overlay) {
@@ -132,10 +180,11 @@ window.AriesDB = {
     return overlay;
   }
 
+  /* wiring function: attaches event listeners */
   function wire(hamburger, sidebar, overlay) {
     if (!hamburger || !sidebar) return;
 
-    // initial state
+    // initial states
     sidebar.classList.remove('open', 'animating');
     sidebar.classList.add('hidden');
     sidebar.setAttribute('aria-hidden', 'true');
@@ -148,10 +197,10 @@ window.AriesDB = {
       if (sidebar.classList.contains('open')) return;
       sidebar.classList.remove('hidden');
       sidebar.classList.add('animating');
+      // force reflow for consistent transition
       void sidebar.offsetWidth;
       sidebar.classList.add('open');
       overlay.classList.remove('hidden'); overlay.classList.add('visible');
-      // NOTE: do NOT add or remove any class that shifts the page layout
       sidebar.setAttribute('aria-hidden', 'false');
       sidebar.dataset.open = 'true';
       hamburger.setAttribute('aria-expanded', 'true');
@@ -186,6 +235,7 @@ window.AriesDB = {
     hamburger.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); toggleSidebar(); });
     overlay.addEventListener('click', (e) => { e.preventDefault(); closeSidebar(); });
 
+    // click outside to close
     document.addEventListener('click', (e) => {
       if (!sidebar.classList.contains('open')) return;
       const t = e.target;
@@ -194,15 +244,17 @@ window.AriesDB = {
       }
     }, true);
 
+    // keyboard handling
     document.addEventListener('keydown', (e) => {
       const tag = (document.activeElement && document.activeElement.tagName) || '';
       if (e.key === 'Escape') { if (sidebar.classList.contains('open')) closeSidebar(); }
       else if ((e.key === 'm' || e.key === 'M') && !/INPUT|TEXTAREA/.test(tag)) toggleSidebar();
     });
 
-    console.info('app.js: wired hamburger -> sidebar (no layout push)');
+    console.info('app.js: wired hamburger -> sidebar');
   }
 
+  /* Attempt to wire immediately, else watch the DOM */
   function attemptWire() {
     const hamburger = findFirst(HAMBURGER_SELECTORS);
     const sidebar = findFirst(SIDEBAR_SELECTORS);
@@ -231,10 +283,12 @@ window.AriesDB = {
     if (!ok) watchAndWire();
   }
 
-  /* Static sidebar population (Dashboard + Projects only) */
+  /* ===================== Sidebar population: static nav ONLY ===================== */
   async function populateSidebarContent() {
     const sidebar = document.querySelector('#aries-sidebar') || document.querySelector('.aries-sidebar') || document.querySelector('.sidebar');
     if (!sidebar) return;
+
+    // prefer explicit nav container if present
     let nav = sidebar.querySelector('.aries-sidebar-nav') || sidebar.querySelector('.aries-sidebar-content');
     if (!nav) {
       nav = document.createElement('nav');
@@ -242,8 +296,11 @@ window.AriesDB = {
       nav.setAttribute('role','navigation');
       sidebar.appendChild(nav);
     }
-    nav.innerHTML = ''; // clear placeholders / demo
 
+    // CLEAR everything to guarantee consistent sidebar across pages
+    nav.innerHTML = '';
+
+    // STATIC NAV ONLY
     const staticNav = document.createElement('div');
     staticNav.id = 'aries-static-nav';
     staticNav.style.display = 'flex';
@@ -268,13 +325,15 @@ window.AriesDB = {
     nav.appendChild(staticNav);
   }
 
+  // run populate shortly after boot
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => setTimeout(populateSidebarContent, 220));
   } else {
     setTimeout(populateSidebarContent, 220);
   }
 
+  // expose refresh for debugging / manual refresh
   window.aries = window.aries || {};
   window.aries.refreshSidebar = populateSidebarContent;
 
-})();
+})(); // end IIFE
