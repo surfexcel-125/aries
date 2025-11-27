@@ -269,3 +269,60 @@ body.aries-sidebar-open .page-wrapper { margin-left: 0 !important; transition: n
 @media (max-width: 900px) {
   .aries-sidebar, .sidebar { width: 78%; max-width: 340px; transform: translateX(calc(-1 * var(--aries-expanded))); }
 }
+/* ---------- Aries sidebar polish ---------- */
+
+.aries-sidebar {
+  /* you probably already have most of this — these are safe refinements */
+  background: #020617;
+  color: #e5e7eb;
+  width: 260px;
+  padding-top: 64px; /* leaves space for topbar */
+}
+
+/* container that app.js fills */
+.aries-sidebar-nav,
+.aries-sidebar-content {
+  padding: 16px 14px 20px;
+  font-size: 14px;
+}
+
+/* remove bullets, stack nicely */
+.aries-sidebar-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* the actual links */
+.aries-sidebar-link {
+  display: block;
+  padding: 9px 12px;
+  border-radius: 8px;
+  text-decoration: none;
+  color: #e5e7eb;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease,
+    transform 0.12s ease;
+}
+
+/* hover / focus state */
+.aries-sidebar-link:hover,
+.aries-sidebar-link:focus-visible {
+  background: rgba(148, 163, 184, 0.18);
+  color: #f9fafb;
+  transform: translateX(2px);
+  outline: none;
+}
+
+/* optional: “active page” style if you want to add .active via JS later */
+.aries-sidebar-link.active {
+  background: rgba(248, 250, 252, 0.1);
+  color: #f9fafb;
+  font-weight: 600;
+}
