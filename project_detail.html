@@ -3,14 +3,12 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Visual Workspace — Clean</title>
+<title>Visual Workspace — Fixed</title>
 <style>
-  :root{
-    --bg:#071029; --panel:#071021; --accent:#06b6d4; --muted:#9aa8b6; --card:#071425;
-  }
-  html,body{height:100%;margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;background:linear-gradient(180deg,var(--bg),#04101a);color:#e6eef8}
+  :root{ --bg:#061027; --panel:#04101a; --accent:#06b6d4; --muted:#9aa8b6; --card:#0a1830; }
+  html,body{height:100%;margin:0;font-family:Inter,system-ui,Roboto,Arial;background:linear-gradient(180deg,var(--bg),#031018);color:#e6eef8}
   .app{display:flex;height:100vh;gap:12px;padding:12px;box-sizing:border-box}
-  .left{width:260px;background:linear-gradient(180deg,var(--panel),#041018);border-radius:10px;padding:12px;box-shadow:0 6px 20px rgba(2,6,23,0.6);display:flex;flex-direction:column;gap:10px}
+  .left{width:260px;background:linear-gradient(180deg,var(--panel),#031018);border-radius:10px;padding:12px;box-shadow:0 6px 20px rgba(0,0,0,0.6);display:flex;flex-direction:column;gap:10px}
   .title{font-weight:700;font-size:16px;color:var(--muted)}
   .controls{display:flex;gap:8px;flex-wrap:wrap}
   button{background:var(--accent);border:none;padding:8px 10px;border-radius:8px;color:#022;cursor:pointer;font-weight:700}
@@ -19,17 +17,16 @@
   .meta{font-size:12px;color:var(--muted)}
   .canvas-wrap{flex:1;position:relative;border-radius:10px;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,0.6)}
   #canvas{position:relative;width:100%;height:100%;background-image:linear-gradient(90deg, rgba(255,255,255,0.01) 1px, transparent 1px), linear-gradient(180deg, rgba(255,255,255,0.01) 1px, transparent 1px); background-size:40px 40px,40px 40px}
-  .toolbar{display:flex;gap:8px;align-items:center}
-  .nodeLayer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:3}
-  .node{position:absolute;min-width:150px;max-width:360px;padding:10px;border-radius:8px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.12));box-shadow:0 8px 26px rgba(2,6,23,0.6);border:1px solid rgba(255,255,255,0.03);cursor:grab;user-select:none;pointer-events:auto;z-index:4}
+  svg#svg{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:1}
+  .nodeLayer{position:absolute;left:0;top:0;width:100%;height:100%;z-index:2;pointer-events:auto}
+  .node{position:absolute;min-width:150px;max-width:420px;padding:10px;border-radius:8px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.12));box-shadow:0 8px 26px rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.03);cursor:grab;user-select:none;pointer-events:auto;z-index:3}
   .node:active{cursor:grabbing}
   .node .header{display:flex;align-items:center;justify-content:space-between;gap:8px}
   .node .title{font-weight:700;font-size:14px}
   .node .body{margin-top:6px;font-size:13px;color:var(--muted);white-space:pre-wrap}
-  /* anchors hidden until hover on node */
-  .anchor{width:10px;height:10px;border-radius:50%;background:transparent;border:2px solid rgba(255,255,255,0.04);position:absolute;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .12s}
-  .node:hover .anchor{opacity:1}
-  .anchor::after{content:'';width:6px;height:6px;border-radius:50%;background:var(--accent);opacity:0.9}
+  /* anchors: keep them visible & clickable */
+  .anchor{width:14px;height:14px;border-radius:50%;background:transparent;border:2px solid rgba(255,255,255,0.06);position:absolute;display:flex;align-items:center;justify-content:center;opacity:0.95;cursor:pointer;pointer-events:auto}
+  .anchor::after{content:'';width:8px;height:8px;border-radius:50%;background:var(--accent);opacity:0.9}
   .a-top{left:50%;transform:translate(-50%,-50%);top:0}
   .a-bottom{left:50%;transform:translate(-50%,50%);bottom:0}
   .a-left{left:0;top:50%;transform:translate(-50%,-50%)}
@@ -39,16 +36,12 @@
   .a-bl{left:14%;bottom:0;transform:translate(-50%,50%)}
   .a-br{right:14%;bottom:0;transform:translate(50%,50%)}
 
-  /* svg connectors (inside canvas) */
-  svg#svg{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:2}
-  .conn{stroke:var(--accent);stroke-width:3.6;fill:none;filter:drop-shadow(0 4px 8px rgba(0,0,0,0.45))}
-  .conn-shadow{stroke:rgba(0,0,0,0.18);stroke-width:8;opacity:0.12;fill:none}
+  .conn{stroke:var(--accent);stroke-width:4;fill:none;filter:drop-shadow(0 4px 8px rgba(0,0,0,0.45))}
+  .conn-shadow{stroke:rgba(0,0,0,0.2);stroke-width:10;opacity:0.14;fill:none}
+  .preview{stroke:rgba(255,255,255,0.6);stroke-width:2;stroke-dasharray:6 6;fill:none}
   .small-muted{font-size:12px;color:var(--muted)}
   .footer{margin-top:auto;font-size:12px;color:var(--muted)}
-  .hidden{display:none}
-  .top-row{display:flex;gap:8px;align-items:center}
   input[type="file"]{display:none}
-  /* responsive */
   @media (max-width:800px){ .left{display:none} }
 </style>
 </head>
@@ -62,19 +55,13 @@
         <button id="export" class="ghost small">Export</button>
         <button id="importBtn" class="ghost small">Import</button>
       </div>
-      <div class="top-row">
-        <label class="small-muted"><input id="toggleGrid" type="checkbox" checked /> Grid</label>
-        <div style="flex:1"></div>
-        <button id="compact" class="ghost small">Compact UI</button>
-      </div>
-      <div class="meta">Drag nodes, click an anchor then another to connect. Double-click to edit.</div>
+      <div class="meta">Click anchor A → anchor B to connect. Double-click title/body to edit. Drag to move.</div>
       <div class="footer">Autosave: localStorage</div>
       <input id="fileIn" type="file" accept="application/json" />
     </aside>
 
     <main class="canvas-wrap">
       <div id="canvas">
-        <!-- SVG and node layer inside canvas ensure connectors visible -->
         <svg id="svg" xmlns="http://www.w3.org/2000/svg"></svg>
         <div class="nodeLayer" id="nodeLayer"></div>
       </div>
@@ -82,11 +69,7 @@
   </div>
 
 <script>
-/* Improved workspace:
-   - SVG is inside #canvas and layered under nodes => connectors visible
-   - Simplified UI and anchor appearance
-   - Toggle grid, compact UI button
-*/
+/* Fixed workspace: anchors clickable, connectors visible, reliable editable text via contentEditable */
 
 const canvas = document.getElementById('canvas');
 const svg = document.getElementById('svg');
@@ -96,24 +79,22 @@ const clearAllBtn = document.getElementById('clearAll');
 const exportBtn = document.getElementById('export');
 const importBtn = document.getElementById('importBtn');
 const fileIn = document.getElementById('fileIn');
-const toggleGrid = document.getElementById('toggleGrid');
-const compactBtn = document.getElementById('compact');
 
 let nodes = {};
 let conns = {};
+let previewLine = null;
 let drag = null;
 let connecting = null;
 
 function uid(prefix='id'){ return prefix + '_' + (Date.now().toString(36)) + '_' + Math.floor(Math.random()*10000) }
-
 function escapeHtml(s){ return (s||'').toString().replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;') }
 
-function buildNodeElement(id, x, y, title, body){
+function buildNodeElement(id,x,y,title,body){
   const el = document.createElement('div');
   el.className = 'node';
   el.dataset.id = id;
   el.style.left = (x||60) + 'px';
-  el.style.top = (y||60) + 'px';
+  el.style.top  = (y||60) + 'px';
   el.innerHTML = `
     <div class="header">
       <div class="title" data-editable="title">${escapeHtml(title||'New')}</div>
@@ -130,45 +111,99 @@ function buildNodeElement(id, x, y, title, body){
     a.className = 'anchor '+c;
     a.dataset.anchor = c;
     a.title = 'Connect';
+    // ensure clickable
+    a.style.pointerEvents = 'auto';
     el.appendChild(a);
   });
 
-  el.addEventListener('pointerdown', onPointerDownNode);
-  el.addEventListener('dblclick', onDoubleClickNode);
+  // events
+  const titleEl = el.querySelector('[data-editable="title"]');
+  const bodyEl  = el.querySelector('[data-editable="body"]');
+
+  // double click -> enable contentEditable, focus
+  titleEl.addEventListener('dblclick', ()=>enableEditing(titleEl, id, 'title'));
+  bodyEl.addEventListener('dblclick', ()=>enableEditing(bodyEl, id, 'body'));
+
   el.querySelector('.delete').addEventListener('click', ()=>removeNode(id));
   el.querySelector('.duplicate').addEventListener('click', ()=>duplicateNode(id));
-  el.querySelectorAll('.anchor').forEach(a=>a.addEventListener('click', (ev)=>{ ev.stopPropagation(); onAnchorClick(id, a.dataset.anchor); }));
+  el.addEventListener('pointerdown', onPointerDownNode);
+
+  el.querySelectorAll('.anchor').forEach(a=>{
+    a.addEventListener('click', (ev)=>{ ev.stopPropagation(); onAnchorClick(id, a.dataset.anchor, ev); });
+  });
 
   return el;
 }
 
-function createNode(x,y,title,body, id){
+function enableEditing(el, nodeId, field){
+  // make editable
+  el.contentEditable = 'true';
+  el.focus();
+  // select all
+  const range = document.createRange(); range.selectNodeContents(el);
+  const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+  function commit(){
+    el.contentEditable = 'false';
+    nodes[nodeId][field] = el.innerText;
+    saveState();
+    el.removeEventListener('blur', commit);
+    el.removeEventListener('keydown', onKey);
+  }
+  function onKey(e){ if(e.key === 'Enter' && field==='title'){ e.preventDefault(); el.blur(); } }
+  el.addEventListener('blur', commit);
+  el.addEventListener('keydown', onKey);
+}
+
+function createNode(x,y,title,body,id){
   const nid = id || uid('node');
-  const el = buildNodeElement(nid, x, y, title, body);
+  const el = buildNodeElement(nid,x,y,title,body);
   nodeLayer.appendChild(el);
   nodes[nid] = {id:nid,x:x||60,y:y||60,title:title||'New',body:body||'...',el};
   saveState();
-  requestAnimationFrame(()=>recomputeAllConns());
+  requestAnimationFrame(recomputeAllConns);
   return nid;
 }
 
-function onAnchorClick(nodeId, anchor){
+function onAnchorClick(nodeId, anchor, ev){
+  // show preview line while selecting second anchor
+  const pos = anchorPosition(nodeId, anchor);
+  if(!pos) return;
   if(!connecting){
     connecting = {nodeId, anchor};
     highlight(nodeId, anchor, true);
+    // create preview path
+    if(!previewLine){
+      previewLine = document.createElementNS('http://www.w3.org/2000/svg','path'); previewLine.classList.add('preview');
+      svg.appendChild(previewLine);
+    }
+    // mousemove binding to update preview
+    function move(evt){
+      const parentRect = canvas.getBoundingClientRect();
+      const mx = evt.clientX - parentRect.left;
+      const my = evt.clientY - parentRect.top;
+      const d = `M ${pos.x} ${pos.y} L ${mx} ${my}`;
+      previewLine.setAttribute('d', d);
+    }
+    window.addEventListener('pointermove', move);
+    // store cleanup func
+    previewLine._cleanup = ()=>{ window.removeEventListener('pointermove', move); if(previewLine){ previewLine.remove(); previewLine=null; } };
   } else {
-    const src = connecting, dst = {nodeId, anchor};
-    if(!(src.nodeId===dst.nodeId && src.anchor===dst.anchor)){
+    const src = connecting;
+    const dst = {nodeId, anchor};
+    highlight(connecting.nodeId, connecting.anchor, false);
+    if(previewLine && previewLine._cleanup){ previewLine._cleanup(); }
+    previewLine = null;
+    connecting = null;
+    if(!(src.nodeId === dst.nodeId && src.anchor === dst.anchor)){
       createConnection(src, dst);
     }
-    highlight(connecting.nodeId, connecting.anchor, false);
-    connecting = null;
   }
 }
+
 function highlight(nodeId, anchor, on){
-  const node = nodes[nodeId]; if(!node) return;
-  const el = node.el.querySelector(`.anchor[data-anchor="${anchor}"]`);
-  if(el) el.style.borderColor = on ? 'rgba(6,182,212,0.98)' : 'rgba(255,255,255,0.04)';
+  const n = nodes[nodeId]; if(!n) return;
+  const el = n.el.querySelector(`.anchor[data-anchor="${anchor}"]`);
+  if(el) el.style.borderColor = on ? 'rgba(6,182,212,0.98)' : 'rgba(255,255,255,0.06)';
 }
 
 function createConnection(src, dst, id){
@@ -184,11 +219,10 @@ function createConnection(src, dst, id){
 
 function anchorPosition(nodeId, anchor){
   const n = nodes[nodeId]; if(!n) return null;
-  const el = n.el;
-  const rect = el.getBoundingClientRect();
+  const rect = n.el.getBoundingClientRect();
   const parentRect = canvas.getBoundingClientRect();
   const cx = rect.left - parentRect.left;
-  const cy = rect.top - parentRect.top;
+  const cy = rect.top  - parentRect.top;
   const w = rect.width, h = rect.height;
   switch(anchor){
     case 'a-top': return {x: cx + w/2, y: cy};
@@ -209,7 +243,7 @@ function updateConnection(id){
   const d = anchorPosition(c.dst.nodeId, c.dst.anchor);
   if(!s || !d) return;
   const dx = Math.abs(d.x - s.x), dy = Math.abs(d.y - s.y);
-  const curvature = Math.max(40, Math.min(260, (dx+dy)/1.4));
+  const curvature = Math.max(40, Math.min(260, (dx+dy)/1.6));
   const dirX = d.x > s.x ? 1 : -1;
   const ctrl1 = {x: s.x + curvature * dirX, y: s.y};
   const ctrl2 = {x: d.x - curvature * dirX, y: d.y};
@@ -222,21 +256,23 @@ function recomputeAllConns(){ Object.keys(conns).forEach(k=>updateConnection(k))
 
 function onPointerDownNode(e){
   if(e.button !== 0) return;
+  // do not start drag if user clicked an editable element (contentEditable etc)
+  if(e.target && (e.target.isContentEditable || e.target.dataset && e.target.dataset.editable)) return;
   const el = e.currentTarget;
   drag = { el, startX: e.clientX, startY: e.clientY, origLeft: parseFloat(el.style.left||0), origTop: parseFloat(el.style.top||0) };
-  el.setPointerCapture?.(e.pointerId);
+  try{ el.setPointerCapture(e.pointerId); }catch(e){}
   function move(ev){
     if(!drag) return;
     const nx = drag.origLeft + (ev.clientX - drag.startX);
-    const ny = drag.origTop + (ev.clientY - drag.startY);
+    const ny = drag.origTop  + (ev.clientY - drag.startY);
     drag.el.style.left = nx + 'px';
-    drag.el.style.top = ny + 'px';
+    drag.el.style.top  = ny + 'px';
     const id = drag.el.dataset.id;
     if(nodes[id]){ nodes[id].x = nx; nodes[id].y = ny; }
     recomputeAllConns();
   }
   function up(ev){
-    try{ drag.el.releasePointerCapture?.(e.pointerId) }catch(e){}
+    try{ drag.el.releasePointerCapture(e.pointerId); }catch(e){}
     drag = null;
     saveState();
     window.removeEventListener('pointermove', move);
@@ -246,31 +282,15 @@ function onPointerDownNode(e){
   window.addEventListener('pointerup', up);
 }
 
-function onDoubleClickNode(e){
-  const nodeEl = e.currentTarget; const target = e.target; const id = nodeEl.dataset.id;
-  if(target.dataset.editable){
-    const field = target.dataset.editable;
-    const cur = nodes[id][field];
-    const input = document.createElement(field==='title' ? 'input' : 'textarea');
-    input.value = cur;
-    input.style.minHeight='40px';
-    target.replaceWith(input);
-    input.focus(); input.select();
-    function commit(){ nodes[id][field] = input.value; const div = document.createElement('div'); div.className = field==='title' ? 'title' : 'body'; div.dataset.editable = field; div.innerText = input.value; input.replaceWith(div); div.addEventListener('dblclick', onDoubleClickNode); saveState(); }
-    input.addEventListener('blur', commit);
-    input.addEventListener('keydown', (ev)=>{ if(ev.key==='Enter' && field==='title'){ ev.preventDefault(); input.blur(); } });
-  }
-}
-
 function duplicateNode(id){
   const n = nodes[id]; if(!n) return;
-  createNode(n.x+24, n.y+24, n.title + ' (copy)', n.body);
+  createNode(n.x + 28, n.y + 28, n.title + ' (copy)', n.body);
 }
 
 function removeNode(id){
   const n = nodes[id]; if(!n) return;
   n.el.remove(); delete nodes[id];
-  Object.keys(conns).forEach(k=>{ const c = conns[k]; if(c.src.nodeId===id || c.dst.nodeId===id) removeConnection(k); });
+  Object.keys(conns).forEach(k=>{ const c=conns[k]; if(c.src.nodeId===id||c.dst.nodeId===id) removeConnection(k); });
   saveState();
 }
 
@@ -282,62 +302,54 @@ function removeConnection(id){
 // persistence
 function saveState(){
   try{
-    const state = {
-      nodes: Object.values(nodes).map(n=>({id:n.id,x:n.x,y:n.y,title:n.title,body:n.body})),
-      conns: Object.values(conns).map(c=>({id:c.id,src:c.src,dst:c.dst}))
-    };
-    localStorage.setItem('visual-workspace-v2', JSON.stringify(state));
+    const state = { nodes: Object.values(nodes).map(n=>({id:n.id,x:n.x,y:n.y,title:n.title,body:n.body})), conns: Object.values(conns).map(c=>({id:c.id,src:c.src,dst:c.dst})) };
+    localStorage.setItem('visual-workspace-fixed', JSON.stringify(state));
   }catch(e){ console.warn('save failed', e) }
 }
 
 function importState(state){
-  // clear
-  nodeLayer.innerHTML = ''; svg.querySelectorAll('*').forEach(n=>n.remove());
+  if(!state) return;
+  nodeLayer.innerHTML=''; svg.querySelectorAll('*').forEach(n=>n.remove());
   nodes = {}; conns = {};
   (state.nodes||[]).forEach(n=>{ const el = buildNodeElement(n.id, n.x, n.y, n.title, n.body); nodeLayer.appendChild(el); nodes[n.id] = {id:n.id,x:n.x,y:n.y,title:n.title,body:n.body,el}; });
-  (state.conns||[]).forEach(c=>{ createConnection(c.src, c.dst, c.id); });
-  requestAnimationFrame(()=>recomputeAllConns());
+  (state.conns||[]).forEach(c=>createConnection(c.src, c.dst, c.id));
+  requestAnimationFrame(recomputeAllConns);
   saveState();
 }
+
 function exportState(){
   const payload = { nodes: Object.values(nodes).map(n=>({id:n.id,x:n.x,y:n.y,title:n.title,body:n.body})), conns: Object.values(conns).map(c=>({id:c.id,src:c.src,dst:c.dst})) };
   const data = JSON.stringify(payload, null, 2);
-  const blob = new Blob([data], {type:'application/json'}); const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href=url; a.download='workspace.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  const blob = new Blob([data], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'workspace.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
 }
 
 // UI bindings
-addNodeBtn.addEventListener('click', ()=>createNode(120 + Math.random()*240, 120 + Math.random()*160, 'Idea','Write...'));
-clearAllBtn.addEventListener('click', ()=>{ if(!confirm('Clear everything?')) return; nodeLayer.innerHTML=''; svg.querySelectorAll('*').forEach(n=>n.remove()); nodes={}; conns={}; localStorage.removeItem('visual-workspace-v2'); });
+addNodeBtn.addEventListener('click', ()=>createNode(120 + Math.random()*240, 120 + Math.random()*160, 'Idea','Describe...'));
+clearAllBtn.addEventListener('click', ()=>{ if(!confirm('Clear everything?')) return; nodeLayer.innerHTML=''; svg.querySelectorAll('*').forEach(n=>n.remove()); nodes={}; conns={}; localStorage.removeItem('visual-workspace-fixed'); });
 exportBtn.addEventListener('click', exportState);
 importBtn.addEventListener('click', ()=>fileIn.click());
 fileIn.addEventListener('change', (ev)=>{ if(ev.target.files[0]){ const r=new FileReader(); r.onload=()=>{ try{ const s=JSON.parse(r.result); importState(s); }catch(e){ alert('Invalid file'); } }; r.readAsText(ev.target.files[0]); } ev.target.value=''; });
 
-toggleGrid.addEventListener('change', ()=>{ canvas.style.backgroundImage = toggleGrid.checked ? 'linear-gradient(90deg, rgba(255,255,255,0.01) 1px, transparent 1px), linear-gradient(180deg, rgba(255,255,255,0.01) 1px, transparent 1px)' : 'none' });
-
-compactBtn.addEventListener('click', ()=>{
-  const aside = document.querySelector('.left');
-  if(aside.style.width === '80px'){ aside.style.width='260px'; aside.querySelectorAll('.meta,.footer,.small-muted').forEach(n=>n.style.display='block'); compactBtn.textContent='Compact UI'; }
-  else { aside.style.width='80px'; aside.querySelectorAll('.meta,.footer,.small-muted').forEach(n=>n.style.display='none'); compactBtn.textContent='Expand UI'; }
-});
-
-// initialize
+// init
 window.addEventListener('load', ()=>{
-  const raw = localStorage.getItem('visual-workspace-v2');
-  if(raw){ try{ importState(JSON.parse(raw)); return; } catch(e){ console.warn('load failed', e); } }
-  // starter nodes
+  const raw = localStorage.getItem('visual-workspace-fixed');
+  if(raw){ try{ importState(JSON.parse(raw)); return; }catch(e){ console.warn('load failed', e); } }
   createNode(40,40,'Homepage','Goal: collect leads');
-  createNode(420,120,'Wireframe','Header\nHero\nFeatures');
-  createNode(240,300,'Tasks','Design\nDev\nDeploy');
+  createNode(420,120,'Wireframe','Header\\nHero\\nFeatures');
+  createNode(240,300,'Tasks','Design\\nDev\\nDeploy');
 });
 
-// keep svg sized properly and recompute conns on resize
+// resize svg & recompute
 function resizeSvg(){ svg.setAttribute('width', canvas.clientWidth); svg.setAttribute('height', canvas.clientHeight); recomputeAllConns(); }
 window.addEventListener('resize', resizeSvg);
 resizeSvg();
+// safety recompute
+setInterval(recomputeAllConns, 300);
 
-// small helper: recompute continuously (for safety if user moves multiple nodes)
-setInterval(recomputeAllConns, 250);
+// minimal console hook for debugging
+window.workspaceDebug = { nodes, conns, recomputeAllConns };
 
 </script>
 </body>
