@@ -1,15 +1,9 @@
-/* workspace.js — FULL REPLACEMENT
-   - Anchor computation uses model coords (reliable under transforms)
-   - Anchors hidden until node hover (visible + interactive on hover)
-   - Precise anchor snapping (checks for .anchor-dot on pointerup)
-   - Connect-to-connector (junction) preserved
-   - Grouping, auto-layout, color themes, icons/images
-   - Export SVG & PNG (client-side), shareable read-only export (blob URL)
-   - Local version history (save/restore snapshots), templates
-   - Place-mode, palette drag-to-place
-   - Undo/Redo, inspector, toasts, onboarding overlay
-   - Collaborative placeholder & API hooks (requires backend)
-   - KEEP THIS FILE ENTIRE — DO NOT SHORTEN
+/* workspace.js — FULL REPLACEMENT (corrected)
+   - Fixes included:
+     * enable anchors during link-draw so elementFromPoint finds targets
+     * merged dblclick handlers on link paths (Alt+dblclick = add bend, dblclick = open modal)
+     * pointer capture/release cleanup and safety removal of wf-link-drawing class
+     * other robustness improvements
 */
 
 (function () {
@@ -230,7 +224,6 @@
 
   // ---------- Anchors: model-based (reliable) ----------
   function computeAnchorsForNode(node) {
-    // Use model node.x/node.y (board coords) rather than DOM offsets — reliable when transformed.
     const x = node.x, y = node.y, w = node.w || 220, h = node.h || 100;
     return [
       { x: x, y: y }, { x: x + w/2, y: y }, { x: x + w, y: y },
@@ -279,7 +272,6 @@
 
   function addLinkObj(obj) {
     saveSnapshot();
-    // ensure points exist
     if (!obj.points || obj.points.length < 2) {
       const sNode = model.nodes.find(n => n.id === obj.source);
       const tNode = model.nodes.find(n => n.id === obj.target);
@@ -301,8 +293,7 @@
     saveSnapshot();
     model.nodes = model.nodes.filter(n => n.id !== nodeId);
     model.links = model.links.filter(l => l.source !== nodeId && l.target !== nodeId);
-    // remove from groups
-    model.groups.forEach(g => { g.nodeIds = g.nodeIds.filter(id => id !== nodeId); });
+    model.groups.forEach(g => { g.nodeIds = (g.nodeIds || []).filter(id => id !== nodeId); });
     state.selectedNodes.delete(nodeId);
     if (toolDeleteNode) toolDeleteNode.disabled = true;
     renderNodes();
@@ -363,7 +354,6 @@
 
   function renderNodes() {
     clearNodes();
-    // ensure svg remains at the top of board children
     model.nodes.forEach(node => {
       const el = document.createElement('div');
       el.className = `node node-type-${node.type} ${state.selectedNodes.has(node.id) ? 'selected' : ''}`;
@@ -382,6 +372,7 @@
       el.style.padding = node._junction ? '0' : '12px';
       el.style.cursor = 'pointer';
       el.style.background = node.color || '#ffffff';
+
       // icon & image support
       let inner = '';
       if (node.iconUrl) inner += `<img src="${escape(node.iconUrl)}" style="width:20px;height:20px;margin-right:8px;object-fit:contain"/>`;
@@ -395,7 +386,7 @@
       }
       el.innerHTML = inner;
 
-      // anchors container (pointer-events none normally)
+      // anchors container
       const anchorsContainer = document.createElement('div');
       anchorsContainer.className = 'anchors';
       anchorsContainer.style.position = 'absolute';
@@ -403,10 +394,9 @@
       anchorsContainer.style.top = '0';
       anchorsContainer.style.width = '100%';
       anchorsContainer.style.height = '100%';
-      anchorsContainer.style.pointerEvents = 'none'; // only dots will take events
+      anchorsContainer.style.pointerEvents = 'none';
       el.appendChild(anchorsContainer);
 
-      // dot positions relative to element
       const w = node.w, h = node.h;
       const dotPositions = [
         { left: 0, top: 0 }, { left: w / 2 - CONFIG.anchorDotSize / 2, top: 0 }, { left: w - CONFIG.anchorDotSize, top: 0 },
@@ -427,15 +417,14 @@
         dot.style.borderRadius = '50%';
         dot.style.background = 'rgba(255,255,255,0.98)';
         dot.style.border = `2px solid ${CONFIG.anchorDotStroke}`;
-        dot.style.pointerEvents = 'auto'; // interactive, but hidden via opacity
+        dot.style.pointerEvents = 'auto';
         dot.style.cursor = 'crosshair';
         dot.title = 'Anchor — drag from here to create link';
 
-        // Start link draw from dot (use pointer events)
+        // START LINK DRAW - improved to enable anchors on potential targets
         dot.addEventListener('pointerdown', ev => {
           ev.stopPropagation();
           ev.preventDefault();
-          // capture pointer for consistent behavior
           try { dot.setPointerCapture && dot.setPointerCapture(ev.pointerId); } catch(e){}
           const anchors = computeAnchorsForNode(node);
           const anchor = anchors[idx];
@@ -446,12 +435,13 @@
             currentX: anchor.x, currentY: anchor.y,
             pointerId: ev.pointerId
           };
+          // Mark board as in link-draw mode so CSS can enable anchor pointer-events
+          try { board.classList.add('wf-link-drawing'); } catch(e){}
           canvas.style.cursor = 'crosshair';
           svg.style.pointerEvents = 'auto';
           renderLinks();
         });
 
-        // release pointer capture on up
         dot.addEventListener('pointerup', ev => {
           try { dot.releasePointerCapture && dot.releasePointerCapture(ev.pointerId); } catch(e){}
         });
@@ -459,7 +449,7 @@
         anchorsContainer.appendChild(dot);
       });
 
-      // show anchors on hover (CSS will handle opacity) — but ensure pointer-events none unless hover via CSS
+      // pointer-based interactions
       el.addEventListener('pointerdown', e => handleNodeDown(e, node.id));
       el.addEventListener('dblclick', e => { e.stopPropagation(); openNodeModal(node); });
       el.addEventListener('contextmenu', e => nodeContext(e, node.id));
@@ -559,23 +549,11 @@
       path.style.cursor = 'pointer';
       path.style.pointerEvents = 'auto';
 
-      path.addEventListener('click', e => {
+      // Single dblclick handler (Alt+dblclick adds bend, dblclick otherwise opens modal)
+      path.addEventListener('dblclick', e => {
         e.stopPropagation();
-        state.selectedLinkId = link.id;
-        state.selectedNodes.clear();
-        if (toolDeleteLink) toolDeleteLink.disabled = false;
-        if (toolDeleteNode) toolDeleteNode.disabled = true;
-        renderNodes(); renderLinks();
-      });
-
-      path.addEventListener('dblclick', e => {
-        e.stopPropagation(); openLinkModal(link);
-      });
-
-      // alt-dblclick add bend
-      path.addEventListener('dblclick', e => {
         if (e.altKey) {
-          e.stopPropagation();
+          // Add bend point
           const boardPt = screenToBoard(e.clientX, e.clientY);
           let bestIdx = 0, bestD = Infinity;
           for (let i = 0; i < link.points.length - 1; i++) {
@@ -587,7 +565,19 @@
           link.points.splice(bestIdx, 0, { x: boardPt.x, y: boardPt.y });
           markDirty();
           renderLinks();
+        } else {
+          // Open link modal
+          openLinkModal(link);
         }
+      });
+
+      path.addEventListener('click', e => {
+        e.stopPropagation();
+        state.selectedLinkId = link.id;
+        state.selectedNodes.clear();
+        if (toolDeleteLink) toolDeleteLink.disabled = false;
+        if (toolDeleteNode) toolDeleteNode.disabled = true;
+        renderNodes(); renderLinks();
       });
 
       svg.appendChild(path);
@@ -665,7 +655,7 @@
 
   // ---------- Link finalization (anchor detection + connect-to-connector) ----------
   function finalizeLinkIfPossible(evt) {
-    if (!state.linkDraw) { state.linkDraw = null; canvas.style.cursor = 'default'; svg.style.pointerEvents = 'none'; renderLinks(); return; }
+    if (!state.linkDraw) { state.linkDraw = null; canvas.style.cursor = 'default'; svg.style.pointerEvents = 'none'; try { board.classList.remove('wf-link-drawing'); } catch(e){} renderLinks(); return; }
 
     const clientX = (evt && evt.clientX) || (window._lastMouse && window._lastMouse.clientX) || 0;
     const clientY = (evt && evt.clientY) || (window._lastMouse && window._lastMouse.clientY) || 0;
@@ -689,7 +679,6 @@
         saveSnapshot(); markDirty(); renderLinks();
       }
     } else if (nodeEl) {
-      // dropped on node body -> snap to nearest anchor
       const targetNodeId = nodeEl.id.replace('node-', '');
       if (targetNodeId && targetNodeId !== state.linkDraw.sourceId) {
         const targetNode = model.nodes.find(n => n.id === targetNodeId);
@@ -702,7 +691,6 @@
         saveSnapshot(); markDirty(); renderLinks();
       }
     } else if (pathEl) {
-      // connect to connector (create junction): find link id -> create junction node at boardPt -> split link & connect
       const pathId = pathEl.id; // link-<id>
       const linkId = pathId && pathId.startsWith('link-') ? pathId.replace('link-', '') : null;
       if (linkId) {
@@ -732,6 +720,8 @@
       }
     }
 
+    // cleanup
+    try { board.classList.remove('wf-link-drawing'); } catch(e){}
     state.linkDraw = null;
     canvas.style.cursor = 'default';
     svg.style.pointerEvents = 'none';
@@ -830,6 +820,8 @@
       }
       state.dragInfo = null; canvas.style.cursor = 'default';
     }
+    // safety cleanup: ensure wf-link-drawing removed if any lingering
+    try { board.classList.remove('wf-link-drawing'); } catch(e){}
   }
 
   // ---------- Context menu ----------
@@ -870,7 +862,6 @@
           inspectorSingle.appendChild(holder);
           return document.getElementById('inspectorColor');
         })();
-        // set current values
         const iconIn = document.getElementById('inspectorIcon');
         const imgIn = document.getElementById('inspectorImage');
         if (colorEl) colorEl.value = node.color || '#ffffff';
@@ -1216,11 +1207,10 @@
           saveSnapshot(); Array.from(state.selectedNodes).forEach(id => deleteNode(id)); state.selectedNodes.clear(); renderNodes(); markDirty();
         } else if (state.selectedLinkId) { saveSnapshot(); deleteLink(state.selectedLinkId); }
       } else if (e.key === 'Escape') {
-        state.linkDraw = null; state.dragInfo = null; const cm = $('contextMenu'); if (cm) cm.style.display = 'none'; renderLinks();
+        state.linkDraw = null; state.dragInfo = null; const cm = $('contextMenu'); if (cm) cm.style.display = 'none'; renderLinks(); try { board.classList.remove('wf-link-drawing'); } catch(e){}
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); }
       else if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) { e.preventDefault(); redo(); }
       else if (e.key.toLowerCase() === 'g') {
-        // quick group
         if (state.selectedNodes.size < 1) return;
         const ids = Array.from(state.selectedNodes);
         model.groups.push({ id: uid('g'), name: 'Group ' + (model.groups.length + 1), nodeIds: ids });
@@ -1240,6 +1230,8 @@
 .node.selected { outline: 2px solid rgba(59,132,255,0.12); box-shadow: 0 12px 28px rgba(29,78,216,0.06) inset; }
 .link-label { font-family: sans-serif; font-size: 13px; fill: #111827; pointer-events:none; }
 .wf-toast-item { font-weight:700; }
+/* When drawing a link, show and enable all anchors so elementFromPoint finds them reliably */
+.wf-link-drawing .node .anchor-dot { opacity: 1 !important; pointer-events: auto !important; transform: scale(1.05); box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
 `;
     const s = document.createElement('style'); s.id = 'wf-styles'; s.innerHTML = css; document.head.appendChild(s);
   })();
@@ -1247,7 +1239,6 @@
   // ---------- Auto-layout (simple grid layout) ----------
   function runAutoLayout() {
     if (state.selectedNodes.size === 0) {
-      // layout all nodes
       const nodes = model.nodes.filter(n => !n._junction);
       if (nodes.length === 0) return;
       const cols = Math.ceil(Math.sqrt(nodes.length));
@@ -1262,7 +1253,6 @@
       markDirty(); renderNodes(); showToast('Auto-layout applied to all nodes');
       return;
     }
-    // layout selected nodes in a compact grid near their centroid
     const ids = Array.from(state.selectedNodes);
     const nodes = model.nodes.filter(n => ids.includes(n.id));
     if (nodes.length === 0) return;
@@ -1494,5 +1484,31 @@
 
   // ---------- Keep last pointer ----------
   document.addEventListener('pointermove', (e) => { window._lastMouse = { clientX: e.clientX, clientY: e.clientY }; });
+
+  // ---------- Helper: polyToPath (copied for completeness) ----------
+  function polyToPath(points, cornerRadius) {
+    if (!points || points.length < 2) return '';
+    const r = Math.max(0, cornerRadius || 0);
+    let d = `M ${points[0].x} ${points[0].y}`;
+    for (let i = 1; i < points.length; i++) {
+      const prev = points[i - 1], cur = points[i], next = points[i + 1];
+      if (next && r > 0) {
+        const vx = cur.x - prev.x, vy = cur.y - prev.y;
+        const nx = next.x - cur.x, ny = next.y - cur.y;
+        const inLen = Math.sqrt(vx * vx + vy * vy) || 1;
+        const outLen = Math.sqrt(nx * nx + ny * ny) || 1;
+        const rad = Math.min(r, inLen / 2, outLen / 2);
+        const ux = vx / inLen, uy = vy / inLen;
+        const ox = nx / outLen, oy = ny / outLen;
+        const csx = cur.x - ux * rad, csy = cur.y - uy * rad;
+        const cex = cur.x + ox * rad, cey = cur.y + oy * rad;
+        d += ` L ${csx} ${csy}`;
+        d += ` Q ${cur.x} ${cur.y}, ${cex} ${cey}`;
+      } else {
+        d += ` L ${cur.x} ${cur.y}`;
+      }
+    }
+    return d;
+  }
 
 })();
