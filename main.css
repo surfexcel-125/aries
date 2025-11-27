@@ -202,3 +202,104 @@ body.aries-sidebar-open .page-wrapper {
   .aries-sidebar.open { position: fixed; left: 0; top: var(--topbar-h, 60px); bottom: 0; width: 78%; max-width: 340px; }
   body.aries-sidebar-open .page-wrapper { margin-left: 0; }
 }
+/* Sidebar — smooth slide, no page reflow, content fade */
+/* Put this in main.css (replace previous sidebar rules) */
+
+:root {
+  --topbar-h: 60px;
+  --aries-collapsed: 56px;        /* not used for reserved space — hamburger sits in topbar */
+  --aries-expanded: 260px;        /* width of the sliding panel */
+  --sidebar-transition: 300ms;
+  --overlay-color: rgba(0,0,0,0.38);
+}
+
+/* base sidebar — keep element in DOM but off-screen initially */
+.aries-sidebar {
+  position: fixed;
+  top: var(--topbar-h);
+  bottom: 0;
+  left: 0;
+  width: var(--aries-expanded);
+  transform: translateX(calc(-1 * var(--aries-expanded))); /* fully off-screen */
+  transition: transform var(--sidebar-transition) cubic-bezier(.2,.9,.2,1), opacity 160ms;
+  background: #0b1220;
+  color: #fff;
+  z-index: 120;
+  pointer-events: none; /* blocked while hidden */
+  opacity: 0.98;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* when open, slide into view */
+.aries-sidebar.open {
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+/* animating class used to control internal timing (keeps pointer-events behaviour stable) */
+.aries-sidebar.animating { transition: transform var(--sidebar-transition) cubic-bezier(.2,.9,.2,1), opacity 160ms; }
+
+/* keep a fully-hidden state (used after closing to prevent any pointer events) */
+.aries-sidebar.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* overlay */
+#aries-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay-color);
+  z-index: 110;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 220ms ease;
+}
+#aries-overlay.visible { opacity: 1; pointer-events: auto; }
+#aries-overlay.hidden { opacity: 0; pointer-events: none; }
+
+/* Do NOT shift the page content when sidebar opens — page-wrapper keeps its margin */
+.page-wrapper { transition: none; }
+
+/* content inside the sidebar: hide until the panel is mostly visible */
+.aries-sidebar .aries-sidebar-content {
+  opacity: 0;
+  transform: translateX(-6px);
+  transition: opacity 160ms ease 120ms, transform 200ms ease 120ms;
+  will-change: opacity, transform;
+}
+
+/* when the sidebar is open, reveal content (fade-in after sliding) */
+.aries-sidebar.open .aries-sidebar-content {
+  opacity: 1;
+  transform: none;
+}
+
+/* ensure only project buttons are visible — hide any element that isn't a project button */
+.aries-sidebar :not(.aries-project) {
+  display: none;
+}
+/* but allow projects themselves to display */
+.aries-sidebar .aries-project {
+  display: block;
+  margin: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #e9e9e9;
+  color: #111;
+  border: 2px solid rgba(0,0,0,0.08);
+  cursor: pointer;
+  font-size: 16px;
+}
+
+/* responsive: on small screens keep same overlay behaviour */
+@media (max-width: 900px) {
+  .aries-sidebar { width: 78%; max-width: 340px; transform: translateX(calc(-1 * var(--aries-expanded))); }
+  .aries-sidebar.open { transform: translateX(0); }
+}
+
+/* small niceties: ensure topbar hamburger remains clickable and visible */
+.aries-hamburger { z-index: 200; position: relative; }
