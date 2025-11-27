@@ -653,35 +653,55 @@
     return polyToPath(pts, 6);
   }
 
-  // ---------- Link finalization (anchor detection + connect-to-connector) ----------
-  function finalizeLinkIfPossible(evt) {
-    if (!state.linkDraw) { state.linkDraw = null; canvas.style.cursor = 'default'; svg.style.pointerEvents = 'none'; try { board.classList.remove('wf-link-drawing'); } catch(e){} renderLinks(); return; }
+// ---------- Link finalization (anchor detection + connect-to-connector) ----------
+function finalizeLinkIfPossible(evt) {
+  // If no active link draw, ensure cleanup
+  if (!state.linkDraw) {
+    state.linkDraw = null;
+    canvas.style.cursor = 'default';
+    try { board.classList.remove('wf-link-drawing'); } catch(e){}
+    svg.style.pointerEvents = 'none';
+    renderLinks();
+    return;
+  }
 
-    const clientX = (evt && evt.clientX) || (window._lastMouse && window._lastMouse.clientX) || 0;
-    const clientY = (evt && evt.clientY) || (window._lastMouse && window._lastMouse.clientY) || 0;
-    const boardPt = screenToBoard(clientX, clientY);
-    const elementAt = document.elementFromPoint(clientX, clientY);
-    // priority: anchor-dot -> node -> path
-    const anchorEl = elementAt ? elementAt.closest('.anchor-dot') : null;
-    const nodeEl = elementAt ? elementAt.closest('.node') : null;
-    const pathEl = elementAt ? elementAt.closest('path.link-path') : null;
+  // Get client coords (use last mouse if evt is undefined)
+  const clientX = (evt && evt.clientX) || (window._lastMouse && window._lastMouse.clientX) || 0;
+  const clientY = (evt && evt.clientY) || (window._lastMouse && window._lastMouse.clientY) || 0;
+  const boardPt = screenToBoard(clientX, clientY);
 
-    if (anchorEl) {
-      const targetNodeId = anchorEl.dataset.nodeId;
-      const targetIndex = parseInt(anchorEl.dataset.anchorIndex, 10);
-      if (targetNodeId && targetNodeId !== state.linkDraw.sourceId) {
-        const sNode = model.nodes.find(n => n.id === state.linkDraw.sourceId);
-        const tNode = model.nodes.find(n => n.id === targetNodeId);
+  // Try DOM-based detection first (anchor -> node -> path)
+  const elementAt = document.elementFromPoint(clientX, clientY);
+  const anchorEl = elementAt ? elementAt.closest('.anchor-dot') : null;
+  const nodeEl = elementAt ? elementAt.closest('.node') : null;
+  const pathEl = elementAt ? elementAt.closest('path.link-path') : null;
+
+  let handled = false;
+
+  // 1) Anchor element found: connect to that exact anchor
+  if (anchorEl) {
+    const targetNodeId = anchorEl.dataset.nodeId;
+    const targetIndex = parseInt(anchorEl.dataset.anchorIndex, 10);
+    if (targetNodeId && targetNodeId !== state.linkDraw.sourceId) {
+      const sNode = model.nodes.find(n => n.id === state.linkDraw.sourceId);
+      const tNode = model.nodes.find(n => n.id === targetNodeId);
+      if (sNode && tNode) {
         const sAnch = computeAnchorsForNode(sNode)[state.linkDraw.sourceAnchorIdx];
         const tAnch = computeAnchorsForNode(tNode)[targetIndex];
         const newLink = { id: uid('l'), source: sNode.id, target: tNode.id, sourceAnchorIdx: state.linkDraw.sourceAnchorIdx, targetAnchorIdx: targetIndex, points: createInitialPointsBetween(sAnch, tAnch), label: '' };
         model.links.push(newLink);
         saveSnapshot(); markDirty(); renderLinks();
+        handled = true;
       }
-    } else if (nodeEl) {
-      const targetNodeId = nodeEl.id.replace('node-', '');
-      if (targetNodeId && targetNodeId !== state.linkDraw.sourceId) {
-        const targetNode = model.nodes.find(n => n.id === targetNodeId);
+    }
+  }
+
+  // 2) Node body (no specific anchor) -> snap to nearest anchor on that node
+  if (!handled && nodeEl) {
+    const targetNodeId = nodeEl.id.replace('node-', '');
+    if (targetNodeId && targetNodeId !== state.linkDraw.sourceId) {
+      const targetNode = model.nodes.find(n => n.id === targetNodeId);
+      if (targetNode) {
         const targetIdx = nearestAnchorIndex(targetNode, boardPt);
         const sNode = model.nodes.find(n => n.id === state.linkDraw.sourceId);
         const sAnch = computeAnchorsForNode(sNode)[state.linkDraw.sourceAnchorIdx];
@@ -689,44 +709,78 @@
         const newLink = { id: uid('l'), source: sNode.id, target: targetNode.id, sourceAnchorIdx: state.linkDraw.sourceAnchorIdx, targetAnchorIdx: targetIdx, points: createInitialPointsBetween(sAnch, tAnch), label: '' };
         model.links.push(newLink);
         saveSnapshot(); markDirty(); renderLinks();
+        handled = true;
       }
-    } else if (pathEl) {
-      const pathId = pathEl.id; // link-<id>
-      const linkId = pathId && pathId.startsWith('link-') ? pathId.replace('link-', '') : null;
-      if (linkId) {
-        const targetLink = model.links.find(l => l.id === linkId);
-        if (targetLink) {
-          // find best segment index
-          let bestIdx = 0, bestD = Infinity;
-          for (let i = 0; i < targetLink.points.length - 1; i++) {
-            const a = targetLink.points[i], b = targetLink.points[i + 1];
-            const d = pointToSegmentDistance(boardPt, a, b);
-            if (d < bestD) { bestD = d; bestIdx = i + 1; }
-          }
-          // create junction node at boardPt
-          const junction = addNodeAt(boardPt.x, boardPt.y, 'junction', { _junction: true, title: 'Junction', w: CONFIG.junctionSize, h: CONFIG.junctionSize });
-          // insert point on targetLink
-          saveSnapshot();
-          targetLink.points.splice(bestIdx, 0, { x: boardPt.x, y: boardPt.y });
-          // create new link from source to junction
-          const sNode = model.nodes.find(n => n.id === state.linkDraw.sourceId);
+    }
+  }
+
+  // 3) Path (DOM) OR fallback: geometric search for nearest link segment (distance threshold)
+  if (!handled) {
+    let pathLinkId = null;
+    if (pathEl) {
+      const pathId = pathEl.id;
+      if (pathId && pathId.startsWith('link-')) pathLinkId = pathId.replace('link-', '');
+    }
+
+    // If DOM path not found, compute nearest link by distance
+    if (!pathLinkId) {
+      const threshold = 16 / (state.transform.scale || 1); // allow a few screen pixels tolerance, scale-corrected
+      let bestD = Infinity;
+      let bestLink = null;
+      let bestSegIdx = 0;
+      for (let li = 0; li < model.links.length; li++) {
+        const L = model.links[li];
+        if (!L.points || L.points.length < 2) continue;
+        for (let si = 0; si < L.points.length - 1; si++) {
+          const a = L.points[si], b = L.points[si + 1];
+          const d = pointToSegmentDistance(boardPt, a, b);
+          if (d < bestD) { bestD = d; bestLink = L; bestSegIdx = si + 1; }
+        }
+      }
+      if (bestLink && bestD <= threshold) {
+        pathLinkId = bestLink.id;
+      }
+    }
+
+    // If we found a link (either DOM or geometric), create a junction and split/connect
+    if (pathLinkId) {
+      const targetLink = model.links.find(l => l.id === pathLinkId);
+      if (targetLink) {
+        // pick best insertion index by distance to segments
+        let bestIdx = 0, bestD = Infinity;
+        for (let i = 0; i < targetLink.points.length - 1; i++) {
+          const a = targetLink.points[i], b = targetLink.points[i + 1];
+          const d = pointToSegmentDistance(boardPt, a, b);
+          if (d < bestD) { bestD = d; bestIdx = i + 1; }
+        }
+        // create junction node at boardPt
+        const junction = addNodeAt(boardPt.x, boardPt.y, 'junction', { _junction: true, title: 'Junction', w: CONFIG.junctionSize, h: CONFIG.junctionSize });
+        saveSnapshot();
+        // insert junction point onto target link's points
+        targetLink.points.splice(bestIdx, 0, { x: boardPt.x, y: boardPt.y });
+        // create new link from source node to junction
+        const sNode = model.nodes.find(n => n.id === state.linkDraw.sourceId);
+        if (sNode) {
           const sAnch = computeAnchorsForNode(sNode)[state.linkDraw.sourceAnchorIdx];
           const jAnch = computeAnchorsForNode(junction)[0];
           const newLink1 = { id: uid('l'), source: sNode.id, target: junction.id, sourceAnchorIdx: state.linkDraw.sourceAnchorIdx, targetAnchorIdx: 0, points: createInitialPointsBetween(sAnch, jAnch), label: '' };
           model.links.push(newLink1);
           markDirty();
           renderNodes(); renderLinks();
+          handled = true;
         }
       }
     }
-
-    // cleanup
-    try { board.classList.remove('wf-link-drawing'); } catch(e){}
-    state.linkDraw = null;
-    canvas.style.cursor = 'default';
-    svg.style.pointerEvents = 'none';
-    renderLinks();
   }
+
+  // If nothing handled, simply end the preview without creating a link
+  // Cleanup: remove drawing indicators and reset linkDraw
+  try { board.classList.remove('wf-link-drawing'); } catch(e){}
+  state.linkDraw = null;
+  canvas.style.cursor = 'default';
+  svg.style.pointerEvents = 'none';
+  renderLinks();
+}
 
   // ---------- Interaction: node down, pan, drag, handle drag ----------
   function handleNodeDown(e, nodeId) {
