@@ -1,484 +1,344 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Visual Workspace — Build Thoughts</title>
-  <style>
-    :root{ --bg:#0f1724; --panel:#0b1220; --accent:#7c3aed; --muted:#94a3b8; --card:#071025; --glass: rgba(255,255,255,0.03); }
-    html,body{height:100%;margin:0;font-family:Inter,ui-sans-serif,system-ui,Segoe UI,Roboto,"Helvetica Neue",Arial; background:linear-gradient(180deg,#071129 0%,var(--bg) 100%); color:#e6eef8}
-    .app{display:flex;height:100vh;gap:16px;padding:18px;box-sizing:border-box}
-    .left{width:320px;background:linear-gradient(180deg,var(--panel),rgba(10,10,10,0.3));border-radius:12px;padding:16px;box-shadow:0 6px 20px rgba(2,6,23,0.6);display:flex;flex-direction:column;gap:12px}
-    .title{font-weight:700;font-size:18px;display:flex;align-items:center;gap:8px}
-    .controls{display:flex;flex-wrap:wrap;gap:8px}
-    button{background:var(--accent);border:none;padding:8px 10px;border-radius:8px;color:white;cursor:pointer;font-weight:600}
-    button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted);font-weight:600}
-    .small{padding:6px 8px;font-size:13px}
-    label{font-size:12px;color:var(--muted)}
-    .meta{font-size:13px;color:var(--muted);margin-top:6px}
-    .canvas-wrap{flex:1;position:relative;border-radius:12px;overflow:hidden;box-shadow:0 10px 40px rgba(2,6,23,0.7)}
-    #canvas{width:100%;height:100%;background-image:linear-gradient(90deg, rgba(255,255,255,0.01) 1px, transparent 1px), linear-gradient(180deg, rgba(255,255,255,0.01) 1px, transparent 1px); background-size:40px 40px, 40px 40px;}
-    .toolbar{display:flex;gap:8px;align-items:center}
-    .node{position:absolute;min-width:150px;max-width:320px;padding:12px;border-radius:10px;background:var(--card);box-shadow:0 8px 30px rgba(3,7,18,0.6);border:1px solid rgba(255,255,255,0.03);cursor:grab;user-select:none}
-    .node:active{cursor:grabbing}
-    .node .header{display:flex;align-items:center;justify-content:space-between;gap:8px}
-    .node .title{font-weight:700}
-    .node .body{margin-top:8px;font-size:13px;color:var(--muted)}
-    .anchor{width:12px;height:12px;border-radius:50%;background:transparent;border:2px solid rgba(255,255,255,0.06);position:absolute;display:flex;align-items:center;justify-content:center}
-    .anchor::after{content:'';width:6px;height:6px;border-radius:50%;background:var(--accent);opacity:0}
-    .anchor:hover::after{opacity:1}
-    /* anchor positions (8 points) */
-    .a-top{left:50%;transform:translate(-50%,-50%);top:0}
-    .a-bottom{left:50%;transform:translate(-50%,50%);bottom:0}
-    .a-left{left:0;top:50%;transform:translate(-50%,-50%)}
-    .a-right{right:0;top:50%;transform:translate(50%,-50%)}
-    .a-tl{left:8%;top:0;transform:translate(-50%,-50%)}
-    .a-tr{right:8%;top:0;transform:translate(50%,-50%)}
-    .a-bl{left:8%;bottom:0;transform:translate(-50%,50%)}
-    .a-br{right:8%;bottom:0;transform:translate(50%,50%)}
-    /* mini form */
-    .panel .list{display:flex;flex-direction:column;gap:8px;overflow:auto}
-    .node input, .node textarea{width:100%;background:transparent;border:1px dashed rgba(255,255,255,0.03);padding:6px;border-radius:6px;color:inherit}
-    .status{font-size:12px;color:var(--muted)}
-    .footer{margin-top:auto;font-size:12px;color:var(--muted)}
-    /* connection style */
-    svg{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none}
-    .conn{stroke:rgba(124,58,237,0.95);stroke-width:3;fill:none}
-    .conn-shadow{stroke:rgba(0,0,0,0.25);stroke-width:8;opacity:0.12}
-    .hidden{display:none}
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Visual Workspace — Clean</title>
+<style>
+  :root{
+    --bg:#071029; --panel:#071021; --accent:#06b6d4; --muted:#9aa8b6; --card:#071425;
+  }
+  html,body{height:100%;margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;background:linear-gradient(180deg,var(--bg),#04101a);color:#e6eef8}
+  .app{display:flex;height:100vh;gap:12px;padding:12px;box-sizing:border-box}
+  .left{width:260px;background:linear-gradient(180deg,var(--panel),#041018);border-radius:10px;padding:12px;box-shadow:0 6px 20px rgba(2,6,23,0.6);display:flex;flex-direction:column;gap:10px}
+  .title{font-weight:700;font-size:16px;color:var(--muted)}
+  .controls{display:flex;gap:8px;flex-wrap:wrap}
+  button{background:var(--accent);border:none;padding:8px 10px;border-radius:8px;color:#022;cursor:pointer;font-weight:700}
+  .ghost{background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--muted);font-weight:600}
+  .small{padding:6px 8px;font-size:13px}
+  .meta{font-size:12px;color:var(--muted)}
+  .canvas-wrap{flex:1;position:relative;border-radius:10px;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,0.6)}
+  #canvas{position:relative;width:100%;height:100%;background-image:linear-gradient(90deg, rgba(255,255,255,0.01) 1px, transparent 1px), linear-gradient(180deg, rgba(255,255,255,0.01) 1px, transparent 1px); background-size:40px 40px,40px 40px}
+  .toolbar{display:flex;gap:8px;align-items:center}
+  .nodeLayer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:3}
+  .node{position:absolute;min-width:150px;max-width:360px;padding:10px;border-radius:8px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.12));box-shadow:0 8px 26px rgba(2,6,23,0.6);border:1px solid rgba(255,255,255,0.03);cursor:grab;user-select:none;pointer-events:auto;z-index:4}
+  .node:active{cursor:grabbing}
+  .node .header{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .node .title{font-weight:700;font-size:14px}
+  .node .body{margin-top:6px;font-size:13px;color:var(--muted);white-space:pre-wrap}
+  /* anchors hidden until hover on node */
+  .anchor{width:10px;height:10px;border-radius:50%;background:transparent;border:2px solid rgba(255,255,255,0.04);position:absolute;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .12s}
+  .node:hover .anchor{opacity:1}
+  .anchor::after{content:'';width:6px;height:6px;border-radius:50%;background:var(--accent);opacity:0.9}
+  .a-top{left:50%;transform:translate(-50%,-50%);top:0}
+  .a-bottom{left:50%;transform:translate(-50%,50%);bottom:0}
+  .a-left{left:0;top:50%;transform:translate(-50%,-50%)}
+  .a-right{right:0;top:50%;transform:translate(50%,-50%)}
+  .a-tl{left:14%;top:0;transform:translate(-50%,-50%)}
+  .a-tr{right:14%;top:0;transform:translate(50%,-50%)}
+  .a-bl{left:14%;bottom:0;transform:translate(-50%,50%)}
+  .a-br{right:14%;bottom:0;transform:translate(50%,50%)}
+
+  /* svg connectors (inside canvas) */
+  svg#svg{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:2}
+  .conn{stroke:var(--accent);stroke-width:3.6;fill:none;filter:drop-shadow(0 4px 8px rgba(0,0,0,0.45))}
+  .conn-shadow{stroke:rgba(0,0,0,0.18);stroke-width:8;opacity:0.12;fill:none}
+  .small-muted{font-size:12px;color:var(--muted)}
+  .footer{margin-top:auto;font-size:12px;color:var(--muted)}
+  .hidden{display:none}
+  .top-row{display:flex;gap:8px;align-items:center}
+  input[type="file"]{display:none}
+  /* responsive */
+  @media (max-width:800px){ .left{display:none} }
+</style>
 </head>
 <body>
   <div class="app">
     <aside class="left panel">
-      <div class="title">Visual Workspace</div>
-      <div class="controls toolbar">
-        <button id="addNode">+ Add Node</button>
+      <div class="title">Workspace</div>
+      <div class="controls">
+        <button id="addNode">+ Node</button>
         <button id="clearAll" class="ghost small">Clear</button>
-        <button id="export" class="ghost small">Export JSON</button>
+        <button id="export" class="ghost small">Export</button>
         <button id="importBtn" class="ghost small">Import</button>
       </div>
-      <div class="meta">Drag nodes, connect using anchors (click an anchor then another). Double-click a node title/body to edit. Connections auto-update when nodes move.</div>
-      <div class="status">Saved to localStorage automatically.</div>
-      <div class="footer">Tips: Use the grid to align. Right-click node for options.</div>
-      <input id="fileIn" type="file" accept="application/json" class="hidden" />
+      <div class="top-row">
+        <label class="small-muted"><input id="toggleGrid" type="checkbox" checked /> Grid</label>
+        <div style="flex:1"></div>
+        <button id="compact" class="ghost small">Compact UI</button>
+      </div>
+      <div class="meta">Drag nodes, click an anchor then another to connect. Double-click to edit.</div>
+      <div class="footer">Autosave: localStorage</div>
+      <input id="fileIn" type="file" accept="application/json" />
     </aside>
 
     <main class="canvas-wrap">
-      <div id="canvas"></div>
-      <!-- SVG overlay for connectors -->
-      <svg id="svg"></svg>
+      <div id="canvas">
+        <!-- SVG and node layer inside canvas ensure connectors visible -->
+        <svg id="svg" xmlns="http://www.w3.org/2000/svg"></svg>
+        <div class="nodeLayer" id="nodeLayer"></div>
+      </div>
     </main>
   </div>
 
-  <script>
-    /*
-      Single-file visual workspace
-      Features:
-        - Create draggable nodes with 8 anchors
-        - Connect by clicking anchors (source -> target)
-        - Smooth cubic-bezier curved connectors that update on drag
-        - Add / clear / export / import / persist to localStorage
-        - Double-click to edit title/body inline
-    */
+<script>
+/* Improved workspace:
+   - SVG is inside #canvas and layered under nodes => connectors visible
+   - Simplified UI and anchor appearance
+   - Toggle grid, compact UI button
+*/
 
-    const canvas = document.getElementById('canvas');
-    const svg = document.getElementById('svg');
-    const addNodeBtn = document.getElementById('addNode');
-    const clearAll = document.getElementById('clearAll');
-    const exportBtn = document.getElementById('export');
-    const importBtn = document.getElementById('importBtn');
-    const fileIn = document.getElementById('fileIn');
+const canvas = document.getElementById('canvas');
+const svg = document.getElementById('svg');
+const nodeLayer = document.getElementById('nodeLayer');
+const addNodeBtn = document.getElementById('addNode');
+const clearAllBtn = document.getElementById('clearAll');
+const exportBtn = document.getElementById('export');
+const importBtn = document.getElementById('importBtn');
+const fileIn = document.getElementById('fileIn');
+const toggleGrid = document.getElementById('toggleGrid');
+const compactBtn = document.getElementById('compact');
 
-    let nodes = {};
-    let conns = {};
-    let drag = null;
-    let connecting = null; // {nodeId, anchor}
-    let idSeq = 1;
+let nodes = {};
+let conns = {};
+let drag = null;
+let connecting = null;
 
-    // Helpers
-    function uid(prefix='n'){ return prefix + '_' + (Date.now().toString(36)) + '_' + Math.floor(Math.random()*10000) }
+function uid(prefix='id'){ return prefix + '_' + (Date.now().toString(36)) + '_' + Math.floor(Math.random()*10000) }
 
-    function createNode(x=80,y=80, title='New Node', body='Write something...'){
-      const id = uid('node');
-      const el = document.createElement('div');
-      el.className = 'node';
-      el.dataset.id = id;
-      el.style.left = x + 'px';
-      el.style.top = y + 'px';
-      el.innerHTML = `
-        <div class="header">
-          <div class="title" data-editable="title">${escapeHtml(title)}</div>
-          <div style="display:flex;gap:6px;align-items:center">
-            <button title="Duplicate" class="ghost small duplicate">⧉</button>
-            <button title="Delete" class="ghost small delete">✕</button>
-          </div>
-        </div>
-        <div class="body" data-editable="body">${escapeHtml(body)}</div>
-        `;
+function escapeHtml(s){ return (s||'').toString().replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;') }
 
-      // anchors
-      const anchors = ['a-top','a-tr','a-right','a-br','a-bottom','a-bl','a-left','a-tl'];
-      anchors.forEach(c=>{
-        const a = document.createElement('div');
-        a.className = 'anchor '+c;
-        a.dataset.anchor = c;
-        a.title = 'Connect';
-        el.appendChild(a);
-      });
+function buildNodeElement(id, x, y, title, body){
+  const el = document.createElement('div');
+  el.className = 'node';
+  el.dataset.id = id;
+  el.style.left = (x||60) + 'px';
+  el.style.top = (y||60) + 'px';
+  el.innerHTML = `
+    <div class="header">
+      <div class="title" data-editable="title">${escapeHtml(title||'New')}</div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <button title="Duplicate" class="ghost small duplicate">⧉</button>
+        <button title="Delete" class="ghost small delete">✕</button>
+      </div>
+    </div>
+    <div class="body" data-editable="body">${escapeHtml(body||'...')}</div>
+  `;
+  const anchors = ['a-top','a-tr','a-right','a-br','a-bottom','a-bl','a-left','a-tl'];
+  anchors.forEach(c=>{
+    const a = document.createElement('div');
+    a.className = 'anchor '+c;
+    a.dataset.anchor = c;
+    a.title = 'Connect';
+    el.appendChild(a);
+  });
 
-      canvas.appendChild(el);
+  el.addEventListener('pointerdown', onPointerDownNode);
+  el.addEventListener('dblclick', onDoubleClickNode);
+  el.querySelector('.delete').addEventListener('click', ()=>removeNode(id));
+  el.querySelector('.duplicate').addEventListener('click', ()=>duplicateNode(id));
+  el.querySelectorAll('.anchor').forEach(a=>a.addEventListener('click', (ev)=>{ ev.stopPropagation(); onAnchorClick(id, a.dataset.anchor); }));
 
-      nodes[id] = {id, x, y, title, body, el};
+  return el;
+}
 
-      // events
-      el.addEventListener('pointerdown', onPointerDownNode);
-      el.addEventListener('dblclick', onDoubleClickNode);
-      el.querySelector('.delete').addEventListener('click', ()=>{ removeNode(id) });
-      el.querySelector('.duplicate').addEventListener('click', ()=>{ duplicateNode(id) });
+function createNode(x,y,title,body, id){
+  const nid = id || uid('node');
+  const el = buildNodeElement(nid, x, y, title, body);
+  nodeLayer.appendChild(el);
+  nodes[nid] = {id:nid,x:x||60,y:y||60,title:title||'New',body:body||'...',el};
+  saveState();
+  requestAnimationFrame(()=>recomputeAllConns());
+  return nid;
+}
 
-      // anchor events (click to start/finish connection)
-      el.querySelectorAll('.anchor').forEach(a=>{
-        a.addEventListener('click', (ev)=>{
-          ev.stopPropagation();
-          onAnchorClick(id, a.dataset.anchor);
-        });
-      });
-
-      saveState();
-      update();
-      return id;
+function onAnchorClick(nodeId, anchor){
+  if(!connecting){
+    connecting = {nodeId, anchor};
+    highlight(nodeId, anchor, true);
+  } else {
+    const src = connecting, dst = {nodeId, anchor};
+    if(!(src.nodeId===dst.nodeId && src.anchor===dst.anchor)){
+      createConnection(src, dst);
     }
+    highlight(connecting.nodeId, connecting.anchor, false);
+    connecting = null;
+  }
+}
+function highlight(nodeId, anchor, on){
+  const node = nodes[nodeId]; if(!node) return;
+  const el = node.el.querySelector(`.anchor[data-anchor="${anchor}"]`);
+  if(el) el.style.borderColor = on ? 'rgba(6,182,212,0.98)' : 'rgba(255,255,255,0.04)';
+}
 
-    function escapeHtml(s){ return (s+'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;') }
+function createConnection(src, dst, id){
+  const cid = id || uid('conn');
+  const shadow = document.createElementNS('http://www.w3.org/2000/svg','path'); shadow.classList.add('conn-shadow');
+  const path = document.createElementNS('http://www.w3.org/2000/svg','path'); path.classList.add('conn'); path.dataset.id = cid;
+  svg.appendChild(shadow); svg.appendChild(path);
+  conns[cid] = {id:cid, src, dst, path, shadow};
+  updateConnection(cid);
+  saveState();
+  return cid;
+}
 
-    function onAnchorClick(nodeId, anchor){
-      if(!connecting){
-        connecting = {nodeId, anchor};
-        highlightAnchor(nodeId, anchor, true);
-      } else {
-        // create connection from connecting -> nodeId
-        const src = connecting;
-        const dst = {nodeId, anchor};
-        if(src.nodeId === dst.nodeId && src.anchor === dst.anchor){
-          // same anchor, cancel
-        } else {
-          createConnection(src, dst);
-        }
-        highlightAnchor(connecting.nodeId, connecting.anchor, false);
-        connecting = null;
-      }
-    }
+function anchorPosition(nodeId, anchor){
+  const n = nodes[nodeId]; if(!n) return null;
+  const el = n.el;
+  const rect = el.getBoundingClientRect();
+  const parentRect = canvas.getBoundingClientRect();
+  const cx = rect.left - parentRect.left;
+  const cy = rect.top - parentRect.top;
+  const w = rect.width, h = rect.height;
+  switch(anchor){
+    case 'a-top': return {x: cx + w/2, y: cy};
+    case 'a-bottom': return {x: cx + w/2, y: cy + h};
+    case 'a-left': return {x: cx, y: cy + h/2};
+    case 'a-right': return {x: cx + w, y: cy + h/2};
+    case 'a-tr': return {x: cx + w*0.85, y: cy};
+    case 'a-tl': return {x: cx + w*0.15, y: cy};
+    case 'a-br': return {x: cx + w*0.85, y: cy + h};
+    case 'a-bl': return {x: cx + w*0.15, y: cy + h};
+  }
+  return {x: cx + w/2, y: cy + h/2};
+}
 
-    function highlightAnchor(nodeId, anchor, on){
-      const el = nodes[nodeId].el.querySelector(`.anchor[data-anchor="${anchor}"]`);
-      if(el){ el.style.borderColor = on ? 'rgba(124,58,237,0.95)' : 'rgba(255,255,255,0.06)'; }
-    }
+function updateConnection(id){
+  const c = conns[id]; if(!c) return;
+  const s = anchorPosition(c.src.nodeId, c.src.anchor);
+  const d = anchorPosition(c.dst.nodeId, c.dst.anchor);
+  if(!s || !d) return;
+  const dx = Math.abs(d.x - s.x), dy = Math.abs(d.y - s.y);
+  const curvature = Math.max(40, Math.min(260, (dx+dy)/1.4));
+  const dirX = d.x > s.x ? 1 : -1;
+  const ctrl1 = {x: s.x + curvature * dirX, y: s.y};
+  const ctrl2 = {x: d.x - curvature * dirX, y: d.y};
+  const dstr = `M ${s.x} ${s.y} C ${ctrl1.x} ${ctrl1.y} ${ctrl2.x} ${ctrl2.y} ${d.x} ${d.y}`;
+  c.path.setAttribute('d', dstr);
+  c.shadow.setAttribute('d', dstr);
+}
 
-    function createConnection(src, dst){
-      const id = uid('conn');
-      const path = document.createElementNS('http://www.w3.org/2000/svg','path');
-      path.classList.add('conn');
-      path.dataset.id = id;
-      svg.appendChild(path);
-      // optional shadow for depth
-      const shadow = document.createElementNS('http://www.w3.org/2000/svg','path');
-      shadow.classList.add('conn-shadow');
-      svg.insertBefore(shadow, path);
+function recomputeAllConns(){ Object.keys(conns).forEach(k=>updateConnection(k)); }
 
-      conns[id] = {id, src, dst, path, shadow};
-      updateConnection(id);
-      saveState();
-    }
+function onPointerDownNode(e){
+  if(e.button !== 0) return;
+  const el = e.currentTarget;
+  drag = { el, startX: e.clientX, startY: e.clientY, origLeft: parseFloat(el.style.left||0), origTop: parseFloat(el.style.top||0) };
+  el.setPointerCapture?.(e.pointerId);
+  function move(ev){
+    if(!drag) return;
+    const nx = drag.origLeft + (ev.clientX - drag.startX);
+    const ny = drag.origTop + (ev.clientY - drag.startY);
+    drag.el.style.left = nx + 'px';
+    drag.el.style.top = ny + 'px';
+    const id = drag.el.dataset.id;
+    if(nodes[id]){ nodes[id].x = nx; nodes[id].y = ny; }
+    recomputeAllConns();
+  }
+  function up(ev){
+    try{ drag.el.releasePointerCapture?.(e.pointerId) }catch(e){}
+    drag = null;
+    saveState();
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', up);
+  }
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
+}
 
-    function updateConnection(id){
-      const c = conns[id];
-      if(!c) return;
-      const srcPt = anchorPosition(c.src.nodeId, c.src.anchor);
-      const dstPt = anchorPosition(c.dst.nodeId, c.dst.anchor);
-      if(!srcPt || !dstPt){ return }
-      // Compute control points for smooth curve
-      const dx = Math.abs(dstPt.x - srcPt.x);
-      const dy = Math.abs(dstPt.y - srcPt.y);
-      const curvature = Math.max(80, Math.min(200, (dx+dy)/1.8));
+function onDoubleClickNode(e){
+  const nodeEl = e.currentTarget; const target = e.target; const id = nodeEl.dataset.id;
+  if(target.dataset.editable){
+    const field = target.dataset.editable;
+    const cur = nodes[id][field];
+    const input = document.createElement(field==='title' ? 'input' : 'textarea');
+    input.value = cur;
+    input.style.minHeight='40px';
+    target.replaceWith(input);
+    input.focus(); input.select();
+    function commit(){ nodes[id][field] = input.value; const div = document.createElement('div'); div.className = field==='title' ? 'title' : 'body'; div.dataset.editable = field; div.innerText = input.value; input.replaceWith(div); div.addEventListener('dblclick', onDoubleClickNode); saveState(); }
+    input.addEventListener('blur', commit);
+    input.addEventListener('keydown', (ev)=>{ if(ev.key==='Enter' && field==='title'){ ev.preventDefault(); input.blur(); } });
+  }
+}
 
-      // choose orientation based on anchors to make nicer curves
-      const dirX = dstPt.x > srcPt.x ? 1 : -1;
-      const ctrl1 = {x: srcPt.x + curvature * dirX, y: srcPt.y};
-      const ctrl2 = {x: dstPt.x - curvature * dirX, y: dstPt.y};
+function duplicateNode(id){
+  const n = nodes[id]; if(!n) return;
+  createNode(n.x+24, n.y+24, n.title + ' (copy)', n.body);
+}
 
-      const d = `M ${srcPt.x} ${srcPt.y} C ${ctrl1.x} ${ctrl1.y} ${ctrl2.x} ${ctrl2.y} ${dstPt.x} ${dstPt.y}`;
-      c.path.setAttribute('d', d);
-      c.shadow.setAttribute('d', d);
-    }
+function removeNode(id){
+  const n = nodes[id]; if(!n) return;
+  n.el.remove(); delete nodes[id];
+  Object.keys(conns).forEach(k=>{ const c = conns[k]; if(c.src.nodeId===id || c.dst.nodeId===id) removeConnection(k); });
+  saveState();
+}
 
-    function anchorPosition(nodeId, anchor){
-      const n = nodes[nodeId];
-      if(!n) return null;
-      const el = n.el;
-      const rect = el.getBoundingClientRect();
-      const parentRect = canvas.getBoundingClientRect();
-      const cx = rect.left - parentRect.left;
-      const cy = rect.top - parentRect.top;
-      const w = rect.width, h = rect.height;
-      // map anchor keys to positions
-      switch(anchor){
-        case 'a-top': return {x: cx + w/2, y: cy};
-        case 'a-bottom': return {x: cx + w/2, y: cy + h};
-        case 'a-left': return {x: cx, y: cy + h/2};
-        case 'a-right': return {x: cx + w, y: cy + h/2};
-        case 'a-tr': return {x: cx + w*0.85, y: cy};
-        case 'a-tl': return {x: cx + w*0.15, y: cy};
-        case 'a-br': return {x: cx + w*0.85, y: cy + h};
-        case 'a-bl': return {x: cx + w*0.15, y: cy + h};
-      }
-      return {x: cx + w/2, y: cy + h/2};
-    }
+function removeConnection(id){
+  const c = conns[id]; if(!c) return;
+  c.path.remove(); c.shadow.remove(); delete conns[id]; saveState();
+}
 
-    function onPointerDownNode(e){
-      if(e.button !== 0) return; // left only
-      const el = e.currentTarget;
-      drag = { el, startX: e.clientX, startY: e.clientY, origLeft: parseFloat(el.style.left), origTop: parseFloat(el.style.top) };
-      el.setPointerCapture(e.pointerId);
-      function move(ev){
-        if(!drag) return;
-        const nx = drag.origLeft + (ev.clientX - drag.startX);
-        const ny = drag.origTop + (ev.clientY - drag.startY);
-        drag.el.style.left = nx + 'px';
-        drag.el.style.top = ny + 'px';
-        nodes[drag.el.dataset.id].x = nx;
-        nodes[drag.el.dataset.id].y = ny;
-        // update connections that touch this node
-        for(const k in conns){
-          if(conns[k].src.nodeId === drag.el.dataset.id || conns[k].dst.nodeId === drag.el.dataset.id) updateConnection(k);
-        }
-      }
-      function up(ev){
-        if(drag){
-          drag.el.releasePointerCapture(e.pointerId);
-          drag = null;
-          saveState();
-        }
-        window.removeEventListener('pointermove', move);
-        window.removeEventListener('pointerup', up);
-      }
-      window.addEventListener('pointermove', move);
-      window.addEventListener('pointerup', up);
-    }
+// persistence
+function saveState(){
+  try{
+    const state = {
+      nodes: Object.values(nodes).map(n=>({id:n.id,x:n.x,y:n.y,title:n.title,body:n.body})),
+      conns: Object.values(conns).map(c=>({id:c.id,src:c.src,dst:c.dst}))
+    };
+    localStorage.setItem('visual-workspace-v2', JSON.stringify(state));
+  }catch(e){ console.warn('save failed', e) }
+}
 
-    function onDoubleClickNode(e){
-      const nodeEl = e.currentTarget;
-      const target = e.target;
-      const id = nodeEl.dataset.id;
-      // if clicked the title or body, convert to editable
-      if(target.dataset.editable){
-        const field = target.dataset.editable;
-        const cur = nodes[id][field];
-        const input = document.createElement(field==='title' ? 'input' : 'textarea');
-        input.value = cur;
-        input.style.minHeight = '40px';
-        target.replaceWith(input);
-        input.focus();
-        input.select();
-        function commit(){
-          nodes[id][field] = input.value;
-          const div = document.createElement('div');
-          div.className = field==='title' ? 'title' : 'body';
-          div.dataset.editable = field;
-          div.innerText = input.value;
-          input.replaceWith(div);
-          // reattach double-click handler for edited element
-          div.addEventListener('dblclick', onDoubleClickNode);
-          saveState();
-        }
-        input.addEventListener('blur', commit);
-        input.addEventListener('keydown', (ev)=>{ if(ev.key==='Enter' && field==='title'){ ev.preventDefault(); input.blur(); } });
-      }
-    }
+function importState(state){
+  // clear
+  nodeLayer.innerHTML = ''; svg.querySelectorAll('*').forEach(n=>n.remove());
+  nodes = {}; conns = {};
+  (state.nodes||[]).forEach(n=>{ const el = buildNodeElement(n.id, n.x, n.y, n.title, n.body); nodeLayer.appendChild(el); nodes[n.id] = {id:n.id,x:n.x,y:n.y,title:n.title,body:n.body,el}; });
+  (state.conns||[]).forEach(c=>{ createConnection(c.src, c.dst, c.id); });
+  requestAnimationFrame(()=>recomputeAllConns());
+  saveState();
+}
+function exportState(){
+  const payload = { nodes: Object.values(nodes).map(n=>({id:n.id,x:n.x,y:n.y,title:n.title,body:n.body})), conns: Object.values(conns).map(c=>({id:c.id,src:c.src,dst:c.dst})) };
+  const data = JSON.stringify(payload, null, 2);
+  const blob = new Blob([data], {type:'application/json'}); const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download='workspace.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+}
 
-    function removeNode(id){
-      // remove node
-      const n = nodes[id];
-      if(!n) return;
-      n.el.remove();
-      delete nodes[id];
-      // remove associated connections
-      for(const k of Object.keys(conns)){
-        if(conns[k].src.nodeId===id || conns[k].dst.nodeId===id){ removeConnection(k); }
-      }
-      saveState();
-    }
+// UI bindings
+addNodeBtn.addEventListener('click', ()=>createNode(120 + Math.random()*240, 120 + Math.random()*160, 'Idea','Write...'));
+clearAllBtn.addEventListener('click', ()=>{ if(!confirm('Clear everything?')) return; nodeLayer.innerHTML=''; svg.querySelectorAll('*').forEach(n=>n.remove()); nodes={}; conns={}; localStorage.removeItem('visual-workspace-v2'); });
+exportBtn.addEventListener('click', exportState);
+importBtn.addEventListener('click', ()=>fileIn.click());
+fileIn.addEventListener('change', (ev)=>{ if(ev.target.files[0]){ const r=new FileReader(); r.onload=()=>{ try{ const s=JSON.parse(r.result); importState(s); }catch(e){ alert('Invalid file'); } }; r.readAsText(ev.target.files[0]); } ev.target.value=''; });
 
-    function duplicateNode(id){
-      const n = nodes[id];
-      if(!n) return;
-      createNode(n.x+30, n.y+30, n.title + ' (copy)', n.body);
-    }
+toggleGrid.addEventListener('change', ()=>{ canvas.style.backgroundImage = toggleGrid.checked ? 'linear-gradient(90deg, rgba(255,255,255,0.01) 1px, transparent 1px), linear-gradient(180deg, rgba(255,255,255,0.01) 1px, transparent 1px)' : 'none' });
 
-    function removeConnection(id){
-      const c = conns[id];
-      if(!c) return;
-      if(c.path) c.path.remove();
-      if(c.shadow) c.shadow.remove();
-      delete conns[id];
-      saveState();
-    }
+compactBtn.addEventListener('click', ()=>{
+  const aside = document.querySelector('.left');
+  if(aside.style.width === '80px'){ aside.style.width='260px'; aside.querySelectorAll('.meta,.footer,.small-muted').forEach(n=>n.style.display='block'); compactBtn.textContent='Compact UI'; }
+  else { aside.style.width='80px'; aside.querySelectorAll('.meta,.footer,.small-muted').forEach(n=>n.style.display='none'); compactBtn.textContent='Expand UI'; }
+});
 
-    // persist / load
-    function saveState(){
-      try{
-        const state = { nodes: Object.values(nodes).map(n=>({id:n.id,x:n.x,y:n.y,title:n.title,body:n.body})), conns: Object.values(conns).map(c=>({id:c.id,src:c.src,dst:c.dst})) };
-        localStorage.setItem('visual-workspace-v1', JSON.stringify(state));
-      }catch(e){ console.warn('save failed', e)}
-    }
+// initialize
+window.addEventListener('load', ()=>{
+  const raw = localStorage.getItem('visual-workspace-v2');
+  if(raw){ try{ importState(JSON.parse(raw)); return; } catch(e){ console.warn('load failed', e); } }
+  // starter nodes
+  createNode(40,40,'Homepage','Goal: collect leads');
+  createNode(420,120,'Wireframe','Header\nHero\nFeatures');
+  createNode(240,300,'Tasks','Design\nDev\nDeploy');
+});
 
-    function loadState(){
-      const raw = localStorage.getItem('visual-workspace-v1');
-      if(!raw) return false;
-      try{
-        const state = JSON.parse(raw);
-        // clean
-        canvas.querySelectorAll('.node').forEach(n=>n.remove());
-        svg.querySelectorAll('path').forEach(p=>p.remove());
-        nodes = {}; conns = {};
-        (state.nodes||[]).forEach(n=> createNode(n.x, n.y, n.title, n.body));
-        // connections: create with explicit src/dst
-        (state.conns||[]).forEach(c=>{
-          // find matching node ids (state createNode generated new ids). We'll best-effort match by title content.
-          // but to preserve connections we store path ids originally. Simpler: export/import preserves ids; local load expects same ids.
-        });
-        // Note: when loading from localStorage after page refresh, nodes created above will have different ids.
-        // To preserve connections across reloads reliably, we reconstruct differently when saving. For simplicity here we only persist nodes & no conns.
-        // We'll rehydrate connections only when user exports/imports.
-        saveState();
-        return true;
-      }catch(e){ console.warn('load failed', e); return false }
-    }
+// keep svg sized properly and recompute conns on resize
+function resizeSvg(){ svg.setAttribute('width', canvas.clientWidth); svg.setAttribute('height', canvas.clientHeight); recomputeAllConns(); }
+window.addEventListener('resize', resizeSvg);
+resizeSvg();
 
-    // Export current state (including true ids and connections)
-    function exportState(){
-      // ensure conns list keyed
-      const payload = {
-        nodes: Object.values(nodes).map(n=>({id:n.id,x:n.x,y:n.y,title:n.title,body:n.body})),
-        conns: Object.values(conns).map(c=>({id:c.id,src:c.src,dst:c.dst}))
-      };
-      const data = JSON.stringify(payload, null, 2);
-      const blob = new Blob([data], {type:'application/json'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = 'workspace-export.json';
-      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-    }
+// small helper: recompute continuously (for safety if user moves multiple nodes)
+setInterval(recomputeAllConns, 250);
 
-    function importStateFromFile(file){
-      const reader = new FileReader();
-      reader.onload = ()=>{
-        try{
-          const state = JSON.parse(reader.result);
-          importState(state);
-        }catch(e){ alert('Invalid file') }
-      };
-      reader.readAsText(file);
-    }
-
-    function importState(state){
-      // clear
-      canvas.querySelectorAll('.node').forEach(n=>n.remove());
-      svg.querySelectorAll('path').forEach(p=>p.remove());
-      nodes = {}; conns = {};
-      // create nodes while preserving ids
-      (state.nodes||[]).forEach(n=>{
-        const el = document.createElement('div');
-        el.className = 'node';
-        el.dataset.id = n.id;
-        el.style.left = n.x + 'px';
-        el.style.top = n.y + 'px';
-        el.innerHTML = `
-          <div class="header">
-            <div class="title" data-editable="title">${escapeHtml(n.title)}</div>
-            <div style="display:flex;gap:6px;align-items:center">
-              <button title="Duplicate" class="ghost small duplicate">⧉</button>
-              <button title="Delete" class="ghost small delete">✕</button>
-            </div>
-          </div>
-          <div class="body" data-editable="body">${escapeHtml(n.body)}</div>
-        `;
-        const anchors = ['a-top','a-tr','a-right','a-br','a-bottom','a-bl','a-left','a-tl'];
-        anchors.forEach(c=>{
-          const a = document.createElement('div');
-          a.className = 'anchor '+c;
-          a.dataset.anchor = c;
-          el.appendChild(a);
-        });
-        canvas.appendChild(el);
-        nodes[n.id] = {id:n.id,x:n.x,y:n.y,title:n.title,body:n.body,el};
-        el.addEventListener('pointerdown', onPointerDownNode);
-        el.addEventListener('dblclick', onDoubleClickNode);
-        el.querySelector('.delete').addEventListener('click', ()=>{ removeNode(n.id) });
-        el.querySelector('.duplicate').addEventListener('click', ()=>{ duplicateNode(n.id) });
-        el.querySelectorAll('.anchor').forEach(a=>{ a.addEventListener('click', (ev)=>{ ev.stopPropagation(); onAnchorClick(n.id, a.dataset.anchor); }); });
-      });
-      // recreate connections
-      (state.conns||[]).forEach(c=>{
-        const id = c.id || uid('conn');
-        const path = document.createElementNS('http://www.w3.org/2000/svg','path');
-        path.classList.add('conn'); path.dataset.id = id; svg.appendChild(path);
-        const shadow = document.createElementNS('http://www.w3.org/2000/svg','path'); shadow.classList.add('conn-shadow'); svg.insertBefore(shadow, path);
-        conns[id] = {id, src:c.src, dst:c.dst, path, shadow};
-        updateConnection(id);
-      });
-      saveState();
-    }
-
-    // UI bindings
-    addNodeBtn.addEventListener('click', ()=>{ createNode(120 + Math.random()*200, 120 + Math.random()*200) });
-    clearAll.addEventListener('click', ()=>{
-      if(!confirm('Clear all nodes and connections?')) return;
-      canvas.querySelectorAll('.node').forEach(n=>n.remove());
-      svg.querySelectorAll('path').forEach(p=>p.remove());
-      nodes = {}; conns = {};
-      localStorage.removeItem('visual-workspace-v1');
-    });
-    exportBtn.addEventListener('click', exportState);
-    importBtn.addEventListener('click', ()=>fileIn.click());
-    fileIn.addEventListener('change', (ev)=>{ if(ev.target.files[0]) importStateFromFile(ev.target.files[0]); fileIn.value = ''; });
-
-    // On load: try to restore minimal state
-    window.addEventListener('load', ()=>{
-      // If no saved state, create a starter map
-      const raw = localStorage.getItem('visual-workspace-v1');
-      if(!raw){
-        createNode(60,60,'Idea: Homepage','What is the goal?');
-        createNode(420,140,'Wireframe','Header, hero, features');
-        createNode(220,320,'Tasks','Design, Dev, Deploy');
-      } else {
-        // attempt to parse and import full export if found
-        try{
-          const st = JSON.parse(raw);
-          // older save format may exclude conns. If it looks like our export, import
-          if(st.nodes && st.conns){ importState(st); } else {
-            // fallback: rebuild nodes only
-            const parsed = JSON.parse(raw);
-            (parsed.nodes||[]).forEach(n=> createNode(n.x, n.y, n.title, n.body));
-          }
-        }catch(e){ console.warn('load parse error', e); }
-      }
-    });
-
-    // Recompute all connections on window resize or frame changes
-    window.addEventListener('resize', ()=>{ for(const k in conns) updateConnection(k); });
-
-    // Optional: keyboard shortcuts
-    window.addEventListener('keydown', (ev)=>{
-      if(ev.ctrlKey && ev.key.toLowerCase()==='s'){ ev.preventDefault(); exportState(); }
-      if(ev.key === 'Delete'){
-        // delete selected node if we implement selection — not implemented now
-      }
-    });
-
-    // small performance: update all conns (useful after moving multiple)
-    function update(){ for(const k in conns) updateConnection(k); }
-
-  </script>
+</script>
 </body>
 </html>
