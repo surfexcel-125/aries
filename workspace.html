@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Idea Visualizer — Premium Dark (Fixed + Undo/Redo + Delete + Modal Edit)</title>
+<title>Idea Visualizer — Firebase Save</title>
 <style>
   :root{--bg:#071019; --card:#0f1720; --muted:#90a0b8; --accent:#8b5cf6; --glass: rgba(255,255,255,0.03);} *{box-sizing:border-box}
   body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;color:#e6eef8;background:linear-gradient(180deg,var(--bg),#041018)}
@@ -41,16 +41,18 @@
   .modal input,.modal textarea{width:100%;margin-top:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);padding:8px;border-radius:8px;color:#e6eef8}
   .row{display:flex;gap:8px}
   .small{padding:6px 8px;font-size:13px}
+  .status{font-size:13px;color:var(--muted);margin-left:12px}
 </style>
 </head>
 <body>
 <header>
-  <h1>Idea Visualizer — Premium Dark</h1>
+  <h1>Idea Visualizer — Persistent</h1>
   <div style="display:flex;gap:8px;align-items:center">
     <button id="btn-undo" class="btn small" title="Undo (Ctrl+Z)">Undo</button>
     <button id="btn-redo" class="btn small" title="Redo (Ctrl+Y)">Redo</button>
     <button id="btn-fit" class="btn">Fit</button>
     <button id="btn-export" class="btn">Export SVG</button>
+    <span class="status" id="saveStatus">Unsaved</span>
   </div>
 </header>
 <main>
@@ -67,7 +69,7 @@
     <button id="btn-delete" class="btn" style="background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted)">Delete Selected</button>
     <button id="btn-clear" class="btn" style="background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted)">Clear</button>
   </div>
-  <div style="margin-top:12px" class="muted">Tips: Drag empty background to pan. Use mouse wheel to zoom. Click connector dot then click target node to link. Double-click a node to edit. Use Undo/Redo or Delete key to remove selected node.</div>
+  <div style="margin-top:12px" class="muted">Tips: Drag empty background to pan. Use mouse wheel to zoom. Click connector dot then click target node to link. Double-click a node to edit. Undo/redo and autosave are enabled.</div>
 </aside>
 <div id="canvasWrap">
   <div id="boardArea">
@@ -91,510 +93,507 @@
   </div>
 </div>
 
+<!-- Firebase SDKs (only loaded if firebaseConfig not null) -->
 <script>
-(() => {
-  // ---------- state & history ----------
-  const state = {
-    nodes: [], links: [], selected: null, nodeId: 1,
-    view: { x: 0, y: 0, scale: 1 },
-    connecting: null
+/*
+  IMPORTANT:
+  - Replace `firebaseConfig = null` below with your Firebase config object like:
+    const firebaseConfig = { apiKey: "...", authDomain: "...", projectId: "...", ... };
+
+  - Firestore rules: If you want unauthenticated users to read/write the workspace document,
+    ensure rules permit it or implement authentication (recommended).
+*/
+const firebaseConfig = null; // <-- PASTE YOUR FIREBASE CONFIG OBJECT HERE OR SET NULL to use only localStorage
+</script>
+
+<script>
+(async ()=>{
+
+// ----------------- core app code (same functionality as before) -----------------
+const state = {
+  nodes: [], links: [], selected: null, nodeId: 1,
+  view: { x: 0, y: 0, scale: 1 },
+  connecting: null
+};
+
+const history = { past: [], future: [], max: 60 };
+function snapshot(){
+  return {
+    nodes: state.nodes.map(n => ({ id: n.id, x: n.x, y: n.y, title: n.title, notes: n.notes })),
+    links: state.links.map(l => ({ from: l.from, to: l.to })),
+    nodeId: state.nodeId,
+    view: { x: state.view.x, y: state.view.y, scale: state.view.scale },
+    selected: state.selected
   };
+}
+function applySnapshot(snap){
+  state.nodes.forEach(n => { if(n.el && n.el.parentNode) n.el.parentNode.removeChild(n.el); });
+  state.nodes = []; state.links = []; state.nodeId = snap.nodeId || 1;
+  state.view = snap.view ? { ...snap.view } : { x:0,y:0,scale:1 };
+  snap.nodes.forEach(n => {
+    createNode(n.x, n.y, n.title, n.notes, { id: n.id, addToState: true, skipHistory: true });
+  });
+  state.links = snap.links.map(l => ({ from: l.from, to: l.to }));
+  state.selected = snap.selected || null;
+  applyView(); drawLinks(); updateSelectionVisual();
+}
 
-  // history stack for undo/redo
-  const history = { past: [], future: [], max: 60 };
+function pushHistory(){ history.past.push(snapshot()); if(history.past.length>history.max) history.past.shift(); history.future = []; updateUndoRedoButtons(); scheduleSave(); }
+function undo(){ if(history.past.length===0) return; const cur = snapshot(); history.future.push(cur); const prev = history.past.pop(); applySnapshot(prev); updateUndoRedoButtons(); scheduleSave(); }
+function redo(){ if(history.future.length===0) return; const cur = snapshot(); history.past.push(cur); const next = history.future.pop(); applySnapshot(next); updateUndoRedoButtons(); scheduleSave(); }
+function updateUndoRedoButtons(){ document.getElementById('btn-undo').disabled = history.past.length===0; document.getElementById('btn-redo').disabled = history.future.length===0; }
 
-  function snapshot(){
-    // create deep copy snapshot of minimal state needed
-    const snap = {
-      nodes: state.nodes.map(n => ({ id: n.id, x: n.x, y: n.y, title: n.title, notes: n.notes })),
-      links: state.links.map(l => ({ from: l.from, to: l.to })),
-      nodeId: state.nodeId,
-      view: { x: state.view.x, y: state.view.y, scale: state.view.scale },
-      selected: state.selected
-    };
-    return snap;
+// DOM refs
+const wrap = document.getElementById('canvasWrap');
+const board = document.getElementById('boardArea');
+const svg = document.getElementById('svgLayer');
+const modal = document.getElementById('modal');
+const modalTitle = document.getElementById('modalTitle');
+const modalBody = document.getElementById('modalBody');
+const saveStatusEl = document.getElementById('saveStatus');
+let editingNodeId = null;
+
+// view transform
+function applyView(){ board.style.transform = `translate(${state.view.x}px, ${state.view.y}px) scale(${state.view.scale})`; }
+applyView();
+
+// helpers
+function escapeHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function clientToBoard(clientX, clientY){ const rect = board.getBoundingClientRect(); return { x: (clientX - rect.left - state.view.x)/state.view.scale, y: (clientY - rect.top - state.view.y)/state.view.scale }; }
+function getNode(el){ while(el && el !== document){ if(el.classList && el.classList.contains('node')) return el; el = el.parentNode; } return null; }
+function findNodeById(id){ return state.nodes.find(n=>n.id===id); }
+function updateSelectionVisual(){ state.nodes.forEach(n=>n.el.classList.toggle('selected', state.selected === n.id)); }
+
+// create node (supports snapshot options)
+function createNode(x,y,title='New',notes='',options={}){
+  const addToState = options.addToState !== false;
+  let id = options.id;
+  if(!id){ id = 'n' + (state.nodeId++); } else {
+    const m = id.match(/^n(\d+)$/); if(m) state.nodeId = Math.max(state.nodeId, parseInt(m[1],10)+1);
   }
-  function applySnapshot(snap){
-    // clear board + render nodes from snapshot
-    // remove existing elements
-    state.nodes.forEach(n => { if(n.el && n.el.parentNode) n.el.parentNode.removeChild(n.el); });
-    state.nodes = [];
-    state.links = [];
-    state.nodeId = snap.nodeId || 1;
-    state.view = snap.view ? { ...snap.view } : { x:0,y:0,scale:1 };
-    // create nodes without altering history
-    snap.nodes.forEach(n => {
-      createNode(n.x, n.y, n.title, n.notes, { id: n.id, addToState: true, skipHistory: true });
-    });
-    state.links = snap.links.map(l => ({ from: l.from, to: l.to }));
-    state.selected = snap.selected || null;
-    applyView();
-    drawLinks();
-    updateSelectionVisual();
-  }
-
-  function pushHistory(){ // push current state to past, clear future
-    const s = snapshot();
-    history.past.push(s);
-    if(history.past.length > history.max) history.past.shift();
-    history.future = [];
-    updateUndoRedoButtons();
-  }
-  function undo(){
-    if(history.past.length === 0) return;
-    const current = snapshot();
-    history.future.push(current);
-    const prev = history.past.pop();
-    applySnapshot(prev);
-    updateUndoRedoButtons();
-  }
-  function redo(){
-    if(history.future.length === 0) return;
-    const current = snapshot();
-    history.past.push(current);
-    const next = history.future.pop();
-    applySnapshot(next);
-    updateUndoRedoButtons();
-  }
-  function updateUndoRedoButtons(){
-    document.getElementById('btn-undo').disabled = history.past.length === 0;
-    document.getElementById('btn-redo').disabled = history.future.length === 0;
-  }
-
-  // ---------- DOM references ----------
-  const wrap = document.getElementById('canvasWrap');
-  const board = document.getElementById('boardArea');
-  const svg = document.getElementById('svgLayer');
-  const modal = document.getElementById('modal');
-  const modalTitle = document.getElementById('modalTitle');
-  const modalBody = document.getElementById('modalBody');
-  let editingNodeId = null;
-
-  // ---------- view transform ----------
-  function applyView(){
-    board.style.transform = `translate(${state.view.x}px, ${state.view.y}px) scale(${state.view.scale})`;
-  }
-  applyView();
-
-  // ---------- helpers ----------
-  function escapeHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-  function clientToBoard(clientX, clientY){
-    const rect = board.getBoundingClientRect();
-    const bx = (clientX - rect.left - state.view.x) / state.view.scale;
-    const by = (clientY - rect.top - state.view.y) / state.view.scale;
-    return { x: bx, y: by };
-  }
-  function getNode(el){ while(el && el !== document){ if(el.classList && el.classList.contains('node')) return el; el = el.parentNode; } return null; }
-  function findNodeById(id){ return state.nodes.find(n => n.id === id); }
-  function updateSelectionVisual(){
-    state.nodes.forEach(n => n.el.classList.toggle('selected', state.selected === n.id));
-  }
-
-  // ---------- create node (supports creating from snapshot) ----------
-  // options: { id, addToState=true, skipHistory=false }
-  function createNode(x, y, title = 'New', notes = '', options = {}){
-    const addToState = options.addToState !== false;
-    let id = options.id;
-    if(!id){ id = 'n' + (state.nodeId++); } else {
-      // ensure nodeId increments past provided id if it contains numeric suffix
-      const m = id.match(/^n(\d+)$/);
-      if(m){ state.nodeId = Math.max(state.nodeId, parseInt(m[1],10) + 1); }
-    }
-
-    const el = document.createElement('div');
-    el.className = 'node'; el.dataset.id = id;
-    el.style.left = x + 'px'; el.style.top = y + 'px';
-    el.innerHTML = `<div class="title">${escapeHtml(title)}</div><div class="meta">${escapeHtml(notes)}</div><div class="connector" title="Connect"></div>`;
-    board.appendChild(el);
-    el.style.zIndex = String(1000 + (parseInt(id.replace('n','')) || 0));
-
-    // add draggable behavior
-    makeDraggable(el);
-
-    // connector click
-    const conn = el.querySelector('.connector');
-    conn.addEventListener('click', (e)=>{
-      e.stopPropagation(); e.preventDefault();
-      if(state.connecting){
-        if(state.connecting !== id){
-          state.links.push({ from: state.connecting, to: id });
-          pushHistory(); // connection created
-        }
-        cancelConnect();
-        drawLinks();
-        return;
+  const el = document.createElement('div');
+  el.className = 'node'; el.dataset.id = id;
+  el.style.left = x+'px'; el.style.top = y+'px';
+  el.innerHTML = `<div class="title">${escapeHtml(title)}</div><div class="meta">${escapeHtml(notes)}</div><div class="connector" title="Connect"></div>`;
+  board.appendChild(el);
+  el.style.zIndex = String(1000 + (parseInt(id.replace('n',''))||0));
+  makeDraggable(el);
+  const conn = el.querySelector('.connector');
+  conn.addEventListener('click', (e)=>{
+    e.stopPropagation(); e.preventDefault();
+    if(state.connecting){
+      if(state.connecting !== id){
+        state.links.push({ from: state.connecting, to: id });
+        pushHistory();
       }
-      startConnect(id);
-    });
-
-    // click selects
-    el.addEventListener('click', (e)=>{ e.stopPropagation(); selectNode(id); });
-
-    // double-click opens modal editor
-    el.addEventListener('dblclick', (e)=>{ e.stopPropagation(); openEditModal(id); });
-
-    const nodeObj = { id, el, x, y, title, notes };
-    if(addToState) state.nodes.push(nodeObj);
-    drawLinks();
-    if(addToState && options.skipHistory !== true){
-      pushHistory();
+      cancelConnect(); drawLinks(); return;
     }
-    return id;
-  }
-
-  // ---------- drag ----------
-  function makeDraggable(el){
-    let ox=0, oy=0, dragging=false, moved=false;
-    let moveHandler, upHandler;
-    el.addEventListener('pointerdown', e => {
-      if(e.target.classList && e.target.classList.contains('connector')) return;
-      e.preventDefault();
-      dragging = true; moved = false;
-      const rect = board.getBoundingClientRect();
-      ox = (e.clientX - rect.left - state.view.x) / state.view.scale - parseFloat(el.style.left || 0);
-      oy = (e.clientY - rect.top - state.view.y) / state.view.scale - parseFloat(el.style.top || 0);
-
-      moveHandler = function(ev){
-        if(!dragging) return;
-        const r = board.getBoundingClientRect();
-        const nx = (ev.clientX - r.left - state.view.x) / state.view.scale - ox;
-        const ny = (ev.clientY - r.top - state.view.y) / state.view.scale - oy;
-        const prevLeft = parseFloat(el.style.left || 0);
-        const prevTop = parseFloat(el.style.top || 0);
-        if(Math.abs(nx - prevLeft) > 1 || Math.abs(ny - prevTop) > 1) moved = true;
-        el.style.left = nx + 'px'; el.style.top = ny + 'px';
-        const n = state.nodes.find(it => it.id === el.dataset.id);
-        if(n){ n.x = nx; n.y = ny; }
-        drawLinks();
-      };
-      upHandler = function(ev){
-        dragging = false;
-        document.removeEventListener('pointermove', moveHandler);
-        document.removeEventListener('pointerup', upHandler);
-        if(moved){
-          pushHistory(); // record move as action
-        }
-      };
-      document.addEventListener('pointermove', moveHandler);
-      document.addEventListener('pointerup', upHandler);
-      try{ el.setPointerCapture && el.setPointerCapture(e.pointerId); }catch(err){}
-    });
-  }
-
-  // ---------- selection ----------
-  function selectNode(id){
-    state.selected = id;
-    updateSelectionVisual();
-  }
-
-  // ---------- connections (preview + finish) ----------
-  let previewPath = null;
-  function startConnect(id){
-    state.connecting = id;
-    const src = findNodeById(id);
-    if(src) src.el.classList.add('connecting');
-    window.addEventListener('mousemove', followMouse);
-    window.addEventListener('click', finishConnectOnce);
-    window.addEventListener('keydown', onConnectKey);
-  }
-  function onConnectKey(e){ if(e.key === 'Escape') cancelConnect(); }
-  function followMouse(e){
-    if(!state.connecting) return;
-    const src = findNodeById(state.connecting);
-    if(!src) return;
-    const b = clientToBoard(e.clientX, e.clientY);
-    const x1 = src.x + src.el.offsetWidth;
-    const y1 = src.y + src.el.offsetHeight/2;
-    const x2 = b.x; const y2 = b.y;
-    const dx = Math.max(40, Math.abs(x2-x1)/2);
-    if(!previewPath){
-      previewPath = document.createElementNS('http://www.w3.org/2000/svg','path');
-      previewPath.setAttribute('stroke','#8b5cf6'); previewPath.setAttribute('fill','none');
-      previewPath.setAttribute('stroke-width','2'); previewPath.setAttribute('stroke-dasharray','6 6');
-      svg.appendChild(previewPath);
-    }
-    const d = `M ${x1} ${y1} C ${x1+dx} ${y1} ${x2-dx} ${y2} ${x2} ${y2}`;
-    previewPath.setAttribute('d', d);
-  }
-  function finishConnectOnce(e){
-    if(!state.connecting) return;
-    const target = document.elementFromPoint(e.clientX, e.clientY);
-    const nodeEl = getNode(target);
-    if(nodeEl && nodeEl.dataset.id !== state.connecting){
-      state.links.push({ from: state.connecting, to: nodeEl.dataset.id });
-      pushHistory();
-    }
-    cancelConnect();
-    drawLinks();
-  }
-  function cancelConnect(){
-    if(previewPath){ previewPath.remove(); previewPath = null; }
-    const src = findNodeById(state.connecting);
-    if(src) src.el.classList.remove('connecting');
-    window.removeEventListener('mousemove', followMouse);
-    window.removeEventListener('click', finishConnectOnce);
-    window.removeEventListener('keydown', onConnectKey);
-    state.connecting = null;
-  }
-
-  // ---------- draw links ----------
-  function drawLinks(){
-    while(svg.firstChild) svg.removeChild(svg.firstChild);
-    state.links.forEach(l=>{
-      const a = findNodeById(l.from);
-      const b = findNodeById(l.to);
-      if(!a||!b) return;
-      const x1 = a.x + a.el.offsetWidth; const y1 = a.y + a.el.offsetHeight/2;
-      const x2 = b.x; const y2 = b.y + b.el.offsetHeight/2;
-      const dx = Math.max(40, Math.abs(x2-x1)/2);
-      const p = document.createElementNS('http://www.w3.org/2000/svg','path');
-      p.setAttribute('d', `M ${x1} ${y1} C ${x1+dx} ${y1} ${x2-dx} ${y2} ${x2} ${y2}`);
-      p.setAttribute('stroke','#8b5cf6'); p.setAttribute('fill','none'); p.setAttribute('stroke-width','2');
-      svg.appendChild(p);
-    });
-  }
-
-  // ---------- fit ----------
-  function fitAll(padding=80){
-    if(state.nodes.length===0) return;
-    let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
-    state.nodes.forEach(n=>{
-      minX=Math.min(minX,n.x); minY=Math.min(minY,n.y);
-      maxX=Math.max(maxX,n.x + n.el.offsetWidth); maxY=Math.max(maxY,n.y + n.el.offsetHeight);
-    });
-    const boardW = Math.max(1, maxX-minX); const boardH = Math.max(1, maxY-minY);
-    const wrapRect = wrap.getBoundingClientRect();
-    const scale = Math.min((wrapRect.width - padding*2)/boardW, (wrapRect.height - padding*2)/boardH, 1);
-    const centerX = (minX + maxX)/2; const centerY = (minY + maxY)/2;
-    state.view.scale = Math.max(0.2, scale);
-    state.view.x = wrapRect.width/2 - centerX*state.view.scale;
-    state.view.y = wrapRect.height/2 - centerY*state.view.scale;
-    applyView();
-  }
-
-  // ---------- create nodes from inputs ----------
-  document.getElementById('btn-create').addEventListener('click', ()=>{
-    const rawTitles = document.getElementById('ideaText').value || '';
-    const rawBodies = document.getElementById('cardBody').value || '';
-    const titles = rawTitles.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-    const bodies = rawBodies.split(/\r?\n/).map(s=>s.trim());
-    if(titles.length===0) return;
-    const wrapRect = wrap.getBoundingClientRect();
-    const centerBoardX = (wrapRect.width/2 - state.view.x)/state.view.scale;
-    const centerBoardY = (wrapRect.height/2 - state.view.y)/state.view.scale;
-    let x = Math.max(60, centerBoardX - 60); let y = Math.max(60, centerBoardY - 40);
-    titles.forEach((t,i)=>{ createNode(x,y,t,bodies[i]||''); y += 140; });
-    drawLinks();
+    startConnect(id);
   });
-
-  document.getElementById('btn-workflow').addEventListener('click', ()=>{
-    const rawTitles = document.getElementById('ideaText').value || '';
-    const rawBodies = document.getElementById('cardBody').value || '';
-    const titles = rawTitles.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-    const bodies = rawBodies.split(/\r?\n/).map(s=>s.trim());
-    if(titles.length===0) return;
-    const wrapRect = wrap.getBoundingClientRect();
-    let startX = Math.max(80, (wrapRect.width/2 - state.view.x)/state.view.scale - (titles.length*170)/2);
-    let y = Math.max(120, (wrapRect.height/2 - state.view.y)/state.view.scale - 40);
-    const gap = 340; const ids = [];
-    titles.forEach((t,i)=>{ ids.push(createNode(startX + i*gap, y, t, bodies[i]||'')); });
-    for(let i=1;i<ids.length;i++) state.links.push({ from: ids[i-1], to: ids[i] });
-    pushHistory();
-    drawLinks();
-  });
-
-  // ---------- clear ----------
-  document.getElementById('btn-clear').addEventListener('click', ()=>{
-    pushHistory();
-    state.nodes.forEach(n=>{ if(n.el && n.el.parentNode) n.el.parentNode.removeChild(n.el); });
-    state.nodes = []; state.links = []; while(svg.firstChild) svg.removeChild(svg.firstChild);
-    state.nodeId=1; state.view={x:0,y:0,scale:1}; applyView();
-  });
-
-  // ---------- delete node ----------
-  function deleteSelectedNode(){
-    const id = state.selected;
-    if(!id) return;
-    // remove element
-    const idx = state.nodes.findIndex(n => n.id === id);
-    if(idx === -1) return;
-    pushHistory();
-    const node = state.nodes[idx];
-    if(node.el && node.el.parentNode) node.el.parentNode.removeChild(node.el);
-    state.nodes.splice(idx,1);
-    // remove links referencing it
-    state.links = state.links.filter(l => l.from !== id && l.to !== id);
-    state.selected = null;
-    drawLinks();
-  }
-  document.getElementById('btn-delete').addEventListener('click', ()=> deleteSelectedNode());
-  // Delete key
-  window.addEventListener('keydown', e=>{
-    if(e.key === 'Delete' || e.key === 'Backspace'){
-      // avoid interfering with typing in inputs
-      if(document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.isContentEditable)) return;
-      deleteSelectedNode();
-    }
-    // Undo / Redo keyboard
-    if((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')){
-      e.preventDefault(); undo();
-    } else if((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && (e.key === 'Z')) )){
-      e.preventDefault(); redo();
-    }
-  });
-
-  // ---------- undo/redo buttons ----------
-  document.getElementById('btn-undo').addEventListener('click', ()=> undo());
-  document.getElementById('btn-redo').addEventListener('click', ()=> redo());
-  updateUndoRedoButtons();
-
-  // ---------- pan ----------
-  let panning=false, sx=0, sy=0;
-  wrap.addEventListener('pointerdown', e=>{
-    if(getNode(e.target)) return; // clicked on node
-    panning=true; sx=e.clientX; sy=e.clientY;
-    try{ wrap.setPointerCapture && wrap.setPointerCapture(e.pointerId); }catch(err){}
-  });
-  window.addEventListener('pointermove', e=>{ if(!panning) return; const dx=e.clientX-sx, dy=e.clientY-sy; sx=e.clientX; sy=e.clientY; state.view.x += dx; state.view.y += dy; applyView(); });
-  window.addEventListener('pointerup', e=>{ panning=false; try{ wrap.releasePointerCapture && wrap.releasePointerCapture(e.pointerId);}catch(e){} });
-
-  // ---------- zoom ----------
-  wrap.addEventListener('wheel', e=>{
-    e.preventDefault();
-    const delta = -e.deltaY;
-    const factor = 1 + (delta>0?0.08:-0.08);
-    const before = clientToBoard(e.clientX, e.clientY);
-    state.view.scale = Math.max(0.2, Math.min(3, state.view.scale * factor));
-    const afterScreenX = before.x * state.view.scale + state.view.x;
-    const afterScreenY = before.y * state.view.scale + state.view.y;
-    const rect = board.getBoundingClientRect();
-    state.view.x += (e.clientX - rect.left) - afterScreenX;
-    state.view.y += (e.clientY - rect.top) - afterScreenY;
-    applyView();
-  }, { passive:false });
-
-  // ---------- export svg ----------
-  document.getElementById('btn-export').addEventListener('click', ()=>{
-    const exportSvg = document.createElementNS('http://www.w3.org/2000/svg','svg');
-    exportSvg.setAttribute('xmlns','http://www.w3.org/2000/svg');
-    if(state.nodes.length===0){
-      exportSvg.setAttribute('width', 1200);
-      exportSvg.setAttribute('height', 800);
-    } else {
-      let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
-      state.nodes.forEach(n=>{ minX=Math.min(minX,n.x); minY=Math.min(minY,n.y); maxX=Math.max(maxX,n.x + n.el.offsetWidth); maxY=Math.max(maxY,n.y + n.el.offsetHeight); });
-      const w = Math.max(800, Math.ceil(maxX - minX + 40));
-      const h = Math.max(600, Math.ceil(maxY - minY + 40));
-      exportSvg.setAttribute('width', w);
-      exportSvg.setAttribute('height', h);
-      exportSvg.setAttribute('viewBox', `${minX-20} ${minY-20} ${w} ${h}`);
-    }
-
-    state.links.forEach(l=>{
-      const a = findNodeById(l.from);
-      const b = findNodeById(l.to);
-      if(!a||!b) return;
-      const x1 = a.x + a.el.offsetWidth; const y1 = a.y + a.el.offsetHeight/2;
-      const x2 = b.x; const y2 = b.y + b.el.offsetHeight/2;
-      const dx = Math.max(40, Math.abs(x2-x1)/2);
-      const p = document.createElementNS('http://www.w3.org/2000/svg','path');
-      p.setAttribute('d', `M ${x1} ${y1} C ${x1+dx} ${y1} ${x2-dx} ${y2} ${x2} ${y2}`);
-      p.setAttribute('stroke','#8b5cf6'); p.setAttribute('fill','none'); p.setAttribute('stroke-width','2');
-      exportSvg.appendChild(p);
-    });
-
-    // add node rectangles & text so exported svg is self-contained
-    state.nodes.forEach(n=>{
-      const g = document.createElementNS('http://www.w3.org/2000/svg','g');
-      const rx = Math.round(n.x);
-      const ry = Math.round(n.y);
-      const rw = Math.round(n.el.offsetWidth);
-      const rh = Math.round(n.el.offsetHeight);
-      const rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
-      rect.setAttribute('x', rx); rect.setAttribute('y', ry); rect.setAttribute('width', rw); rect.setAttribute('height', rh);
-      rect.setAttribute('rx', 10); rect.setAttribute('ry', 10); rect.setAttribute('fill', '#0f1720'); rect.setAttribute('stroke', '#1f2937');
-
-      const title = document.createElementNS('http://www.w3.org/2000/svg','text');
-      title.setAttribute('x', rx + 12); title.setAttribute('y', ry + 20); title.setAttribute('font-size', 14); title.setAttribute('fill', '#e6eef8');
-      title.textContent = n.title || '';
-
-      const body = document.createElementNS('http://www.w3.org/2000/svg','text');
-      body.setAttribute('x', rx + 12); body.setAttribute('y', ry + 40); body.setAttribute('font-size', 12); body.setAttribute('fill', '#90a0b8');
-      body.textContent = n.notes || '';
-
-      g.appendChild(rect); g.appendChild(title); g.appendChild(body);
-      exportSvg.appendChild(g);
-    });
-
-    const s = new XMLSerializer().serializeToString(exportSvg);
-    const blob = new Blob([s],{type:'image/svg+xml'});
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement('a'); a.href=url; a.download='idea-visual.svg'; document.body.appendChild(a);
-    a.click(); a.remove(); URL.revokeObjectURL(url);
-  });
-
-  // ---------- initial sample ----------
-  createNode(220,160,'Central idea','Double-click to edit', { skipHistory: true });
-  createNode(520,120,'Branch A','', { skipHistory: true });
-  createNode(520,320,'Branch B','', { skipHistory: true });
-  pushHistory(); // initial baseline
+  el.addEventListener('click', (e)=>{ e.stopPropagation(); selectNode(id); });
+  el.addEventListener('dblclick', (e)=>{ e.stopPropagation(); openEditModal(id); });
+  const nodeObj = { id, el, x, y, title, notes };
+  if(addToState) state.nodes.push(nodeObj);
   drawLinks();
+  if(addToState && options.skipHistory !== true) pushHistory();
+  return id;
+}
 
-  // ---------- modal edit ----------
-  function openEditModal(id){
-    const node = findNodeById(id);
-    if(!node) return;
-    editingNodeId = id;
-    modalTitle.value = node.title || '';
-    modalBody.value = node.notes || '';
-    modal.style.display = 'flex';
-    modal.setAttribute('aria-hidden','false');
-    modalTitle.focus();
-  }
-  function closeModal(){
-    editingNodeId = null;
-    modal.style.display = 'none';
-    modal.setAttribute('aria-hidden','true');
-  }
-  document.getElementById('modalCancel').addEventListener('click', ()=> closeModal());
-  document.getElementById('modalSave').addEventListener('click', ()=>{
-    if(!editingNodeId) return;
-    const node = findNodeById(editingNodeId);
-    if(!node) return;
-    pushHistory();
-    node.title = modalTitle.value;
-    node.notes = modalBody.value;
-    node.el.querySelector('.title').innerText = node.title;
-    node.el.querySelector('.meta').innerText = node.notes;
-    closeModal();
-    drawLinks();
+// drag
+function makeDraggable(el){
+  let ox=0, oy=0, dragging=false, moved=false, moveHandler, upHandler;
+  el.addEventListener('pointerdown', e=>{
+    if(e.target.classList && e.target.classList.contains('connector')) return;
+    e.preventDefault();
+    dragging = true; moved = false;
+    const rect = board.getBoundingClientRect();
+    ox = (e.clientX - rect.left - state.view.x)/state.view.scale - parseFloat(el.style.left || 0);
+    oy = (e.clientY - rect.top - state.view.y)/state.view.scale - parseFloat(el.style.top || 0);
+    moveHandler = function(ev){
+      if(!dragging) return;
+      const r = board.getBoundingClientRect();
+      const nx = (ev.clientX - r.left - state.view.x)/state.view.scale - ox;
+      const ny = (ev.clientY - r.top - state.view.y)/state.view.scale - oy;
+      const prevLeft = parseFloat(el.style.left || 0);
+      const prevTop = parseFloat(el.style.top || 0);
+      if(Math.abs(nx - prevLeft) > 1 || Math.abs(ny - prevTop) > 1) moved = true;
+      el.style.left = nx + 'px'; el.style.top = ny + 'px';
+      const n = state.nodes.find(it => it.id === el.dataset.id);
+      if(n){ n.x = nx; n.y = ny; }
+      drawLinks();
+    };
+    upHandler = function(){
+      dragging = false;
+      document.removeEventListener('pointermove', moveHandler);
+      document.removeEventListener('pointerup', upHandler);
+      if(moved) pushHistory();
+    };
+    document.addEventListener('pointermove', moveHandler);
+    document.addEventListener('pointerup', upHandler);
+    try{ el.setPointerCapture && el.setPointerCapture(e.pointerId); }catch(err){}
   });
-  // close modal on backdrop click
-  modal.addEventListener('click', e=>{ if(e.target === modal) closeModal(); });
+}
 
-  // ---------- double-click editing (already wired in createNode) ----------
-  // ---------- keep svg sized ----------
-  function syncSvgSize(){ svg.setAttribute('width', board.offsetWidth); svg.setAttribute('height', board.offsetHeight); }
-  window.addEventListener('resize', ()=>{ syncSvgSize(); applyView(); });
-  syncSvgSize();
+// selection
+function selectNode(id){ state.selected = id; updateSelectionVisual(); }
 
-  // ---------- utility: delete node by id (exposed) ----------
-  function deleteNodeById(id){
-    const idx = state.nodes.findIndex(n => n.id === id);
-    if(idx === -1) return;
-    const node = state.nodes[idx];
-    if(node.el && node.el.parentNode) node.el.parentNode.removeChild(node.el);
-    state.nodes.splice(idx, 1);
-    state.links = state.links.filter(l => l.from !== id && l.to !== id);
-    if(state.selected === id) state.selected = null;
+// connections
+let previewPath = null;
+function startConnect(id){
+  state.connecting = id;
+  const src = findNodeById(id); if(src) src.el.classList.add('connecting');
+  window.addEventListener('mousemove', followMouse);
+  window.addEventListener('click', finishConnectOnce);
+  window.addEventListener('keydown', onConnectKey);
+}
+function onConnectKey(e){ if(e.key === 'Escape') cancelConnect(); }
+function followMouse(e){
+  if(!state.connecting) return;
+  const src = findNodeById(state.connecting); if(!src) return;
+  const b = clientToBoard(e.clientX, e.clientY);
+  const x1 = src.x + src.el.offsetWidth; const y1 = src.y + src.el.offsetHeight/2;
+  const x2 = b.x; const y2 = b.y; const dx = Math.max(40, Math.abs(x2-x1)/2);
+  if(!previewPath){ previewPath = document.createElementNS('http://www.w3.org/2000/svg','path'); previewPath.setAttribute('stroke','#8b5cf6'); previewPath.setAttribute('fill','none'); previewPath.setAttribute('stroke-width','2'); previewPath.setAttribute('stroke-dasharray','6 6'); svg.appendChild(previewPath); }
+  const d = `M ${x1} ${y1} C ${x1+dx} ${y1} ${x2-dx} ${y2} ${x2} ${y2}`;
+  previewPath.setAttribute('d', d);
+}
+function finishConnectOnce(e){
+  if(!state.connecting) return;
+  const target = document.elementFromPoint(e.clientX, e.clientY);
+  const nodeEl = getNode(target);
+  if(nodeEl && nodeEl.dataset.id !== state.connecting){ state.links.push({ from: state.connecting, to: nodeEl.dataset.id }); pushHistory(); }
+  cancelConnect(); drawLinks();
+}
+function cancelConnect(){ if(previewPath){ previewPath.remove(); previewPath = null; } const src = findNodeById(state.connecting); if(src) src.el.classList.remove('connecting'); window.removeEventListener('mousemove', followMouse); window.removeEventListener('click', finishConnectOnce); window.removeEventListener('keydown', onConnectKey); state.connecting = null; }
+
+// draw links
+function drawLinks(){ while(svg.firstChild) svg.removeChild(svg.firstChild); state.links.forEach(l=>{ const a = findNodeById(l.from); const b = findNodeById(l.to); if(!a||!b) return; const x1=a.x+a.el.offsetWidth, y1=a.y+a.el.offsetHeight/2, x2=b.x, y2=b.y+b.el.offsetHeight/2, dx=Math.max(40, Math.abs(x2-x1)/2); const p=document.createElementNS('http://www.w3.org/2000/svg','path'); p.setAttribute('d', `M ${x1} ${y1} C ${x1+dx} ${y1} ${x2-dx} ${y2} ${x2} ${y2}`); p.setAttribute('stroke','#8b5cf6'); p.setAttribute('fill','none'); p.setAttribute('stroke-width','2'); svg.appendChild(p); }); }
+
+// fit
+function fitAll(padding=80){
+  if(state.nodes.length===0) return;
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  state.nodes.forEach(n=>{ minX=Math.min(minX,n.x); minY=Math.min(minY,n.y); maxX=Math.max(maxX,n.x+n.el.offsetWidth); maxY=Math.max(maxY,n.y+n.el.offsetHeight); });
+  const boardW=Math.max(1,maxX-minX), boardH=Math.max(1,maxY-minY);
+  const wrapRect = wrap.getBoundingClientRect();
+  const scale = Math.min((wrapRect.width - padding*2)/boardW, (wrapRect.height - padding*2)/boardH, 1);
+  const centerX=(minX+maxX)/2, centerY=(minY+maxY)/2;
+  state.view.scale = Math.max(0.2, scale);
+  state.view.x = wrapRect.width/2 - centerX*state.view.scale;
+  state.view.y = wrapRect.height/2 - centerY*state.view.scale;
+  applyView();
+}
+
+// create nodes from inputs
+document.getElementById('btn-create').addEventListener('click', ()=>{
+  const rawTitles = document.getElementById('ideaText').value || '';
+  const rawBodies = document.getElementById('cardBody').value || '';
+  const titles = rawTitles.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+  const bodies = rawBodies.split(/\r?\n/).map(s=>s.trim());
+  if(titles.length===0) return;
+  const wrapRect = wrap.getBoundingClientRect();
+  const centerBoardX = (wrapRect.width/2 - state.view.x)/state.view.scale;
+  let x = Math.max(60, centerBoardX - 60); let y = Math.max(60, (wrapRect.height/2 - state.view.y)/state.view.scale - 40);
+  titles.forEach((t,i)=>{ createNode(x,y,t,bodies[i]||''); y+=140; });
+  drawLinks();
+});
+
+// workflow
+document.getElementById('btn-workflow').addEventListener('click', ()=>{
+  const rawTitles = document.getElementById('ideaText').value || '';
+  const rawBodies = document.getElementById('cardBody').value || '';
+  const titles = rawTitles.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+  const bodies = rawBodies.split(/\r?\n/).map(s=>s.trim());
+  if(titles.length===0) return;
+  const wrapRect = wrap.getBoundingClientRect();
+  let startX = Math.max(80, (wrapRect.width/2 - state.view.x)/state.view.scale - (titles.length*170)/2);
+  let y = Math.max(120, (wrapRect.height/2 - state.view.y)/state.view.scale - 40);
+  const gap = 340; const ids = [];
+  titles.forEach((t,i)=> ids.push(createNode(startX + i*gap, y, t, bodies[i]||'')));
+  for(let i=1;i<ids.length;i++) state.links.push({ from: ids[i-1], to: ids[i] });
+  pushHistory(); drawLinks();
+});
+
+// clear
+document.getElementById('btn-clear').addEventListener('click', ()=>{
+  pushHistory();
+  state.nodes.forEach(n=>{ if(n.el && n.el.parentNode) n.el.parentNode.removeChild(n.el); });
+  state.nodes = []; state.links = []; while(svg.firstChild) svg.removeChild(svg.firstChild);
+  state.nodeId = 1; state.view = {x:0,y:0,scale:1}; applyView();
+  scheduleSave();
+});
+
+// delete
+function deleteSelectedNode(){
+  const id = state.selected; if(!id) return;
+  const idx = state.nodes.findIndex(n=>n.id===id); if(idx===-1) return;
+  pushHistory();
+  const node = state.nodes[idx]; if(node.el && node.el.parentNode) node.el.parentNode.removeChild(node.el);
+  state.nodes.splice(idx,1);
+  state.links = state.links.filter(l => l.from !== id && l.to !== id);
+  state.selected = null; drawLinks(); scheduleSave();
+}
+document.getElementById('btn-delete').addEventListener('click', ()=> deleteSelectedNode());
+window.addEventListener('keydown', e=>{
+  if(e.key === 'Delete' || e.key === 'Backspace'){
+    if(document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.isContentEditable)) return;
+    deleteSelectedNode();
   }
+  if((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')){ e.preventDefault(); undo(); }
+  else if((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && (e.key === 'Z')) )){ e.preventDefault(); redo(); }
+});
 
-  // ---------- selection when clicking background clears selection ----------
-  wrap.addEventListener('click', e=>{ if(getNode(e.target)) return; state.selected = null; updateSelectionVisual(); });
+// undo/redo buttons
+document.getElementById('btn-undo').addEventListener('click', ()=> undo());
+document.getElementById('btn-redo').addEventListener('click', ()=> redo());
+updateUndoRedoButtons();
 
-  // ---------- helper to ensure no memory leaks on applySnapshot ----------
-  // applySnapshot handles removing DOM and recreating nodes
+// pan
+let panning=false,sx=0,sy=0;
+wrap.addEventListener('pointerdown', e=>{
+  if(getNode(e.target)) return;
+  panning=true; sx=e.clientX; sy=e.clientY;
+  try{ wrap.setPointerCapture && wrap.setPointerCapture(e.pointerId); }catch(err){}
+});
+window.addEventListener('pointermove', e=>{ if(!panning) return; const dx=e.clientX-sx, dy=e.clientY-sy; sx=e.clientX; sy=e.clientY; state.view.x += dx; state.view.y += dy; applyView(); scheduleSave(); });
+window.addEventListener('pointerup', e=>{ panning=false; try{ wrap.releasePointerCapture && wrap.releasePointerCapture(e.pointerId);}catch(e){} });
 
+// zoom
+wrap.addEventListener('wheel', e=>{
+  e.preventDefault();
+  const delta = -e.deltaY;
+  const factor = 1 + (delta>0?0.08:-0.08);
+  const before = clientToBoard(e.clientX, e.clientY);
+  state.view.scale = Math.max(0.2, Math.min(3, state.view.scale * factor));
+  const afterScreenX = before.x * state.view.scale + state.view.x;
+  const afterScreenY = before.y * state.view.scale + state.view.y;
+  const rect = board.getBoundingClientRect();
+  state.view.x += (e.clientX - rect.left) - afterScreenX;
+  state.view.y += (e.clientY - rect.top) - afterScreenY;
+  applyView(); scheduleSave();
+}, { passive:false });
+
+// export svg (includes nodes now)
+document.getElementById('btn-export').addEventListener('click', ()=>{
+  const exportSvg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+  exportSvg.setAttribute('xmlns','http://www.w3.org/2000/svg');
+  if(state.nodes.length===0){ exportSvg.setAttribute('width',1200); exportSvg.setAttribute('height',800); }
+  else {
+    let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+    state.nodes.forEach(n=>{ minX=Math.min(minX,n.x); minY=Math.min(minY,n.y); maxX=Math.max(maxX,n.x+n.el.offsetWidth); maxY=Math.max(maxY,n.y+n.el.offsetHeight); });
+    const w = Math.max(800, Math.ceil(maxX - minX + 40));
+    const h = Math.max(600, Math.ceil(maxY - minY + 40));
+    exportSvg.setAttribute('width', w); exportSvg.setAttribute('height', h);
+    exportSvg.setAttribute('viewBox', `${minX-20} ${minY-20} ${w} ${h}`);
+  }
+  state.links.forEach(l=>{
+    const a = findNodeById(l.from); const b = findNodeById(l.to); if(!a||!b) return;
+    const x1=a.x+a.el.offsetWidth, y1=a.y+a.el.offsetHeight/2, x2=b.x, y2=b.y+b.el.offsetHeight/2, dx=Math.max(40, Math.abs(x2-x1)/2);
+    const p = document.createElementNS('http://www.w3.org/2000/svg','path');
+    p.setAttribute('d', `M ${x1} ${y1} C ${x1+dx} ${y1} ${x2-dx} ${y2} ${x2} ${y2}`);
+    p.setAttribute('stroke','#8b5cf6'); p.setAttribute('fill','none'); p.setAttribute('stroke-width','2'); exportSvg.appendChild(p);
+  });
+  state.nodes.forEach(n=>{
+    const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+    const rx = Math.round(n.x), ry = Math.round(n.y), rw = Math.round(n.el.offsetWidth), rh = Math.round(n.el.offsetHeight);
+    const rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
+    rect.setAttribute('x', rx); rect.setAttribute('y', ry); rect.setAttribute('width', rw); rect.setAttribute('height', rh); rect.setAttribute('rx',10); rect.setAttribute('ry',10); rect.setAttribute('fill','#0f1720'); rect.setAttribute('stroke','#1f2937');
+    const title = document.createElementNS('http://www.w3.org/2000/svg','text');
+    title.setAttribute('x', rx+12); title.setAttribute('y', ry+20); title.setAttribute('font-size',14); title.setAttribute('fill','#e6eef8'); title.textContent = n.title || '';
+    const body = document.createElementNS('http://www.w3.org/2000/svg','text');
+    body.setAttribute('x', rx+12); body.setAttribute('y', ry+40); body.setAttribute('font-size',12); body.setAttribute('fill','#90a0b8'); body.textContent = n.notes || '';
+    g.appendChild(rect); g.appendChild(title); g.appendChild(body); exportSvg.appendChild(g);
+  });
+  const s = new XMLSerializer().serializeToString(exportSvg);
+  const blob = new Blob([s],{type:'image/svg+xml'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'idea-visual.svg'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+});
+
+// initial sample
+createNode(220,160,'Central idea','Double-click to edit', { skipHistory: true });
+createNode(520,120,'Branch A','', { skipHistory: true });
+createNode(520,320,'Branch B','', { skipHistory: true });
+pushHistory();
+drawLinks();
+
+// modal edit
+function openEditModal(id){ const node = findNodeById(id); if(!node) return; editingNodeId = id; modalTitle.value = node.title || ''; modalBody.value = node.notes || ''; modal.style.display = 'flex'; modal.setAttribute('aria-hidden','false'); modalTitle.focus(); }
+function closeModal(){ editingNodeId = null; modal.style.display = 'none'; modal.setAttribute('aria-hidden','true'); }
+document.getElementById('modalCancel').addEventListener('click', ()=> closeModal());
+document.getElementById('modalSave').addEventListener('click', ()=>{
+  if(!editingNodeId) return;
+  const node = findNodeById(editingNodeId);
+  if(!node) return;
+  pushHistory(); node.title = modalTitle.value; node.notes = modalBody.value; node.el.querySelector('.title').innerText = node.title; node.el.querySelector('.meta').innerText = node.notes; closeModal(); drawLinks();
+});
+modal.addEventListener('click', e=>{ if(e.target === modal) closeModal(); });
+
+// svg sizing
+function syncSvgSize(){ svg.setAttribute('width', board.offsetWidth); svg.setAttribute('height', board.offsetHeight); }
+window.addEventListener('resize', ()=>{ syncSvgSize(); applyView(); });
+syncSvgSize();
+
+// selection clear on backdrop click
+wrap.addEventListener('click', e=>{ if(getNode(e.target)) return; state.selected = null; updateSelectionVisual(); });
+
+// ----------------- Persistence: localStorage + Firestore -----------------
+const LS_KEY = 'idea_visual_workspace';
+const WORKSPACE_ID_KEY = 'idea_visual_workspace_id';
+let workspaceId = localStorage.getItem(WORKSPACE_ID_KEY) || null;
+
+let firestoreDb = null;
+let saveTimer = null;
+let lastSavedSnapshotHash = null;
+let saveInProgress = false;
+
+function setStatus(text){ saveStatusEl.innerText = text; }
+
+function scheduleSave(delay = 800){
+  // debounce saves; called after any mutating action
+  setStatus('Unsaved');
+  if(saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(()=> saveWorkspace().catch(err=>{ console.error('Save failed', err); setStatus('Save failed'); }), delay);
+}
+
+function hashSnapshot(snap){
+  // simple JSON hash-ish (not cryptographic) to detect changes
+  try{ return JSON.stringify(snap); }catch(e){ return Date.now().toString(); }
+}
+
+async function saveWorkspace(){
+  const snap = snapshot();
+  const stringified = hashSnapshot(snap);
+  if(stringified === lastSavedSnapshotHash) { setStatus('Saved'); return; } // nothing changed
+  lastSavedSnapshotHash = stringified;
+  setStatus('Saving...');
+  // always save to localStorage
+  try{
+    localStorage.setItem(LS_KEY, JSON.stringify(snap));
+  }catch(e){ console.warn('localStorage save failed', e); }
+
+  // if firestore is configured, write there
+  if(firestoreDb){
+    try{
+      saveInProgress = true;
+      // ensure workspaceId exists
+      if(!workspaceId){
+        workspaceId = generateId(10);
+        localStorage.setItem(WORKSPACE_ID_KEY, workspaceId);
+      }
+      const docRef = window.firestore.doc(firestoreDb, 'workspaces', workspaceId);
+      // use setDoc
+      await window.firestore.setDoc(docRef, { workspace: snap, updatedAt: window.firestore.serverTimestamp() }, { merge: true });
+      setStatus('Saved (cloud)');
+      saveInProgress = false;
+      return;
+    }catch(err){
+      console.error('Firestore save error', err);
+      setStatus('Saved (local only)');
+      saveInProgress = false;
+      return;
+    }
+  }else{
+    setStatus('Saved (local)');
+    return;
+  }
+}
+
+async function loadWorkspace(){
+  // priority: Firestore (if configured and doc present) -> localStorage -> initial default
+  // ensure workspaceId (if present) used to fetch
+  if(firestoreDb){
+    try{
+      if(!workspaceId){ // try to reuse local stored id
+        workspaceId = localStorage.getItem(WORKSPACE_ID_KEY);
+      }
+      if(workspaceId){
+        const docRef = window.firestore.doc(firestoreDb, 'workspaces', workspaceId);
+        const snap = await window.firestore.getDoc(docRef);
+        if(snap && snap.exists()){
+          const data = snap.data();
+          if(data && data.workspace){
+            applySnapshot(data.workspace);
+            lastSavedSnapshotHash = hashSnapshot(data.workspace);
+            setStatus('Loaded (cloud)');
+            return;
+          }
+        }
+      }
+      // Try to find a first workspace: optionally, you could load by query; for simplicity, fallback to localStorage
+    }catch(err){
+      console.warn('Firestore load error', err);
+      // fallback to localStorage
+    }
+  }
+  // fallback to localStorage
+  try{
+    const ls = localStorage.getItem(LS_KEY);
+    if(ls){
+      const parsed = JSON.parse(ls);
+      applySnapshot(parsed);
+      lastSavedSnapshotHash = hashSnapshot(parsed);
+      setStatus(firestoreDb ? 'Loaded (local backup)' : 'Loaded (local)');
+      return;
+    }
+  }catch(e){ console.warn('local load failed', e); }
+  setStatus('Empty');
+}
+
+// generate random id
+function generateId(len=8){ const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'; let s=''; for(let i=0;i<len;i++) s+=chars[Math.floor(Math.random()*chars.length)]; return s; }
+
+// ----------------- Firebase initialization (optional) -----------------
+async function initFirebaseIfConfigured(){
+  if(!window.firebaseConfigGlobal && typeof firebaseConfig !== 'undefined' && firebaseConfig){
+    window.firebaseConfigGlobal = firebaseConfig;
+  }
+  if(!window.firebaseConfigGlobal) return false;
+  // load firebase scripts dynamically so we only load when config is provided
+  await loadScript('https://www.gstatic.com/firebasejs/10.5.2/firebase-app.js');
+  await loadScript('https://www.gstatic.com/firebasejs/10.5.2/firebase-firestore.js');
+  // initialize firebase app
+  try{
+    window.firebaseApp = window.firebase.initializeApp(window.firebaseConfigGlobal);
+    window.firestore = window.firebase.firestore;
+    firestoreDb = window.firestore.getFirestore ? window.firestore.getFirestore(window.firebaseApp) : window.firestore(); // compatibility
+    console.log('Firestore initialized');
+    return true;
+  }catch(err){
+    console.error('Firebase init error', err);
+    firestoreDb = null;
+    return false;
+  }
+}
+
+function loadScript(src){
+  return new Promise((res, rej)=>{
+    const s = document.createElement('script'); s.src = src; s.onload = ()=> res(); s.onerror = (e)=> rej(e); document.head.appendChild(s);
+  });
+}
+
+// ----------------- startup sequence -----------------
+await initFirebaseIfConfigured();
+await loadWorkspace();
+updateUndoRedoButtons();
+
+// If Firestore was not configured, user will use localStorage only. If Firestore configured but no workspaceId/doc found, save will create a doc with a generated workspaceId and store it in localStorage.
+
+// ----------------- save on unload (best-effort) -----------------
+window.addEventListener('beforeunload', (e)=>{
+  // synchronous localStorage save already used; attempt to do immediate saveWorkspace() (async won't reliably finish)
+  try{
+    const snap = snapshot(); localStorage.setItem(LS_KEY, JSON.stringify(snap));
+  }catch(e){}
+});
+
+// ----------------- helper: scheduleSave called elsewhere -----------------
+function scheduleSaveNow(){ scheduleSave(0); }
+
+// Expose scheduleSave for some earlier operations
+window.idea_visual_schedule_save = scheduleSave;
+
+// ----------------- end of app code -----------------
 })();
 </script>
 </body>
