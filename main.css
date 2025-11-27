@@ -148,3 +148,57 @@ body.aries-sidebar-open .page-wrapper{ margin-left: var(--aries-expanded); trans
   .aries-sidebar.open{ position:fixed; left:0; width:78%; max-width:340px; }
   body.aries-sidebar-open .page-wrapper{ margin-left:0; }
 }
+/* Sidebar hidden + overlay helpers (append to main.css) */
+
+/* ensure we start fully hidden */
+.aries-sidebar.hidden {
+  transform: translateX(-120%);   /* move fully off-screen */
+  transition: transform 240ms cubic-bezier(.2,.9,.2,1), opacity 200ms;
+  opacity: 0;
+  pointer-events: none;
+  width: 0 !important; /* no reserved width */
+}
+
+/* when opened */
+.aries-sidebar.open {
+  transform: translateX(0);
+  opacity: 1;
+  pointer-events: auto;
+  width: var(--aries-expanded, 220px); /* fall back */
+  z-index: 120;
+}
+
+/* overlay element (captures clicks on empty space) */
+#aries-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.38);
+  z-index: 110;
+  opacity: 0;
+  transition: opacity 200ms ease;
+  pointer-events: none;
+}
+
+/* visible overlay */
+#aries-overlay.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* hidden overlay */
+#aries-overlay.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ensure body doesn't reserve space for sidebar while hidden */
+body.aries-sidebar-open .page-wrapper {
+  margin-left: var(--aries-expanded, 220px);
+  transition: margin-left 240ms cubic-bezier(.2,.9,.2,1);
+}
+
+/* on small screens, overlay behavior keeps content in place */
+@media (max-width:900px) {
+  .aries-sidebar.open { position: fixed; left: 0; top: var(--topbar-h, 60px); bottom: 0; width: 78%; max-width: 340px; }
+  body.aries-sidebar-open .page-wrapper { margin-left: 0; }
+}
