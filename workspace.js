@@ -1,748 +1,1268 @@
-/**
- * Aries Workspace Engine - Advanced Edition
- * Features: History Stack, Multi-Select, Clipboard, Styling, Pointer Events
- */
+/* workspace.js — Full advanced workspace
+   - multi-segment editable connectors (polyline)
+   - 8 visible anchors + forced snap-to-anchor
+   - precise cursor-following preview
+   - double-click node/link modals (edit/delete)
+   - path edit mode (drag handles, dblclick handle to remove, dblclick path to add)
+   - undo/redo stack
+   - palette, templates, align/distribute, bring/send, autosize, zoom-to-fit
+   - inspector integration preserved
+   - defensive checks and debug API
+*/
 
-(function() {
-    // --- Constants & Config ---
-    const CONFIG = {
-        gridSize: 20,
-        snapToGrid: true,
-        zoomMin: 0.1,
-        zoomMax: 3.0,
-        colors: [
-            '#ffffff', '#fecaca', '#fde68a', '#d9f99d', '#bfdbfe', '#ddd6fe', '#fbcfe8', '#e2e8f0'
-        ]
-    };
+(function () {
+  // ---------- Utilities ----------
+  const $ = id => document.getElementById(id) || null;
+  const cls = (n) => document.getElementsByClassName(n);
+  const uid = (p = 'id') => p + Math.random().toString(36).slice(2, 9);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const deepClone = (o) => JSON.parse(JSON.stringify(o));
+  const now = () => new Date().toISOString();
 
-    // --- State Management ---
-    const state = {
-        projectId: 'local-demo',
-        nodes: [],
-        links: [],
-        transform: { x: 0, y: 0, scale: 1 },
-        selection: new Set(), // Set of Node IDs
-        selectedLinkId: null,
-        clipboard: null, // For Copy/Paste
-        history: [], // Undo stack
-        historyIndex: -1, // Current pointer in history
-        isDirty: false
-    };
+  // ---------- Config ----------
+  const CONFIG = {
+    anchorDotSize: 12,
+    anchorDotStroke: 'rgba(0,0,0,0.12)',
+    anchorDotHover: 'var(--accent-hover,#2e86ff)',
+    linkStroke: '#3b4b54',
+    linkSelected: 'var(--link-selected,#1b74ff)',
+    previewStroke: 'var(--accent,#2e86ff)',
+    handleRadius: 6,
+    parallelGap: 14,
+    maxUndo: 200
+  };
 
-    // --- Interaction State ---
-    const interact = {
-        mode: 'IDLE', // IDLE, PAN, DRAG_ITEMS, DRAG_SELECTION, LINK_DRAW, HANDLE_DRAG
-        startX: 0, startY: 0, // Screen coords
-        startTransform: { x: 0, y: 0 },
-        startNodePositions: {}, // Map { id: {x,y} }
-        linkDraft: null, // { sourceId, anchorIdx, currX, currY }
-        selectionBox: { x: 0, y: 0, w: 0, h: 0 }
-    };
+  // ---------- DOM references & fallbacks ----------
+  let canvas = $('canvas');
+  if (!canvas) {
+    canvas = document.createElement('div');
+    canvas.id = 'canvas';
+    canvas.style.position = 'absolute';
+    canvas.style.left = '0';
+    canvas.style.top = '80px';
+    canvas.style.right = '0';
+    canvas.style.bottom = '0';
+    canvas.style.overflow = 'hidden';
+    document.body.appendChild(canvas);
+  }
 
-    // --- DOM Cache ---
-    const DOM = {};
+  let board = $('board');
+  if (!board) {
+    board = document.createElement('div');
+    board.id = 'board';
+    board.style.position = 'absolute';
+    board.style.left = '0';
+    board.style.top = '0';
+    board.style.width = '2000px';
+    board.style.height = '1500px';
+    board.style.transformOrigin = '0 0';
+    board.style.background = 'transparent';
+    canvas.appendChild(board);
+  }
 
-    function init() {
-        // Cache Elements
-        ['canvas', 'board', 'svg', 'selectionBox', 'inspector', 'inspectorData', 'inspectorEmpty', 'contextMenu', 'statusText'].forEach(id => DOM[id] = document.getElementById(id));
-        
-        // Setup Inspector Colors
-        const colorGrid = document.getElementById('colorGrid');
-        CONFIG.colors.forEach(c => {
-            const d = document.createElement('div');
-            d.className = 'color-swatch';
-            d.style.backgroundColor = c;
-            d.onclick = () => updateSelectionProperties({ color: c });
-            colorGrid.appendChild(d);
+  let svg = $('svg');
+  if (!svg) {
+    svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('id', 'svg');
+    svg.style.position = 'absolute';
+    svg.style.left = '0';
+    svg.style.top = '0';
+    svg.style.width = '100%';
+    svg.style.height = '100%';
+    svg.style.pointerEvents = 'none';
+    board.appendChild(svg);
+  }
+
+  // optional existing UI elements (we keep them if present)
+  const headerTitle = $('headerTitle');
+  const toolAddPage = $('toolAddPage');
+  const toolAddAction = $('toolAddAction');
+  const toolAddDecision = $('toolAddDecision');
+  const toolDeleteNode = $('toolDeleteNode');
+  const toolDeleteLink = $('toolDeleteLink');
+  const saveBoardBtn = $('saveBoard');
+  const showGrid = $('showGrid');
+  const gridSizeInput = $('gridSize');
+  const zoomIndicator = $('zoomIndicator');
+  const zoomInCorner = $('zoomInCorner');
+  const zoomOutCorner = $('zoomOutCorner');
+  const centerBtn = $('centerBtn');
+  const zoomFitBtn = $('zoomFitBtn');
+  const exportBtn = $('exportBtn');
+  const exportJsonBtn = $('exportJson');
+  const importJsonBtn = $('importJsonBtn');
+  const importFile = $('importFile');
+  const autosizeBtn = $('autosizeBtn');
+  const clearAllBtn = $('clearAllBtn');
+
+  // optional inspector
+  const inspector = $('inspector');
+  const selectedCount = $('selectedCount');
+  const inspectorSingle = $('inspectorSingle');
+  const inspectorMulti = $('inspectorMulti');
+  const inspectorId = $('inspectorId');
+  const inspectorType = $('inspectorType');
+  const inspectorTitle = $('inspectorTitle');
+  const inspectorBody = $('inspectorBody');
+  const inspectorW = $('inspectorW');
+  const inspectorH = $('inspectorH');
+  const inspectorSave = $('inspectorSave');
+  const inspectorDelete = $('inspectorDelete');
+  const statusMeta = $('statusMeta');
+
+  // ---------- State ----------
+  const model = { nodes: [], links: [] }; // nodes: {id,x,y,w,h,type,title,body,zIndex}; links: {id,source,target,sourceAnchorIdx,targetAnchorIdx,points:[{x,y}],label,cp}
+  const state = {
+    transform: { x: 0, y: 0, scale: 1 },
+    selectedNodes: new Set(),
+    selectedLinkId: null,
+    dragInfo: null,   // node drag or pan
+    linkDraw: null,   // {sourceId, sourceAnchorIdx, startX, startY, currentX, currentY}
+    handleDrag: null, // {linkId, startClientX, startClientY, startCp}
+    highestZ: 15,
+    dirty: false,
+    undoStack: [],
+    redoStack: [],
+    templates: [],
+    grid: { enabled: true, size: 25 }
+  };
+
+  // ---------- Small helpers ----------
+  function screenToBoard(sx, sy) {
+    const rect = board.getBoundingClientRect();
+    return { x: (sx - rect.left) / state.transform.scale, y: (sy - rect.top) / state.transform.scale };
+  }
+  function boardToScreen(bx, by) {
+    const rect = board.getBoundingClientRect();
+    return { x: rect.left + bx * state.transform.scale, y: rect.top + by * state.transform.scale };
+  }
+  function isTyping() {
+    try {
+      const ae = document.activeElement;
+      if (!ae) return false;
+      const tag = (ae.tagName || '').toUpperCase();
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+      if (ae.isContentEditable) return true;
+      if (ae.closest && ae.closest('#inspector')) return true;
+      return false;
+    } catch (e) { return false; }
+  }
+  function saveSnapshot() {
+    state.undoStack.push(deepClone({ nodes: model.nodes, links: model.links }));
+    if (state.undoStack.length > CONFIG.maxUndo) state.undoStack.shift();
+    state.redoStack = [];
+  }
+  function undo() {
+    if (state.undoStack.length === 0) return;
+    const last = state.undoStack.pop();
+    state.redoStack.push(deepClone({ nodes: model.nodes, links: model.links }));
+    model.nodes.length = 0; model.links.length = 0;
+    last.nodes.forEach(n => model.nodes.push(n)); last.links.forEach(l => model.links.push(l));
+    state.selectedNodes.clear(); state.selectedLinkId = null;
+    renderNodes(); renderLinks(); markDirty(false);
+  }
+  function redo() {
+    if (state.redoStack.length === 0) return;
+    const next = state.redoStack.pop();
+    state.undoStack.push(deepClone({ nodes: model.nodes, links: model.links }));
+    model.nodes.length = 0; model.links.length = 0;
+    next.nodes.forEach(n => model.nodes.push(n)); next.links.forEach(l => model.links.push(l));
+    state.selectedNodes.clear(); state.selectedLinkId = null;
+    renderNodes(); renderLinks(); markDirty(false);
+  }
+
+  function markDirty(userTriggered = true) {
+    state.dirty = true;
+    if (statusMeta && userTriggered) statusMeta.textContent = 'Unsaved changes';
+    if (saveBoardBtn && userTriggered) saveBoardBtn.textContent = 'Saving...';
+    // optionally auto-save after delay — keep as you had earlier: debounce
+    clearTimeout(state._autoSaveTimer);
+    state._autoSaveTimer = setTimeout(() => {
+      if (window.AriesDB && typeof window.AriesDB.saveProjectWorkspace === 'function') {
+        const pid = window.currentProjectId || (window.location && (new URL(window.location.href)).searchParams.get('id')) || 'local';
+        window.AriesDB.saveProjectWorkspace(pid, model.nodes, model.links).then(()=> {
+          state.dirty = false;
+          if (statusMeta) statusMeta.textContent = 'Saved';
+          if (saveBoardBtn) { saveBoardBtn.textContent = 'Save Board'; }
+        }).catch((err) => {
+          console.warn('Auto-save failed', err);
+          if (statusMeta) statusMeta.textContent = 'Save failed';
+          if (saveBoardBtn) { saveBoardBtn.textContent = 'Save Board'; }
+        });
+      } else {
+        // local only
+        if (statusMeta) statusMeta.textContent = 'Local';
+        if (saveBoardBtn) saveBoardBtn.textContent = 'Save Board';
+      }
+    }, 900);
+  }
+
+  // ---------- Anchors (8 per node) ----------
+  function computeAnchorsForNode(node) {
+    const el = document.getElementById(`node-${node.id}`);
+    const boardRect = board.getBoundingClientRect();
+    if (el) {
+      const r = el.getBoundingClientRect();
+      const left = (r.left - boardRect.left) / state.transform.scale;
+      const top = (r.top - boardRect.top) / state.transform.scale;
+      const w = r.width / state.transform.scale;
+      const h = r.height / state.transform.scale;
+      return [
+        { x: left, y: top },                 // top-left
+        { x: left + w / 2, y: top },         // top-mid
+        { x: left + w, y: top },             // top-right
+        { x: left + w, y: top + h / 2 },     // right-mid
+        { x: left + w, y: top + h },         // bottom-right
+        { x: left + w / 2, y: top + h },     // bottom-mid
+        { x: left, y: top + h },             // bottom-left
+        { x: left, y: top + h / 2 }          // left-mid
+      ];
+    } else {
+      const x = node.x, y = node.y, w = node.w || 220, h = node.h || 100;
+      return [
+        { x, y }, { x: x + w / 2, y }, { x: x + w, y },
+        { x: x + w, y: y + h / 2 }, { x: x + w, y: y + h },
+        { x: x + w / 2, y: y + h }, { x, y: y + h }, { x, y: y + h / 2 }
+      ];
+    }
+  }
+  function nearestAnchorIndex(node, boardPoint) {
+    const anchors = computeAnchorsForNode(node);
+    let best = 0, bestD = Infinity;
+    anchors.forEach((a, i) => {
+      const dx = a.x - boardPoint.x, dy = a.y - boardPoint.y;
+      const d = dx * dx + dy * dy;
+      if (d < bestD) { bestD = d; best = i; }
+    });
+    return best;
+  }
+
+  // ---------- Node & Link model ops ----------
+  function addNodeAt(x, y, type, opts = {}) {
+    saveSnapshot();
+    const s = state.grid.size || 25;
+    const nx = Math.round(x / s) * s;
+    const ny = Math.round(y / s) * s;
+    state.highestZ++;
+    const base = { id: uid('n'), x: nx, y: ny, w: 220, h: 100, type, zIndex: state.highestZ, title: 'New', body: '' };
+    if (type === 'page') { base.title = 'New Page'; base.body = 'Website Page'; }
+    else if (type === 'action') { base.title = 'Action'; base.body = 'User event'; }
+    else if (type === 'decision') { base.title = 'Decision'; base.body = 'Condition'; base.w = 150; base.h = 150; }
+    Object.assign(base, opts);
+    model.nodes.push(base);
+    markDirty();
+    renderNodes();
+    return base;
+  }
+
+  function addLinkObj(obj) {
+    saveSnapshot();
+    model.links.push(obj);
+    markDirty();
+    renderLinks();
+    return obj;
+  }
+
+  function deleteNode(nodeId) {
+    saveSnapshot();
+    model.nodes = model.nodes.filter(n => n.id !== nodeId);
+    model.links = model.links.filter(l => l.source !== nodeId && l.target !== nodeId);
+    state.selectedNodes.delete(nodeId);
+    if (toolDeleteNode) toolDeleteNode.disabled = true;
+    renderNodes();
+    renderLinks();
+    markDirty();
+  }
+
+  function deleteLink(linkId) {
+    saveSnapshot();
+    model.links = model.links.filter(l => l.id !== linkId);
+    if (state.selectedLinkId === linkId) state.selectedLinkId = null;
+    if (toolDeleteLink) toolDeleteLink.disabled = true;
+    renderLinks();
+    markDirty();
+  }
+
+  // ---------- Rendering: nodes & anchors ----------
+  function clearNodes() { document.querySelectorAll('.node').forEach(n => n.remove()); }
+  function clearSVG() { while (svg && svg.firstChild) svg.removeChild(svg.firstChild); }
+
+  function renderNodes() {
+    clearNodes();
+    model.nodes.forEach(node => {
+      const el = document.createElement('div');
+      el.className = `node node-type-${node.type} ${state.selectedNodes.has(node.id) ? 'selected' : ''}`;
+      el.id = `node-${node.id}`;
+      el.style.position = 'absolute';
+      el.style.left = `${node.x}px`;
+      el.style.top = `${node.y}px`;
+      el.style.zIndex = node.zIndex || 15;
+      el.style.width = `${node.w}px`;
+      el.style.height = `${node.h}px`;
+      el.style.boxSizing = 'border-box';
+      el.style.background = '#fff';
+      el.style.borderRadius = '10px';
+      el.style.boxShadow = '0 8px 20px rgba(12,18,30,0.06)';
+      el.style.padding = '12px';
+      el.innerHTML = `<div class="node-title" style="font-weight:700;margin-bottom:6px;">${escape(node.title)}</div><div class="node-body" style="color:#334155">${escape(node.body)}</div>`;
+
+      // anchors container
+      const anchorsContainer = document.createElement('div');
+      anchorsContainer.className = 'anchors';
+      anchorsContainer.style.position = 'absolute';
+      anchorsContainer.style.left = '0';
+      anchorsContainer.style.top = '0';
+      anchorsContainer.style.width = '100%';
+      anchorsContainer.style.height = '100%';
+      anchorsContainer.style.pointerEvents = 'none';
+      el.appendChild(anchorsContainer);
+
+      // place 8 dots inside element relative to its size
+      const w = node.w, h = node.h;
+      const dotPositions = [
+        { left: 0, top: 0 }, { left: w / 2 - CONFIG.anchorDotSize / 2, top: 0 }, { left: w - CONFIG.anchorDotSize, top: 0 },
+        { left: w - CONFIG.anchorDotSize, top: h / 2 - CONFIG.anchorDotSize / 2 }, { left: w - CONFIG.anchorDotSize, top: h - CONFIG.anchorDotSize },
+        { left: w / 2 - CONFIG.anchorDotSize / 2, top: h - CONFIG.anchorDotSize }, { left: 0, top: h - CONFIG.anchorDotSize }, { left: 0, top: h / 2 - CONFIG.anchorDotSize / 2 }
+      ];
+
+      dotPositions.forEach((pos, idx) => {
+        const dot = document.createElement('div');
+        dot.className = 'anchor-dot';
+        dot.dataset.nodeId = node.id;
+        dot.dataset.anchorIndex = String(idx);
+        dot.style.position = 'absolute';
+        dot.style.left = `${pos.left}px`;
+        dot.style.top = `${pos.top}px`;
+        dot.style.width = `${CONFIG.anchorDotSize}px`;
+        dot.style.height = `${CONFIG.anchorDotSize}px`;
+        dot.style.borderRadius = '50%';
+        dot.style.background = 'rgba(255,255,255,0.98)';
+        dot.style.border = `2px solid ${CONFIG.anchorDotStroke}`;
+        dot.style.pointerEvents = 'auto';
+        dot.style.cursor = 'crosshair';
+        dot.title = 'Anchor - drag from here to create link';
+        dot.addEventListener('mouseenter', () => dot.style.borderColor = CONFIG.anchorDotHover);
+        dot.addEventListener('mouseleave', () => dot.style.borderColor = CONFIG.anchorDotStroke);
+
+        // mousedown starts link draw from this anchor
+        dot.addEventListener('mousedown', ev => {
+          ev.stopPropagation();
+          const anchors = computeAnchorsForNode(node);
+          const anchor = anchors[idx];
+          state.linkDraw = {
+            sourceId: node.id,
+            sourceAnchorIdx: idx,
+            startX: anchor.x,
+            startY: anchor.y,
+            currentX: anchor.x,
+            currentY: anchor.y
+          };
+          canvas.style.cursor = 'crosshair';
+          svg.style.pointerEvents = 'auto';
+          renderLinks();
         });
 
-        // Setup Events
-        setupPointerEvents();
-        setupToolbarEvents();
-        setupKeyboardEvents();
-        
-        // Initial Seed
-        pushHistory(); // Initial state
-        addNode(100, 100, 'page', { title: 'Start' });
-        addNode(400, 100, 'action', { title: 'Process' });
-        centerView();
+        anchorsContainer.appendChild(dot);
+      });
+
+      // node events
+      el.addEventListener('mousedown', e => handleNodeDown(e, node.id));
+      el.addEventListener('dblclick', e => { e.stopPropagation(); openNodeModal(node); });
+      el.addEventListener('contextmenu', e => nodeContext(e, node.id));
+      board.appendChild(el);
+    });
+
+    renderLinks();
+    updateInspector();
+  }
+
+  // ---------- Routing helpers ----------
+  function polyToPath(points, cornerRadius) {
+    if (!points || points.length < 2) return '';
+    const r = Math.max(0, cornerRadius || 0);
+    let d = `M ${points[0].x} ${points[0].y}`;
+    for (let i = 1; i < points.length; i++) {
+      const prev = points[i - 1], cur = points[i], next = points[i + 1];
+      if (next && r > 0) {
+        const vx = cur.x - prev.x, vy = cur.y - prev.y;
+        const nx = next.x - cur.x, ny = next.y - cur.y;
+        const inLen = Math.sqrt(vx * vx + vy * vy) || 1;
+        const outLen = Math.sqrt(nx * nx + ny * ny) || 1;
+        const rad = Math.min(r, inLen / 2, outLen / 2);
+        const ux = vx / inLen, uy = vy / inLen;
+        const ox = nx / outLen, oy = ny / outLen;
+        const csx = cur.x - ux * rad, csy = cur.y - uy * rad;
+        const cex = cur.x + ox * rad, cey = cur.y + oy * rad;
+        d += ` L ${csx} ${csy}`;
+        d += ` Q ${cur.x} ${cur.y}, ${cex} ${cey}`;
+      } else {
+        d += ` L ${cur.x} ${cur.y}`;
+      }
+    }
+    return d;
+  }
+
+  function orthogonalPath(start, end, cornerRadius = 8) {
+    const dx = Math.abs(end.x - start.x), dy = Math.abs(end.y - start.y);
+    if (dx > dy) {
+      const midX = start.x + (end.x - start.x) / 2;
+      const p1 = { x: midX, y: start.y }, p2 = { x: midX, y: end.y };
+      return polyToPath([start, p1, p2, end], cornerRadius);
+    } else {
+      const midY = start.y + (end.y - start.y) / 2;
+      const p1 = { x: start.x, y: midY }, p2 = { x: end.x, y: midY };
+      return polyToPath([start, p1, p2, end], cornerRadius);
+    }
+  }
+
+  // ---------- Render Links (polylines), preview, handles ----------
+  function renderLinks() {
+    if (!svg) return;
+    clearSVG();
+
+    // preview while drawing
+    if (state.linkDraw) {
+      const a = { x: state.linkDraw.startX, y: state.linkDraw.startY };
+      const b = { x: state.linkDraw.currentX, y: state.linkDraw.currentY };
+      const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      p.setAttribute('d', orthogonalPath(a, b, 6));
+      p.setAttribute('stroke', CONFIG.previewStroke);
+      p.setAttribute('stroke-width', 3);
+      p.setAttribute('fill', 'none');
+      p.setAttribute('stroke-dasharray', '6,6');
+      p.setAttribute('stroke-linecap', 'round');
+      svg.appendChild(p);
     }
 
-    // --- History System (Undo/Redo) ---
-    function pushHistory() {
-        // Remove redo future
-        if (state.historyIndex < state.history.length - 1) {
-            state.history = state.history.slice(0, state.historyIndex + 1);
-        }
-        // Push deep copy
-        const snapshot = JSON.stringify({ nodes: state.nodes, links: state.links });
-        state.history.push(snapshot);
-        state.historyIndex++;
-        
-        // Limit stack size (50 steps)
-        if (state.history.length > 50) {
-            state.history.shift();
-            state.historyIndex--;
-        }
-        updateStatus('Saved to history');
-    }
+    // group parallel links for offset spacing
+    const pairs = {};
+    model.links.forEach(link => {
+      const key = `${link.source}::${link.target}`;
+      if (!pairs[key]) pairs[key] = [];
+      pairs[key].push(link);
+    });
+    Object.keys(pairs).forEach(key => {
+      const arr = pairs[key];
+      arr.forEach((link, idx) => { link._parallelIndex = idx; link._parallelCount = arr.length; });
+    });
 
-    function undo() {
-        if (state.historyIndex > 0) {
-            state.historyIndex--;
-            restoreHistory();
-        }
-    }
+    model.links.forEach(link => {
+      const sNode = model.nodes.find(n => n.id === link.source);
+      const tNode = model.nodes.find(n => n.id === link.target);
+      if (!sNode || !tNode) return;
 
-    function redo() {
-        if (state.historyIndex < state.history.length - 1) {
-            state.historyIndex++;
-            restoreHistory();
-        }
-    }
+      const sAnchors = computeAnchorsForNode(sNode);
+      const tAnchors = computeAnchorsForNode(tNode);
 
-    function restoreHistory() {
-        const snapshot = JSON.parse(state.history[state.historyIndex]);
-        state.nodes = snapshot.nodes;
-        state.links = snapshot.links;
-        state.selection.clear();
-        state.selectedLinkId = null;
-        render();
-        updateInspector();
-        updateStatus('Undo/Redo performed');
-    }
+      const sIndex = (typeof link.sourceAnchorIdx === 'number') ? link.sourceAnchorIdx : nearestAnchorIndex(sNode, { x: (sNode.x + tNode.x) / 2, y: (sNode.y + tNode.y) / 2 });
+      const tIndex = (typeof link.targetAnchorIdx === 'number') ? link.targetAnchorIdx : nearestAnchorIndex(tNode, { x: (sNode.x + tNode.x) / 2, y: (sNode.y + tNode.y) / 2 });
+      const p1 = sAnchors[sIndex];
+      const p2 = tAnchors[tIndex];
 
-    // --- Core Logic ---
+      // initialize points if missing: [p1, mid, p2]
+      if (!link.points || !Array.isArray(link.points) || link.points.length < 2) {
+        link.points = [{ x: p1.x, y: p1.y }, { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 }, { x: p2.x, y: p2.y }];
+      } else {
+        // ensure first/last match anchors (snap)
+        link.points[0] = { x: p1.x, y: p1.y };
+        link.points[link.points.length - 1] = { x: p2.x, y: p2.y };
+      }
 
-    function addNode(x, y, type, props = {}) {
-        const id = 'n-' + Date.now() + Math.random().toString(36).substr(2, 5);
-        const defaults = {
-            page: { w: 200, h: 100, bg: '#ffffff', shape: 'rect' },
-            action: { w: 200, h: 100, bg: '#fff7ed', shape: 'round' },
-            decision: { w: 140, h: 140, bg: '#f0f9ff', shape: 'diamond' } // Simplified visual for diamond
-        };
-        const def = defaults[type] || defaults.page;
-        
-        const node = {
-            id, type, x, y,
-            w: def.w, h: def.h,
-            title: props.title || 'New Node',
-            body: props.body || '',
-            style: {
-                bg: def.bg,
-                shape: def.shape // rect, round, capsule
-            },
-            zIndex: 10
-        };
-        
-        state.nodes.push(node);
-        pushHistory();
-        render();
-        return node;
-    }
+      // parallel spacing (push midpoints perpendicular)
+      const dx = p2.x - p1.x, dy = p2.y - p1.y;
+      const len = Math.sqrt(dx * dx + dy * dy) || 1;
+      const nx = -dy / len, ny = dx / len;
+      const idx = (link._parallelIndex !== undefined) ? link._parallelIndex : 0;
+      const count = (link._parallelCount !== undefined) ? link._parallelCount : 1;
+      const middle = (count - 1) / 2;
+      const offset = (idx - middle) * CONFIG.parallelGap;
+      const offsetX = nx * offset, offsetY = ny * offset;
 
-    function deleteSelection() {
-        if (state.selection.size === 0 && !state.selectedLinkId) return;
+      // apply offset to intermediate points (not endpoints)
+      const renderPoints = link.points.map((pt, i) => {
+        if (i === 0 || i === link.points.length - 1) return pt;
+        return { x: pt.x + offsetX, y: pt.y + offsetY };
+      });
 
-        // Delete Nodes
-        if (state.selection.size > 0) {
-            state.nodes = state.nodes.filter(n => !state.selection.has(n.id));
-            // Cleanup links attached to deleted nodes
-            state.links = state.links.filter(l => !state.selection.has(l.source) && !state.selection.has(l.target));
-            state.selection.clear();
-        }
+      const d = polyToPath(renderPoints, 8);
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      const isSel = state.selectedLinkId === link.id;
+      const strokeColor = isSel ? CONFIG.linkSelected : CONFIG.linkStroke;
+      path.setAttribute('d', d);
+      path.setAttribute('stroke', strokeColor);
+      path.setAttribute('stroke-width', 3);
+      path.setAttribute('fill', 'none');
+      path.setAttribute('stroke-linecap', 'round');
+      path.setAttribute('stroke-linejoin', 'round');
+      path.classList.add('link-path');
+      path.id = `link-${link.id}`;
+      path.style.cursor = 'pointer';
+      path.style.pointerEvents = 'auto';
 
-        // Delete Link
-        if (state.selectedLinkId) {
-            state.links = state.links.filter(l => l.id !== state.selectedLinkId);
-            state.selectedLinkId = null;
-        }
-
-        pushHistory();
-        render();
-        updateInspector();
-    }
-
-    function updateSelectionProperties(props) {
-        if (state.selection.size === 0) return;
-        let changed = false;
-        state.nodes.forEach(n => {
-            if (state.selection.has(n.id)) {
-                if (props.color) n.style.bg = props.color;
-                if (props.shape) n.style.shape = props.shape;
-                if (props.w) n.w = parseInt(props.w);
-                if (props.h) n.h = parseInt(props.h);
-                if (props.title !== undefined) n.title = props.title;
-                if (props.body !== undefined) n.body = props.body;
-                if (props.type) n.type = props.type;
-                changed = true;
-            }
-        });
-        if (changed) {
-            pushHistory();
-            render();
-            updateInspector(); // Reflect changes back to UI
-        }
-    }
-
-    // --- Clipboard ---
-    function copySelection() {
-        if (state.selection.size === 0) return;
-        const toCopy = state.nodes.filter(n => state.selection.has(n.id));
-        state.clipboard = JSON.parse(JSON.stringify(toCopy));
-        updateStatus(`Copied ${toCopy.length} nodes`);
-    }
-
-    function pasteSelection() {
-        if (!state.clipboard) return;
-        state.selection.clear();
-        
-        // Find center of screen to paste
-        // Or just offset from original
-        const offset = 40;
-        
-        state.clipboard.forEach(template => {
-            const newId = 'n-' + Date.now() + Math.random().toString(36).substr(2, 5);
-            const newNode = { ...template, id: newId, x: template.x + offset, y: template.y + offset, zIndex: 20 };
-            state.nodes.push(newNode);
-            state.selection.add(newId);
-        });
-
-        pushHistory();
-        render();
-        updateStatus('Pasted');
-    }
-
-    // --- Rendering Engine ---
-
-    function render() {
-        // 1. Render Nodes
-        // Diffing algorithm is too complex for this snippet, so we clear and rebuild (optimized by browser)
-        // Ideally, use React/Vue, but for Vanilla, this is robust.
-        
-        const existingNodeEls = document.querySelectorAll('.node');
-        const nodeMap = new Map();
-        existingNodeEls.forEach(el => nodeMap.set(el.id, el));
-
-        // Mark all for removal initially
-        const toRemove = new Set(nodeMap.keys());
-
-        state.nodes.forEach(node => {
-            const domId = `node-${node.id}`;
-            let el = nodeMap.get(domId);
-
-            if (!el) {
-                // Create New
-                el = document.createElement('div');
-                el.id = domId;
-                el.className = 'node';
-                el.innerHTML = `
-                    <div class="node-content">
-                        <div class="node-title"></div>
-                        <div class="node-body"></div>
-                    </div>
-                    <div class="anchors"></div>
-                `;
-                
-                // Add Anchors
-                const anchorContainer = el.querySelector('.anchors');
-                // 4 Cardinal + 4 Corners = 8 Anchors
-                const positions = [
-                    ['0','0'], ['50%','0'], ['100%','0'], // Top
-                    ['100%','50%'], ['100%','100%'],      // Right
-                    ['50%','100%'], ['0','100%'],         // Bottom
-                    ['0','50%']                           // Left
-                ];
-                positions.forEach((pos, idx) => {
-                    const dot = document.createElement('div');
-                    dot.className = 'anchor-dot';
-                    Object.assign(dot.style, { 
-                        position:'absolute', left:pos[0], top:pos[1], 
-                        width:'10px', height:'10px', marginLeft:'-5px', marginTop:'-5px',
-                        background:'#fff', border:'1px solid #999', borderRadius:'50%' 
-                    });
-                    dot.onpointerdown = (e) => startLinkDraw(e, node.id, idx);
-                    anchorContainer.appendChild(dot);
-                });
-
-                DOM.board.appendChild(el);
-                
-                // Event Wiring
-                el.onpointerdown = (e) => handleNodeDown(e, node.id);
-            } else {
-                toRemove.delete(domId);
-            }
-
-            // Update Props
-            el.style.transform = `translate(${node.x}px, ${node.y}px)`;
-            el.style.width = `${node.w}px`;
-            el.style.height = `${node.h}px`;
-            el.style.backgroundColor = node.style.bg || '#fff';
-            
-            // Shapes
-            el.className = `node ${state.selection.has(node.id) ? 'selected' : ''}`;
-            el.style.borderRadius = node.style.shape === 'round' ? '12px' : (node.style.shape === 'capsule' ? '50px' : '4px');
-
-            // Text
-            el.querySelector('.node-title').textContent = node.title;
-            el.querySelector('.node-body').textContent = node.body;
-        });
-
-        // Remove deleted
-        toRemove.forEach(id => document.getElementById(id).remove());
-
-        renderLinks();
-    }
-
-    function renderLinks() {
-        DOM.svg.innerHTML = ''; // Clear SVG
-        
-        // Definitions for markers (ensure they stay)
-        DOM.svg.innerHTML += `
-          <defs>
-            <marker id="arrowhead" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="strokeWidth" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b" /></marker>
-            <marker id="arrowhead-selected" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="strokeWidth" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#0b74ff" /></marker>
-          </defs>
-        `;
-
-        // Draw active draft line
-        if (interact.linkDraft) {
-            const path = createSvgPath(
-                interact.linkDraft.startX, interact.linkDraft.startY,
-                interact.linkDraft.currX, interact.linkDraft.currY,
-                null, true // dashed
-            );
-            DOM.svg.appendChild(path);
-        }
-
-        state.links.forEach(link => {
-            const sNode = state.nodes.find(n => n.id === link.source);
-            const tNode = state.nodes.find(n => n.id === link.target);
-            if (!sNode || !tNode) return;
-
-            const p1 = getNodeAnchor(sNode, link.sourceAnchor);
-            const p2 = getNodeAnchor(tNode, link.targetAnchor);
-
-            // Control Point defaults to midpoint if missing
-            if (!link.cp) link.cp = { x: (p1.x + p2.x)/2, y: (p1.y + p2.y)/2 };
-
-            const isSel = state.selectedLinkId === link.id;
-            
-            // Draw Curve (Quadratic Bezier)
-            const d = `M ${p1.x} ${p1.y} Q ${link.cp.x} ${link.cp.y} ${p2.x} ${p2.y}`;
-            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-            path.setAttribute('d', d);
-            path.setAttribute('stroke', isSel ? '#0b74ff' : '#64748b');
-            path.setAttribute('stroke-width', isSel ? 3 : 2);
-            path.setAttribute('fill', 'none');
-            path.setAttribute('marker-end', isSel ? 'url(#arrowhead-selected)' : 'url(#arrowhead)');
-            path.style.cursor = 'pointer';
-            
-            path.onclick = (e) => {
-                e.stopPropagation();
-                state.selectedLinkId = link.id;
-                state.selection.clear();
-                render();
-                updateInspector();
-            };
-
-            DOM.svg.appendChild(path);
-
-            // Draw Label
-            if (link.label) {
-                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                text.setAttribute('x', link.cp.x);
-                text.setAttribute('y', link.cp.y - 15);
-                text.setAttribute('text-anchor', 'middle');
-                text.setAttribute('fill', '#333');
-                text.setAttribute('font-size', '12px');
-                text.setAttribute('font-weight', 'bold');
-                text.style.pointerEvents = 'none';
-                text.textContent = link.label;
-                DOM.svg.appendChild(text);
-            }
-
-            // Draw Control Handle
-            if (isSel) {
-                const handle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                handle.setAttribute('cx', link.cp.x);
-                handle.setAttribute('cy', link.cp.y);
-                handle.setAttribute('r', 6);
-                handle.setAttribute('fill', '#fff');
-                handle.setAttribute('stroke', '#0b74ff');
-                handle.style.cursor = 'move';
-                
-                handle.onpointerdown = (e) => {
-                    e.stopPropagation();
-                    el.setPointerCapture(e.pointerId);
-                    interact.mode = 'HANDLE_DRAG';
-                    interact.handleLink = link;
-                    interact.startX = e.clientX;
-                    interact.startY = e.clientY;
-                    interact.startCp = { ...link.cp };
-                };
-                DOM.svg.appendChild(handle);
-            }
-        });
-    }
-
-    function createSvgPath(x1, y1, x2, y2, color, dashed) {
-        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        path.setAttribute('d', `M ${x1} ${y1} L ${x2} ${y2}`);
-        path.setAttribute('stroke', color || '#0b74ff');
-        path.setAttribute('stroke-width', 2);
-        path.setAttribute('fill', 'none');
-        if (dashed) path.setAttribute('stroke-dasharray', '5,5');
-        return path;
-    }
-
-    function applyTransform() {
-        DOM.board.style.transform = `translate(${state.transform.x}px, ${state.transform.y}px) scale(${state.transform.scale})`;
-        
-        // Update Grid Background
-        const scaledGrid = CONFIG.gridSize * state.transform.scale;
-        const ox = state.transform.x % scaledGrid;
-        const oy = state.transform.y % scaledGrid;
-        DOM.canvas.style.backgroundSize = `${scaledGrid}px ${scaledGrid}px`;
-        DOM.canvas.style.backgroundPosition = `${ox}px ${oy}px`;
-        
-        document.getElementById('zoomLevel').textContent = Math.round(state.transform.scale * 100) + '%';
-    }
-
-    // --- Pointer Events (The Brain) ---
-
-    function setupPointerEvents() {
-        const c = DOM.canvas;
-        
-        c.onpointerdown = (e) => {
-            if (e.target.closest('.node')) return; // Handled by node
-            DOM.contextMenu.style.display = 'none';
-
-            c.setPointerCapture(e.pointerId);
-            interact.startX = e.clientX;
-            interact.startY = e.clientY;
-
-            // Spacebar or Middle Click = PAN
-            if (e.button === 1 || e.buttons === 4 || keys.Space) {
-                interact.mode = 'PAN';
-                interact.startTransform = { ...state.transform };
-                c.style.cursor = 'grabbing';
-            } else {
-                // Left Click = SELECTION BOX (or clear selection)
-                if (!e.shiftKey) {
-                    state.selection.clear();
-                    state.selectedLinkId = null;
-                    render();
-                    updateInspector();
-                }
-                interact.mode = 'SELECT_BOX';
-                interact.selectionBox = { x: 0, y: 0, w: 0, h: 0 }; // relative to client
-                DOM.selectionBox.style.display = 'block';
-                updateSelectionBox(e);
-            }
-        };
-
-        c.onpointermove = (e) => {
-            const dx = e.clientX - interact.startX;
-            const dy = e.clientY - interact.startY;
-
-            if (interact.mode === 'PAN') {
-                state.transform.x = interact.startTransform.x + dx;
-                state.transform.y = interact.startTransform.y + dy;
-                applyTransform();
-            }
-            else if (interact.mode === 'DRAG_ITEMS') {
-                const scale = state.transform.scale;
-                state.nodes.forEach(n => {
-                    if (state.selection.has(n.id)) {
-                        const start = interact.startNodePositions[n.id];
-                        n.x = start.x + (dx / scale);
-                        n.y = start.y + (dy / scale);
-                    }
-                });
-                render(); // Re-render nodes (optimized in real DOM diffing, here we brute force)
-            }
-            else if (interact.mode === 'LINK_DRAW') {
-                const pt = screenToBoard(e.clientX, e.clientY);
-                interact.linkDraft.currX = pt.x;
-                interact.linkDraft.currY = pt.y;
-                renderLinks();
-            }
-            else if (interact.mode === 'HANDLE_DRAG') {
-                const scale = state.transform.scale;
-                interact.handleLink.cp.x = interact.startCp.x + (dx / scale);
-                interact.handleLink.cp.y = interact.startCp.y + (dy / scale);
-                renderLinks();
-            }
-            else if (interact.mode === 'SELECT_BOX') {
-                // Update selection div geometry
-                const x = Math.min(e.clientX, interact.startX);
-                const y = Math.min(e.clientY, interact.startY);
-                const w = Math.abs(e.clientX - interact.startX);
-                const h = Math.abs(e.clientY - interact.startY);
-                
-                DOM.selectionBox.style.left = (x - DOM.canvas.getBoundingClientRect().left) + 'px'; // Relative to canvas container
-                DOM.selectionBox.style.top = (y - DOM.canvas.getBoundingClientRect().top) + 'px';
-                DOM.selectionBox.style.width = w + 'px';
-                DOM.selectionBox.style.height = h + 'px';
-                
-                // Calculate selection logic on Pointer Up, not Move (perf)
-            }
-        };
-
-        c.onpointerup = (e) => {
-            if (interact.mode === 'DRAG_ITEMS') {
-                // Snap to Grid
-                if (CONFIG.snapToGrid) {
-                    state.nodes.forEach(n => {
-                        if (state.selection.has(n.id)) {
-                            n.x = Math.round(n.x / CONFIG.gridSize) * CONFIG.gridSize;
-                            n.y = Math.round(n.y / CONFIG.gridSize) * CONFIG.gridSize;
-                        }
-                    });
-                }
-                pushHistory();
-                render();
-            }
-            else if (interact.mode === 'LINK_DRAW') {
-                // Check if dropped on node
-                const el = document.elementFromPoint(e.clientX, e.clientY);
-                const nodeEl = el?.closest('.node');
-                if (nodeEl) {
-                    const targetId = nodeEl.id.replace('node-', '');
-                    if (targetId !== interact.linkDraft.sourceId) {
-                        finalizeLink(interact.linkDraft.sourceId, targetId, interact.linkDraft.anchorIdx);
-                    }
-                }
-                interact.linkDraft = null;
-                renderLinks();
-            }
-            else if (interact.mode === 'SELECT_BOX') {
-                DOM.selectionBox.style.display = 'none';
-                // Calculate Intersection
-                const boxRect = {
-                    left: Math.min(e.clientX, interact.startX),
-                    top: Math.min(e.clientY, interact.startY),
-                    right: Math.max(e.clientX, interact.startX),
-                    bottom: Math.max(e.clientY, interact.startY)
-                };
-                
-                // Select nodes inside box
-                state.nodes.forEach(n => {
-                    const el = document.getElementById(`node-${n.id}`);
-                    const r = el.getBoundingClientRect();
-                    // Simple AABB collision
-                    if (r.left < boxRect.right && r.right > boxRect.left && r.top < boxRect.bottom && r.bottom > boxRect.top) {
-                        state.selection.add(n.id);
-                    }
-                });
-                render();
-                updateInspector();
-            }
-
-            interact.mode = 'IDLE';
-            c.style.cursor = 'default';
-        };
-    }
-
-    function handleNodeDown(e, id) {
-        e.stopPropagation(); // Don't trigger canvas pan
-        const nodeEl = document.getElementById(`node-${id}`);
-        
-        // Multi-select shift check
-        if (!e.shiftKey && !state.selection.has(id)) {
-            state.selection.clear();
-        }
-        state.selection.add(id);
-        
-        state.selectedLinkId = null;
-        render();
-        updateInspector();
-        
-        // Prep Drag
-        interact.mode = 'DRAG_ITEMS';
-        interact.startX = e.clientX;
-        interact.startY = e.clientY;
-        interact.startNodePositions = {};
-        
-        state.nodes.forEach(n => {
-            if (state.selection.has(n.id)) {
-                interact.startNodePositions[n.id] = { x: n.x, y: n.y };
-            }
-        });
-        
-        DOM.canvas.setPointerCapture(e.pointerId);
-    }
-
-    function startLinkDraw(e, sourceId, anchorIdx) {
+      // select on click
+      path.addEventListener('click', e => {
         e.stopPropagation();
-        const pt = screenToBoard(e.clientX, e.clientY);
-        interact.mode = 'LINK_DRAW';
-        interact.linkDraft = {
-            sourceId, anchorIdx,
-            startX: pt.x, startY: pt.y,
-            currX: pt.x, currY: pt.y
-        };
-        DOM.canvas.setPointerCapture(e.pointerId);
-    }
+        state.selectedLinkId = link.id;
+        state.selectedNodes.clear();
+        if (toolDeleteLink) toolDeleteLink.disabled = false;
+        if (toolDeleteNode) toolDeleteNode.disabled = true;
+        renderNodes(); renderLinks();
+      });
 
-    async function finalizeLink(sourceId, targetId, sourceAnchor) {
-        // Calculate target anchor (nearest)
-        const tNode = state.nodes.find(n => n.id === targetId);
-        // Simple logic: index 0 for now, or math to find closest
-        const targetAnchor = 0; 
+      // double-click: open link modal (edit label/delete) with "Edit path" option
+      path.addEventListener('dblclick', e => {
+        e.stopPropagation();
+        openLinkModal(link);
+      });
 
-        // Ask for Label
-        const label = await window.requestTransitionLabel();
-        if (label === null) return; // Cancelled
-
-        state.links.push({
-            id: 'l-' + Date.now(),
-            source: sourceId, target: targetId,
-            sourceAnchor, targetAnchor,
-            label: label
-        });
-        pushHistory();
-        renderLinks();
-    }
-
-    // --- Helpers ---
-    function screenToBoard(sx, sy) {
-        const rect = DOM.board.getBoundingClientRect();
-        return {
-            x: (sx - rect.left) / state.transform.scale,
-            y: (sy - rect.top) / state.transform.scale
-        };
-    }
-
-    function getNodeAnchor(node, anchorIdx) {
-        // Simplified Anchor logic based on index 0-7
-        const w = node.w, h = node.h;
-        const coords = [
-           {x:0,y:0}, {x:w/2,y:0}, {x:w,y:0},
-           {x:w,y:h/2}, {x:w,y:h},
-           {x:w/2,y:h}, {x:0,y:h}, {x:0,y:h/2}
-        ];
-        const offset = coords[anchorIdx] || coords[0];
-        return { x: node.x + offset.x, y: node.y + offset.y };
-    }
-
-    function centerView() {
-        const cw = DOM.canvas.clientWidth;
-        const ch = DOM.canvas.clientHeight;
-        state.transform = { x: cw/2 - 300, y: ch/2 - 200, scale: 1 };
-        applyTransform();
-    }
-
-    function updateStatus(msg) {
-        DOM.statusText.textContent = msg;
-        setTimeout(() => DOM.statusText.textContent = 'Ready', 3000);
-    }
-
-    // --- Inspector UI ---
-    function updateInspector() {
-        const selCount = state.selection.size;
-        if (selCount === 0 && !state.selectedLinkId) {
-            DOM.inspector.classList.add('hidden');
-            return;
+      // double-click on path while holding Alt (or via modal) will add a point at the click pos
+      path.addEventListener('dblclick', e => {
+        // already handled in modal; we keep this here for quick add when ALT pressed
+        if (e.altKey) {
+          e.stopPropagation();
+          const boardPt = screenToBoard(e.clientX, e.clientY);
+          // insert between nearest segment
+          let bestIdx = 0, bestD = Infinity;
+          for (let i = 0; i < link.points.length - 1; i++) {
+            const a = link.points[i], b = link.points[i + 1];
+            // distance from point to segment
+            const d = pointToSegmentDistance(boardPt, a, b);
+            if (d < bestD) { bestD = d; bestIdx = i + 1; }
+          }
+          saveSnapshot();
+          link.points.splice(bestIdx, 0, { x: boardPt.x, y: boardPt.y });
+          markDirty();
+          renderLinks();
         }
-        
-        DOM.inspector.classList.remove('hidden');
-        
-        if (selCount > 0) {
-            DOM.inspectorEmpty.style.display = 'none';
-            DOM.inspectorData.style.display = 'flex';
-            
-            // Populate fields if only 1 selected
-            if (selCount === 1) {
-                const id = Array.from(state.selection)[0];
-                const n = state.nodes.find(x => x.id === id);
-                document.getElementById('inspTitle').value = n.title;
-                document.getElementById('inspBody').value = n.body;
-                document.getElementById('inspW').value = n.w;
-                document.getElementById('inspH').value = n.h;
-                document.getElementById('inspType').value = n.type;
-                
-                // Active Shape State
-                document.getElementById('shapeRect').style.background = n.style.shape === 'rect' ? '#e2e8f0' : '#fff';
-                document.getElementById('shapeRound').style.background = n.style.shape === 'round' ? '#e2e8f0' : '#fff';
-            }
-        }
-    }
-    
-    // Wire up Inspector Inputs
-    function setupInspectorEvents() {
-        const ids = ['inspTitle', 'inspBody', 'inspW', 'inspH', 'inspType'];
-        ids.forEach(id => {
-            document.getElementById(id).onchange = (e) => {
-                const key = id.replace('insp', '').toLowerCase();
-                const val = e.target.value;
-                const props = {};
-                props[key] = val;
-                updateSelectionProperties(props);
+      });
+
+      svg.appendChild(path);
+
+      // label placed at middle handle if exists otherwise midpoint
+      if (link.label) {
+        const mid = link.points[Math.floor((link.points.length - 1) / 2)];
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', mid.x);
+        text.setAttribute('y', mid.y - 12);
+        text.setAttribute('class', 'link-label');
+        text.setAttribute('text-anchor', 'middle');
+        text.textContent = link.label;
+        svg.appendChild(text);
+      }
+
+      // handles for editing: only appear if link._editing true
+      if (link._editing) {
+        // draw small circles at each point (excluding endpoint lock style)
+        link.points.forEach((pt, idx) => {
+          const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+          c.setAttribute('cx', pt.x);
+          c.setAttribute('cy', pt.y);
+          c.setAttribute('r', (idx === 0 || idx === link.points.length - 1) ? (CONFIG.handleRadius - 2) : CONFIG.handleRadius);
+          c.setAttribute('data-link-id', link.id);
+          c.setAttribute('data-pt-idx', String(idx));
+          c.style.fill = (idx === 0 || idx === link.points.length - 1) ? '#fff' : '#fff';
+          c.style.stroke = isSel ? CONFIG.linkSelected : '#333';
+          c.style.strokeWidth = 1.5;
+          c.style.cursor = (idx === 0 || idx === link.points.length - 1) ? 'not-allowed' : 'move';
+          c.style.pointerEvents = 'auto';
+          svg.appendChild(c);
+
+          // handle drag begin
+          c.addEventListener('mousedown', ev => {
+            ev.stopPropagation();
+            ev.preventDefault();
+            // only allow dragging of non-endpoints (endpoints snap to anchors)
+            state.handleDrag = {
+              linkId: link.id,
+              ptIdx: idx,
+              startClientX: ev.clientX,
+              startClientY: ev.clientY,
+              startX: pt.x,
+              startY: pt.y
             };
+          });
+
+          // double-click handle to remove (if not endpoints)
+          c.addEventListener('dblclick', ev => {
+            ev.stopPropagation();
+            const pi = idx;
+            if (pi === 0 || pi === link.points.length - 1) return;
+            if (confirm('Remove this bend point?')) {
+              saveSnapshot();
+              link.points.splice(pi, 1);
+              markDirty();
+              renderLinks();
+            }
+          });
         });
+      }
+    });
+  }
 
-        document.getElementById('shapeRect').onclick = () => updateSelectionProperties({ shape: 'rect' });
-        document.getElementById('shapeRound').onclick = () => updateSelectionProperties({ shape: 'round' });
-        document.getElementById('closeInspector').onclick = () => DOM.inspector.classList.add('hidden');
+  // ---------- Mouse helpers ----------
+  function pointToSegmentDistance(p, a, b) {
+    // p,a,b have x,y
+    const vx = b.x - a.x, vy = b.y - a.y;
+    const wx = p.x - a.x, wy = p.y - a.y;
+    const c1 = vx * wx + vy * wy;
+    if (c1 <= 0) return Math.hypot(p.x - a.x, p.y - a.y);
+    const c2 = vx * vx + vy * vy;
+    if (c2 <= c1) return Math.hypot(p.x - b.x, p.y - b.y);
+    const t = c1 / c2;
+    const projx = a.x + t * vx, projy = a.y + t * vy;
+    return Math.hypot(p.x - projx, p.y - projy);
+  }
+
+  // ---------- Interaction: start link draw, finalize, node drag/pan, handle drag ----------
+  function startLinkDrawFromAnchor(nodeId, anchorIdx) {
+    const node = model.nodes.find(n => n.id === nodeId);
+    if (!node) return;
+    const a = computeAnchorsForNode(node)[anchorIdx];
+    state.linkDraw = { sourceId: nodeId, sourceAnchorIdx: anchorIdx, startX: a.x, startY: a.y, currentX: a.x, currentY: a.y };
+    canvas.style.cursor = 'crosshair';
+    svg.style.pointerEvents = 'auto';
+    renderLinks();
+  }
+
+  function finalizeLinkIfPossible(evt) {
+    if (!state.linkDraw) { state.linkDraw = null; canvas.style.cursor = 'default'; svg.style.pointerEvents = 'none'; renderLinks(); return; }
+    const clientX = (evt && evt.clientX) || (window._lastMouse && window._lastMouse.clientX) || 0;
+    const clientY = (evt && evt.clientY) || (window._lastMouse && window._lastMouse.clientY) || 0;
+    const boardPt = screenToBoard(clientX, clientY);
+
+    const elAt = document.elementFromPoint(clientX, clientY);
+    const targetNodeEl = elAt ? elAt.closest('.node') : null;
+
+    if (targetNodeEl) {
+      const targetId = targetNodeEl.id.replace('node-', '');
+      if (targetId && targetId !== state.linkDraw.sourceId) {
+        const targetNode = model.nodes.find(n => n.id === targetId);
+        if (targetNode) {
+          const targetIdx = nearestAnchorIndex(targetNode, boardPt);
+          const sNode = model.nodes.find(n => n.id === state.linkDraw.sourceId);
+          const sAnch = computeAnchorsForNode(sNode)[state.linkDraw.sourceAnchorIdx];
+          const tAnch = computeAnchorsForNode(targetNode)[targetIdx];
+          // create link with points: [sAnch, midpoint, tAnch]
+          const cp = { x: (sAnch.x + tAnch.x) / 2, y: (sAnch.y + tAnch.y) / 2 };
+          const newLink = {
+            id: uid('l'),
+            source: state.linkDraw.sourceId,
+            target: targetId,
+            sourceAnchorIdx: state.linkDraw.sourceAnchorIdx,
+            targetAnchorIdx: targetIdx,
+            points: [{ x: sAnch.x, y: sAnch.y }, { x: cp.x, y: cp.y }, { x: tAnch.x, y: tAnch.y }],
+            label: ''
+          };
+          addLinkObj(newLink);
+        }
+      }
     }
 
-    // --- Toolbar & Keys ---
-    function setupToolbarEvents() {
-        setupInspectorEvents();
+    state.linkDraw = null;
+    canvas.style.cursor = 'default';
+    svg.style.pointerEvents = 'none';
+    renderLinks();
+  }
 
-        document.getElementById('zoomIn').onclick = () => { state.transform.scale *= 1.1; applyTransform(); };
-        document.getElementById('zoomOut').onclick = () => { state.transform.scale /= 1.1; applyTransform(); };
-        document.getElementById('fitView').onclick = centerView;
-        document.getElementById('undoBtn').onclick = undo;
-        document.getElementById('redoBtn').onclick = redo;
+  function handleNodeDown(e, nodeId) {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    const cm = $('contextMenu'); if (cm) cm.style.display = 'none';
+    if (!state.selectedNodes.has(nodeId)) {
+      if (e.shiftKey) {
+        state.selectedNodes.add(nodeId);
+      } else {
+        state.selectedNodes.clear();
+        state.selectedNodes.add(nodeId);
+      }
+    }
+    state.selectedLinkId = null;
+    // prepare drag positions
+    const startPositions = {};
+    Array.from(state.selectedNodes).forEach(id => {
+      const n = model.nodes.find(x => x.id === id);
+      if (n) startPositions[id] = { x: n.x, y: n.y };
+    });
+    const node = model.nodes.find(n => n.id === nodeId);
+    if (node) { state.highestZ++; node.zIndex = state.highestZ; const el = document.getElementById(`node-${nodeId}`); if (el) el.style.zIndex = state.highestZ; }
+    state.dragInfo = { mode: 'node', startX: e.clientX, startY: e.clientY, nodeId, startPositions };
+    renderNodes();
+  }
 
-        document.getElementById('toolAddPage').onclick = () => addNode(200, 200, 'page');
-        document.getElementById('toolAddAction').onclick = () => addNode(200, 350, 'action');
-        document.getElementById('toolAddDecision').onclick = () => addNode(200, 500, 'decision');
-        document.getElementById('toolDelete').onclick = deleteSelection;
-        
-        document.getElementById('saveBoard').onclick = () => {
-             localStorage.setItem('aries_project', JSON.stringify({nodes: state.nodes, links: state.links}));
-             updateStatus('Saved locally');
+  function onCanvasDown(e) {
+    if (e.target && e.target.closest && e.target.closest('.node')) return;
+    const cm = $('contextMenu');
+    if (cm && e.target && e.target.closest && e.target.closest('#contextMenu')) return;
+    state.selectedNodes.clear(); state.selectedLinkId = null;
+    if (toolDeleteNode) toolDeleteNode.disabled = true;
+    if (toolDeleteLink) toolDeleteLink.disabled = true;
+    renderNodes(); renderLinks(); updateInspector();
+    state.dragInfo = { mode: 'pan', startX: e.clientX, startY: e.clientY, startTransformX: state.transform.x, startTransformY: state.transform.y };
+    canvas.style.cursor = 'grabbing';
+  }
+
+  window._lastMouse = { clientX: 0, clientY: 0 };
+
+  function onMove(e) {
+    window._lastMouse.clientX = e.clientX; window._lastMouse.clientY = e.clientY;
+
+    // handle handleDrag (moving a specific point)
+    if (state.handleDrag) {
+      const hd = state.handleDrag;
+      const link = model.links.find(l => l.id === hd.linkId);
+      if (!link) return;
+      const dx = (e.clientX - hd.startClientX) / state.transform.scale;
+      const dy = (e.clientY - hd.startClientY) / state.transform.scale;
+      const newX = hd.startX + dx;
+      const newY = hd.startY + dy;
+      // update the point index
+      link.points[hd.ptIdx].x = newX;
+      link.points[hd.ptIdx].y = newY;
+      renderLinks();
+      return;
+    }
+
+    if (!state.dragInfo && !state.linkDraw) return;
+
+    if (state.dragInfo && state.dragInfo.mode === 'pan') {
+      const dx = e.clientX - state.dragInfo.startX;
+      const dy = e.clientY - state.dragInfo.startY;
+      state.transform.x = state.dragInfo.startTransformX + dx;
+      state.transform.y = state.dragInfo.startTransformY + dy;
+      applyTransform();
+    } else if (state.dragInfo && state.dragInfo.mode === 'node') {
+      const deltaX = (e.clientX - state.dragInfo.startX) / state.transform.scale;
+      const deltaY = (e.clientY - state.dragInfo.startY) / state.transform.scale;
+      for (let id of Object.keys(state.dragInfo.startPositions)) {
+        const n = model.nodes.find(x => x.id === id);
+        if (!n) continue;
+        n.x = state.dragInfo.startPositions[id].x + deltaX;
+        n.y = state.dragInfo.startPositions[id].y + deltaY;
+        const el = document.getElementById(`node-${n.id}`);
+        if (el) { el.style.left = `${n.x}px`; el.style.top = `${n.y}px`; }
+      }
+      renderLinks(); // keep links updating
+    } else if (state.linkDraw) {
+      const b = screenToBoard(e.clientX, e.clientY);
+      state.linkDraw.currentX = b.x;
+      state.linkDraw.currentY = b.y;
+      renderLinks();
+    }
+  }
+
+  function onUp(e) {
+    if (state.handleDrag) {
+      // commit cp move
+      saveSnapshot();
+      state.handleDrag = null;
+      markDirty();
+      renderLinks();
+      return;
+    }
+    if (state.linkDraw) finalizeLinkIfPossible(e);
+    if (state.dragInfo) {
+      if (state.dragInfo.mode === 'node') {
+        const s = state.grid.size;
+        for (let id of Object.keys(state.dragInfo.startPositions)) {
+          const n = model.nodes.find(x => x.id === id);
+          if (!n) continue;
+          n.x = Math.round(n.x / s) * s;
+          n.y = Math.round(n.y / s) * s;
+        }
+        saveSnapshot();
+        markDirty();
+        renderNodes();
+      }
+      state.dragInfo = null;
+      canvas.style.cursor = 'default';
+    }
+  }
+
+  // ---------- Context menu ----------
+  function nodeContext(e, nodeId) {
+    e.preventDefault();
+    setSelectedNodesFromClick(nodeId, e);
+    const cm = $('contextMenu');
+    if (!cm) return;
+    cm.style.left = `${e.clientX}px`;
+    cm.style.top = `${e.clientY}px`;
+    cm.style.display = 'block';
+    const ce = $('contextEdit'); if (ce) ce.onclick = () => { cm.style.display = 'none'; openNodeModal(model.nodes.find(n => n.id === nodeId)); };
+    const cd = $('contextDelete'); if (cd) cd.onclick = () => { cm.style.display = 'none'; deleteNode(nodeId); };
+  }
+
+  // ---------- Inspector ----------
+  function updateInspector() {
+    if (selectedCount) selectedCount.textContent = state.selectedNodes.size;
+    if (!inspector) return;
+    if (state.selectedNodes.size === 0) {
+      if (inspectorSingle) inspectorSingle.style.display = 'none';
+      if (inspectorMulti) inspectorMulti.style.display = 'none';
+    } else if (state.selectedNodes.size === 1) {
+      if (inspectorMulti) inspectorMulti.style.display = 'none';
+      if (inspectorSingle) inspectorSingle.style.display = 'block';
+      const id = Array.from(state.selectedNodes)[0];
+      const node = model.nodes.find(n => n.id === id);
+      if (node && inspectorId && inspectorType && inspectorTitle && inspectorBody && inspectorW && inspectorH) {
+        inspectorId.textContent = node.id;
+        inspectorType.value = node.type;
+        inspectorTitle.value = node.title;
+        inspectorBody.value = node.body;
+        inspectorW.value = parseInt(node.w || 220);
+        inspectorH.value = parseInt(node.h || 100);
+      }
+    } else {
+      if (inspectorSingle) inspectorSingle.style.display = 'none';
+      if (inspectorMulti) inspectorMulti.style.display = 'block';
+    }
+  }
+  function applyInspectorToNode() {
+    if (state.selectedNodes.size !== 1) return;
+    const id = Array.from(state.selectedNodes)[0];
+    const node = model.nodes.find(n => n.id === id);
+    if (!node) return;
+    if (inspectorType) node.type = inspectorType.value;
+    if (inspectorTitle) node.title = inspectorTitle.value;
+    if (inspectorBody) node.body = inspectorBody.value;
+    if (inspectorW) node.w = parseInt(inspectorW.value) || node.w;
+    if (inspectorH) node.h = parseInt(inspectorH.value) || node.h;
+    saveSnapshot();
+    markDirty();
+    renderNodes();
+  }
+  if (inspectorSave) inspectorSave.addEventListener('click', applyInspectorToNode);
+  if (inspectorDelete) inspectorDelete.addEventListener('click', () => { if (state.selectedNodes.size === 1) deleteNode(Array.from(state.selectedNodes)[0]); });
+
+  function setSelectedNodesFromClick(nodeId, ev) {
+    if (ev && ev.shiftKey) {
+      if (state.selectedNodes.has(nodeId)) state.selectedNodes.delete(nodeId);
+      else state.selectedNodes.add(nodeId);
+    } else {
+      state.selectedNodes.clear();
+      state.selectedNodes.add(nodeId);
+    }
+    state.selectedLinkId = null;
+    if (toolDeleteNode) toolDeleteNode.disabled = false;
+    if (toolDeleteLink) toolDeleteLink.disabled = true;
+    renderNodes(); renderLinks(); updateInspector();
+  }
+
+  // ---------- Modals ----------
+  function createModalBackdrop() {
+    let mb = $('wf-modal-backdrop');
+    if (mb) return mb;
+    mb = document.createElement('div'); mb.id = 'wf-modal-backdrop';
+    mb.style.position = 'fixed'; mb.style.left = '0'; mb.style.top = '0'; mb.style.right = '0'; mb.style.bottom = '0';
+    mb.style.zIndex = 20000; mb.style.background = 'rgba(0,0,0,0.45)'; mb.style.display = 'flex'; mb.style.justifyContent = 'center'; mb.style.alignItems = 'center';
+    document.body.appendChild(mb);
+    return mb;
+  }
+  function closeModal() { const mb = $('wf-modal-backdrop'); if (mb) mb.remove(); }
+
+  function openNodeModal(node) {
+    if (!node) return;
+    const mb = createModalBackdrop(); mb.innerHTML = '';
+    const card = document.createElement('div'); card.style.background = '#fff'; card.style.padding = '18px'; card.style.borderRadius = '10px'; card.style.minWidth = '420px'; card.style.boxShadow = '0 12px 40px rgba(0,0,0,0.3)';
+    mb.appendChild(card);
+
+    const h = document.createElement('h3'); h.textContent = 'Edit Node'; h.style.marginTop = '0'; card.appendChild(h);
+    const inputTitle = document.createElement('input'); inputTitle.type = 'text'; inputTitle.value = node.title || ''; inputTitle.style.width = '100%'; inputTitle.style.marginBottom = '8px'; card.appendChild(inputTitle);
+    const ta = document.createElement('textarea'); ta.value = node.body || ''; ta.style.width = '100%'; ta.style.height = '84px'; ta.style.marginBottom = '8px'; card.appendChild(ta);
+
+    const row = document.createElement('div'); row.style.display = 'flex'; row.style.gap = '8px'; row.style.marginBottom = '12px';
+    const wInput = document.createElement('input'); wInput.type = 'number'; wInput.value = node.w || 220; wInput.style.flex = '1';
+    const hInput = document.createElement('input'); hInput.type = 'number'; hInput.value = node.h || 100; hInput.style.flex = '1';
+    row.appendChild(wInput); row.appendChild(hInput); card.appendChild(row);
+
+    const actions = document.createElement('div'); actions.style.display = 'flex'; actions.style.justifyContent = 'flex-end'; actions.style.gap = '8px';
+    const btnDelete = document.createElement('button'); btnDelete.textContent = 'Delete'; btnDelete.style.background = '#fff'; btnDelete.style.border = '1px solid #f44336'; btnDelete.style.color = '#f44336';
+    const btnCancel = document.createElement('button'); btnCancel.textContent = 'Cancel';
+    const btnSave = document.createElement('button'); btnSave.textContent = 'Save'; btnSave.style.background = '#1e88e5'; btnSave.style.color = '#fff'; btnSave.style.border = 'none';
+    actions.appendChild(btnDelete); actions.appendChild(btnCancel); actions.appendChild(btnSave);
+    card.appendChild(actions);
+
+    btnCancel.addEventListener('click', () => closeModal());
+    btnDelete.addEventListener('click', () => {
+      if (confirm('Delete this node?')) { deleteNode(node.id); closeModal(); }
+    });
+    btnSave.addEventListener('click', () => {
+      saveSnapshot();
+      node.title = inputTitle.value;
+      node.body = ta.value;
+      node.w = parseInt(wInput.value, 10) || node.w;
+      node.h = parseInt(hInput.value, 10) || node.h;
+      markDirty();
+      renderNodes();
+      closeModal();
+    });
+
+    mb.addEventListener('click', ev => { if (ev.target === mb) closeModal(); });
+  }
+
+  function openLinkModal(link) {
+    if (!link) return;
+    const mb = createModalBackdrop(); mb.innerHTML = '';
+    const card = document.createElement('div'); card.style.background = '#fff'; card.style.padding = '18px'; card.style.borderRadius = '10px'; card.style.minWidth = '360px'; card.style.boxShadow = '0 12px 40px rgba(0,0,0,0.3)';
+    mb.appendChild(card);
+
+    const h = document.createElement('h3'); h.textContent = 'Edit Connection'; h.style.marginTop = '0'; card.appendChild(h);
+    const labelInput = document.createElement('input'); labelInput.type = 'text'; labelInput.value = link.label || ''; labelInput.style.width = '100%'; labelInput.style.marginBottom = '12px'; card.appendChild(labelInput);
+
+    const checkRow = document.createElement('div'); checkRow.style.display = 'flex'; checkRow.style.alignItems = 'center'; checkRow.style.gap = '8px'; checkRow.style.marginBottom = '12px';
+    const editPathBtn = document.createElement('button'); editPathBtn.textContent = link._editing ? 'Stop editing path' : 'Edit path'; editPathBtn.style.marginRight = '8px';
+    const addBendHint = document.createElement('span'); addBendHint.textContent = 'Double-click path to add bend (or Alt + DblClick)'; addBendHint.style.color = '#666'; addBendHint.style.fontSize = '12px';
+    checkRow.appendChild(editPathBtn); checkRow.appendChild(addBendHint);
+    card.appendChild(checkRow);
+
+    const actions = document.createElement('div'); actions.style.display = 'flex'; actions.style.justifyContent = 'flex-end'; actions.style.gap = '8px';
+    const btnDelete = document.createElement('button'); btnDelete.textContent = 'Delete'; btnDelete.style.background = '#fff'; btnDelete.style.border = '1px solid #f44336'; btnDelete.style.color = '#f44336';
+    const btnCancel = document.createElement('button'); btnCancel.textContent = 'Cancel';
+    const btnSave = document.createElement('button'); btnSave.textContent = 'Save'; btnSave.style.background = '#1e88e5'; btnSave.style.color = '#fff'; btnSave.style.border = 'none';
+    actions.appendChild(btnDelete); actions.appendChild(btnCancel); actions.appendChild(btnSave);
+    card.appendChild(actions);
+
+    editPathBtn.addEventListener('click', () => {
+      link._editing = !link._editing;
+      renderLinks();
+      editPathBtn.textContent = link._editing ? 'Stop editing path' : 'Edit path';
+    });
+
+    btnCancel.addEventListener('click', () => closeModal());
+    btnDelete.addEventListener('click', () => {
+      if (confirm('Delete this connection?')) { deleteLink(link.id); closeModal(); }
+    });
+    btnSave.addEventListener('click', () => {
+      saveSnapshot();
+      link.label = labelInput.value.trim();
+      markDirty();
+      renderLinks();
+      closeModal();
+    });
+
+    mb.addEventListener('click', ev => { if (ev.target === mb) closeModal(); });
+  }
+
+  // ---------- Grid, transform and UI ----------
+  function applyTransform() {
+    board.style.transform = `translate(${state.transform.x}px, ${state.transform.y}px) scale(${state.transform.scale})`;
+    if (zoomIndicator) zoomIndicator.textContent = `${Math.round(state.transform.scale * 100)}%`;
+    updateGrid();
+    renderLinks();
+    requestAnimationFrame(() => { /* visual smoothness hook */ });
+  }
+
+  function updateGrid() {
+    if (!canvas) return;
+    if (!state.grid.enabled) { canvas.style.backgroundImage = 'none'; return; }
+    const size = state.grid.size || 25;
+    const scaled = size * state.transform.scale;
+    const bg = `linear-gradient(to right, var(--grid-color) 1px, transparent 1px), linear-gradient(to bottom, var(--grid-color) 1px, transparent 1px)`;
+    const ox = state.transform.x % scaled;
+    const oy = state.transform.y % scaled;
+    canvas.style.backgroundImage = bg;
+    canvas.style.backgroundSize = `${scaled}px ${scaled}px`;
+    canvas.style.backgroundPosition = `${ox}px ${oy}px`;
+  }
+
+  function repaintUI() {
+    try {
+      const uiEls = document.querySelectorAll('.topbar, .header-actions, #floatingTools, .controls-panel, .header-title');
+      uiEls.forEach(el => {
+        el.style.transform = el.style.transform || 'translateZ(0)';
+        el.style.willChange = 'transform';
+      });
+      setTimeout(() => uiEls.forEach(el => el.style.willChange = ''), 260);
+    } catch (e) { /* ignore */ }
+  }
+
+  // ---------- Save/Load/Export ----------
+  async function saveModel() {
+    if (!state.dirty) return;
+    if (!window.AriesDB || typeof window.AriesDB.saveProjectWorkspace !== 'function') {
+      console.warn('No AriesDB.saveProjectWorkspace - saving local only');
+      localStorage.setItem('wf_local_' + (window.currentProjectId || 'local'), JSON.stringify({ nodes: model.nodes, links: model.links, savedAt: now() }));
+      state.dirty = false;
+      if (statusMeta) statusMeta.textContent = 'Saved (local)';
+      if (saveBoardBtn) saveBoardBtn.textContent = 'Save Board';
+      return;
+    }
+    try {
+      const pid = window.currentProjectId || (new URL(window.location.href)).searchParams.get('id');
+      await window.AriesDB.saveProjectWorkspace(pid, model.nodes, model.links);
+      state.dirty = false;
+      if (statusMeta) statusMeta.textContent = 'Saved';
+      if (saveBoardBtn) { saveBoardBtn.textContent = 'Saved!'; setTimeout(()=> saveBoardBtn.textContent = 'Save Board', 1200); }
+    } catch (err) {
+      console.error('Save failed', err);
+      if (statusMeta) statusMeta.textContent = 'Save failed';
+      if (saveBoardBtn) { saveBoardBtn.textContent = 'Save Board'; }
+    }
+  }
+
+  async function loadModel() {
+    if (!window.AriesDB || typeof window.AriesDB.loadProjectData !== 'function') {
+      // try local storage fallback
+      const saved = localStorage.getItem('wf_local_' + (window.currentProjectId || 'local'));
+      if (saved) {
+        try { const d = JSON.parse(saved); model.nodes.length = 0; model.links.length = 0; (d.nodes||[]).forEach(n=>model.nodes.push(n)); (d.links||[]).forEach(l=>model.links.push(l)); renderNodes(); applyTransform(); return; } catch(e){ console.warn('Local load failed', e); }
+      }
+      seedModel(); renderNodes(); applyTransform(); return;
+    }
+    try {
+      const d = await window.AriesDB.loadProjectData(window.currentProjectId);
+      if (d) {
+        if (headerTitle && d.name) headerTitle.textContent = d.name;
+        model.nodes.length = 0; model.links.length = 0;
+        (d.nodes || []).forEach(n => model.nodes.push(n));
+        (d.links || []).forEach(l => model.links.push(l));
+        state.highestZ = model.nodes.reduce((m, n) => Math.max(m, n.zIndex || 15), 15);
+      } else seedModel();
+    } catch (err) {
+      console.error('Load failed', err);
+      seedModel();
+    }
+    applyTransform();
+    renderNodes();
+  }
+
+  function seedModel() {
+    if (model.nodes.length === 0) {
+      addNodeAt(200, 200, 'page', { title: 'Home' });
+      addNodeAt(520, 200, 'action', { title: 'Login' });
+      addNodeAt(860, 200, 'decision', { title: 'Auth?' });
+    }
+  }
+
+  function downloadJSON() {
+    const payload = { nodes: model.nodes, links: model.links, exportedAt: now() };
+    const data = JSON.stringify(payload, null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = `workflow-${window.currentProjectId||'board'}.json`; a.click(); URL.revokeObjectURL(url);
+  }
+
+  function autoResizeBoard() {
+    if (!board) return;
+    if (model.nodes.length === 0) { board.style.width = '1200px'; board.style.height = '900px'; return; }
+    const pad = 140;
+    const maxX = Math.max(...model.nodes.map(n => n.x + (n.w || 220)));
+    const maxY = Math.max(...model.nodes.map(n => n.y + (n.h || 100)));
+    const minX = Math.min(...model.nodes.map(n => n.x));
+    const minY = Math.min(...model.nodes.map(n => n.y));
+    const w = Math.max(1200, (maxX - minX) + pad * 2);
+    const h = Math.max(800, (maxY - minY) + pad * 2);
+    board.style.width = `${Math.round(w)}px`;
+    board.style.height = `${Math.round(h)}px`;
+    const dx = pad - minX, dy = pad - minY;
+    model.nodes.forEach(n => { n.x += dx; n.y += dy; });
+    markDirty();
+    renderNodes();
+    applyTransform();
+  }
+
+  function zoomToFit() {
+    if (!canvas || !board) { state.transform = { x: 0, y: 0, scale: 1 }; applyTransform(); return; }
+    if (model.nodes.length === 0) { state.transform = { x: 0, y: 0, scale: 1 }; applyTransform(); return; }
+    const minX = Math.min(...model.nodes.map(n => n.x));
+    const minY = Math.min(...model.nodes.map(n => n.y));
+    const maxX = Math.max(...model.nodes.map(n => n.x + (n.w || 220)));
+    const maxY = Math.max(...model.nodes.map(n => n.y + (n.h || 100)));
+    const pad = 80;
+    const bboxW = (maxX - minX) + pad * 2;
+    const bboxH = (maxY - minY) + pad * 2;
+    const viewW = canvas.clientWidth;
+    const viewH = canvas.clientHeight;
+    const scaleX = viewW / bboxW;
+    const scaleY = viewH / bboxH;
+    const scale = clamp(Math.min(scaleX, scaleY, 1.6), 0.2, 1.6);
+    state.transform.scale = scale;
+    const centerBoardX = (minX + maxX) / 2;
+    const centerBoardY = (minY + maxY) / 2;
+    state.transform.x = (viewW / 2) - (centerBoardX * state.transform.scale);
+    state.transform.y = (viewH / 2) - (centerBoardY * state.transform.scale);
+    applyTransform();
+  }
+
+  // ---------- UI: palette, align, distribute, bring/send ----------
+  function createFloatingPalette() {
+    if ($('wf-palette')) return;
+    const p = document.createElement('div'); p.id = 'wf-palette';
+    p.style.position = 'fixed'; p.style.left = '12px'; p.style.top = '92px'; p.style.zIndex = 15000;
+    p.style.background = 'rgba(255,255,255,0.96)'; p.style.border = '1px solid rgba(0,0,0,0.06)'; p.style.padding = '8px'; p.style.borderRadius = '10px';
+    p.style.boxShadow = '0 6px 20px rgba(0,0,0,0.08)';
+
+    const title = document.createElement('div'); title.textContent = 'Palette'; title.style.fontWeight = '700'; title.style.marginBottom = '6px';
+    p.appendChild(title);
+
+    [['Page','page'], ['Action','action'], ['Decision','decision']].forEach(([label, type], i) => {
+      const b = document.createElement('button'); b.textContent = label;
+      b.style.display = 'block'; b.style.margin = '6px 0'; b.style.width = '100%';
+      b.addEventListener('click', ()=> addNodeAt(120 + i * 160, 120 + i * 60, type));
+      p.appendChild(b);
+    });
+
+    const templatesRow = document.createElement('div'); templatesRow.style.marginTop = '8px';
+    const saveTpl = document.createElement('button'); saveTpl.textContent = 'Save Template'; saveTpl.style.display = 'block'; saveTpl.style.width = '100%';
+    saveTpl.addEventListener('click', ()=> {
+      if (state.selectedNodes.size === 0) return alert('Select at least one node to save as template.');
+      const ids = Array.from(state.selectedNodes);
+      const nodes = model.nodes.filter(n => ids.includes(n.id));
+      const tpl = { id: uid('tpl'), name: 'Template ' + (state.templates.length + 1), nodes };
+      state.templates.push(tpl);
+      alert('Template saved locally.');
+    });
+    templatesRow.appendChild(saveTpl);
+    p.appendChild(templatesRow);
+
+    document.body.appendChild(p);
+  }
+
+  // ---------- Event bindings ----------
+  function setupBindings() {
+    // toolbar buttons (if exist)
+    if (toolAddPage) toolAddPage.addEventListener('click', ()=> addNodeAt(220,220,'page'));
+    if (toolAddAction) toolAddAction.addEventListener('click', ()=> addNodeAt(420,220,'action'));
+    if (toolAddDecision) toolAddDecision.addEventListener('click', ()=> addNodeAt(640,220,'decision'));
+    if (toolDeleteNode) toolDeleteNode.addEventListener('click', ()=> { Array.from(state.selectedNodes).forEach(id => deleteNode(id)); state.selectedNodes.clear(); renderNodes(); });
+    if (toolDeleteLink) toolDeleteLink.addEventListener('click', ()=> { if (state.selectedLinkId) deleteLink(state.selectedLinkId); });
+
+    if (canvas) canvas.addEventListener('mousedown', onCanvasDown);
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+
+    canvas.addEventListener('touchstart', (ev)=> { const t = ev.touches[0]; onCanvasDown({ clientX: t.clientX, clientY: t.clientY, target: ev.target }); ev.preventDefault(); }, { passive:false });
+    canvas.addEventListener('touchmove', (ev)=> { const t = ev.touches[0]; onMove({ clientX: t.clientX, clientY: t.clientY }); ev.preventDefault(); }, { passive:false });
+    canvas.addEventListener('touchend', (ev)=> { onUp({ clientX:0, clientY:0 }); }, { passive:false });
+
+    const zoomFactor = 1.2;
+    if (zoomInCorner) zoomInCorner.addEventListener('click', ()=> { state.transform.scale = clamp(state.transform.scale * zoomFactor, 0.25, 2); applyTransform(); });
+    if (zoomOutCorner) zoomOutCorner.addEventListener('click', ()=> { state.transform.scale = clamp(state.transform.scale / zoomFactor, 0.25, 2); applyTransform(); });
+    if (centerBtn) centerBtn.addEventListener('click', ()=> { state.transform = { x: 0, y: 0, scale: 1 }; applyTransform(); });
+    if (zoomFitBtn) zoomFitBtn.addEventListener('click', zoomToFit);
+
+    if (showGrid) showGrid.addEventListener('change', ()=> { state.grid.enabled = showGrid.checked; applyTransform(); });
+    if (gridSizeInput) gridSizeInput.addEventListener('change', ()=> { state.grid.size = parseInt(gridSizeInput.value) || 25; applyTransform(); });
+
+    document.addEventListener('click', (e)=> {
+      const t = e.target;
+      if (!t) return;
+      if (t.closest && (t.closest('.node') || t.closest('.link-path'))) return;
+      if (t.closest && (t.closest('#inspector') || t.closest('.topbar') || t.closest('.header-actions') || t.closest('#floatingTools') || t.closest('.controls-panel') || t.closest('#contextMenu') || t.closest('.modal-backdrop') || t.closest('.modal-card') || t.closest('#wf-modal-backdrop'))) return;
+      state.selectedNodes.clear(); state.selectedLinkId = null;
+      if (toolDeleteNode) toolDeleteNode.disabled = true;
+      if (toolDeleteLink) toolDeleteLink.disabled = true;
+      const cm = $('contextMenu'); if (cm) cm.style.display = 'none';
+      renderNodes(); renderLinks(); updateInspector();
+    });
+
+    // import/export bindings
+    const exportBtnRef = exportBtn || exportJsonBtn;
+    if (exportBtnRef) exportBtnRef.addEventListener('click', downloadJSON);
+    if (importJsonBtn && importFile) importJsonBtn.addEventListener('click', ()=> importFile.click());
+    if (importFile) {
+      importFile.addEventListener('change', (ev)=> {
+        const f = ev.target.files && ev.target.files[0];
+        if (!f) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          try {
+            const data = JSON.parse(e.target.result);
+            saveSnapshot();
+            model.nodes.length = 0; model.links.length = 0;
+            (data.nodes || []).forEach(n => model.nodes.push(n));
+            (data.links || []).forEach(l => model.links.push(l));
+            markDirty();
+            renderNodes(); applyTransform();
+            alert('Imported JSON.');
+          } catch(err) { alert('Import failed: ' + err.message); }
         };
-        
-        document.getElementById('toggleInspector').onclick = () => DOM.inspector.classList.toggle('hidden');
+        reader.readAsText(f);
+      });
     }
 
-    // Key tracking
-    const keys = {};
+    if (autosizeBtn) autosizeBtn.addEventListener('click', autoResizeBoard);
+    if (clearAllBtn) clearAllBtn.addEventListener('click', ()=> { if (confirm('Clear all nodes and links?')) { saveSnapshot(); model.nodes.length = 0; model.links.length = 0; state.selectedNodes.clear(); markDirty(); renderNodes(); }});
 
-    function setupKeyboardEvents() {
-        window.onkeydown = (e) => {
-            keys[e.code] = true;
-            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    // keyboard: Delete/Backspace to delete selected; Esc to cancel link draw; undo/redo
+    document.addEventListener('keydown', (e) => {
+      if (isTyping()) return;
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (state.selectedNodes.size > 0) {
+          saveSnapshot();
+          Array.from(state.selectedNodes).forEach(id => deleteNode(id));
+          state.selectedNodes.clear();
+          renderNodes();
+          markDirty();
+        } else if (state.selectedLinkId) {
+          saveSnapshot();
+          deleteLink(state.selectedLinkId);
+        }
+      } else if (e.key === 'Escape') {
+        state.linkDraw = null; state.dragInfo = null;
+        const cm = $('contextMenu'); if (cm) cm.style.display = 'none';
+        renderLinks();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        undo();
+      } else if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) {
+        e.preventDefault();
+        redo();
+      }
+    });
+  }
 
-            if (e.code === 'Space') DOM.canvas.style.cursor = 'grabbing';
-            if (e.code === 'Delete' || e.code === 'Backspace') deleteSelection();
-            
-            // Ctrl Shortcuts
-            if (e.ctrlKey || e.metaKey) {
-                if (e.key === 'z') { e.preventDefault(); undo(); }
-                if (e.key === 'y') { e.preventDefault(); redo(); }
-                if (e.key === 'c') { e.preventDefault(); copySelection(); }
-                if (e.key === 'v') { e.preventDefault(); pasteSelection(); }
-            }
-        };
-        window.onkeyup = (e) => {
-            keys[e.code] = false;
-            if (e.code === 'Space') {
-                if (interact.mode !== 'PAN') DOM.canvas.style.cursor = 'default';
-            }
-        };
-    }
+  // ---------- Helpers for escape/HTML & minimal CSS injection ----------
+  function escape(s) { if (s == null) return ''; return String(s).replace(/[&<>"']/g, (m) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
 
-    function updateSelectionBox(e) {
-        // Logic handled in pointermove, this is placeholder for visual updates if needed
-    }
+  // Inject minimal CSS for anchors, palette, modals if not present
+  (function injectCSS() {
+    if (document.getElementById('wf-styles')) return;
+    const css = `
+#wf-palette button{ cursor:pointer; padding:8px 10px; border-radius:6px; border:1px solid rgba(0,0,0,0.06); background:#fff; }
+.anchor-dot { transition: border-color 120ms ease; }
+.node.selected { outline: 2px solid rgba(59,132,255,0.12); box-shadow: 0 12px 28px rgba(29,78,216,0.06) inset; }
+#wf-modal-backdrop .modal-card{ max-width:640px; }
+.link-label { font-family: sans-serif; font-size: 13px; fill: #111827; }
+`;
+    const s = document.createElement('style'); s.id = 'wf-styles'; s.innerHTML = css; document.head.appendChild(s);
+  })();
 
-    // --- Launch ---
-    document.addEventListener('DOMContentLoaded', init);
+  // ---------- Boot sequence ----------
+  function boot() {
+    // set grid defaults
+    state.grid.enabled = (showGrid ? showGrid.checked : true);
+    state.grid.size = (gridSizeInput ? parseInt(gridSizeInput.value || 25, 10) : 25);
+
+    createFloatingPalette();
+    setupBindings();
+    loadModel();
+    renderNodes();
+    applyTransform();
+
+    // expose debug API
+    window._wf = window._wf || {};
+    Object.assign(window._wf, {
+      model,
+      renderNodes,
+      renderLinks,
+      saveModel,
+      loadModel,
+      addNodeAt,
+      addLinkObj,
+      autoResizeBoard,
+      zoomToFit,
+      computeAnchorsForNode,
+      undo, redo,
+      state
+    });
+
+    console.log('Advanced workspace loaded. Debug API available as window._wf');
+  }
+
+  // ---------- small utility to snap and track last mouse ----------
+  document.addEventListener('mousemove', (e) => { window._lastMouse = { clientX: e.clientX, clientY: e.clientY }; });
+
+  // ---------- Start ----------
+  document.addEventListener('DOMContentLoaded', boot);
 
 })();
