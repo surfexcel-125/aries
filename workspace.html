@@ -103,10 +103,11 @@
   </div>
 </div>
 
-<!-- IMPORTANT: your firebase.config.js must initialize Firebase and set window.ideaVisualizerDb = firebase.firestore() -->
-<script src="firebase.config.js"></script>
+<!-- Main logic as ES module -->
+<script type="module">
+import { db } from './firebase-config.js';
+import { collection, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
 
-<script>
 (() => {
   // ---------- state & history ----------
   const state = {
@@ -120,16 +121,9 @@
   let saveTimeout = null;
   let currentProjectId = null;
 
-  // Firestore instance:
-  // firebase.config.js should do:
-  //   const app = firebase.initializeApp(firebaseConfig);
-  //   window.ideaVisualizerDb = firebase.firestore();
-  const db = (typeof window !== 'undefined' && (window.ideaVisualizerDb || (window.firebase && window.firebase.firestore ? window.firebase.firestore() : null))) || null;
-
   const history = { past: [], future: [], max: 60 };
 
   function snapshot(){
-    // create deep copy snapshot of minimal state needed
     const snap = {
       nodes: state.nodes.map(n => ({ id: n.id, x: n.x, y: n.y, title: n.title, notes: n.notes })),
       links: state.links.map(l => ({ from: l.from, to: l.to })),
@@ -141,14 +135,12 @@
   }
 
   function applySnapshot(snap){
-    // clear board + render nodes from snapshot
     state.nodes.forEach(n => { if(n.el && n.el.parentNode) n.el.parentNode.removeChild(n.el); });
     state.nodes = [];
     state.links = [];
     state.nodeId = snap.nodeId || 1;
     state.view = snap.view ? { ...snap.view } : { x:0,y:0,scale:1 };
 
-    // create nodes without altering history
     (snap.nodes || []).forEach(n => {
       createNode(n.x, n.y, n.title, n.notes, { id: n.id, addToState: true, skipHistory: true });
     });
@@ -170,7 +162,7 @@
     saveTimeout = setTimeout(saveToFirebase, SAVE_DEBOUNCE_MS);
   }
 
-  function pushHistory(){ // push current state to past, clear future
+  function pushHistory(){
     const s = snapshot();
     history.past.push(s);
     if(history.past.length > history.max) history.past.shift();
@@ -199,13 +191,15 @@
     scheduleSave();
   }
 
-  // ---------- Firebase save/load ----------
+  // ---------- Firebase save/load (modular v9) ----------
   async function saveToFirebase(){
     if(!currentProjectId || !db) return;
     const payload = snapshot();
     payload.updatedAt = new Date().toISOString();
     try {
-      await db.collection('ideaVisualizerProjects').doc(currentProjectId).set(payload, { merge: true });
+      const projectsCol = collection(db, 'ideaVisualizerProjects');
+      const docRef = doc(projectsCol, currentProjectId);
+      await setDoc(docRef, payload, { merge: true });
       console.log('Saved project to Firebase:', currentProjectId);
     } catch(err){
       console.error('Error saving project to Firebase:', err);
@@ -219,10 +213,11 @@
       return;
     }
     try{
-      const docRef = db.collection('ideaVisualizerProjects').doc(projectId);
-      const snap = await docRef.get();
-      if(snap.exists){
-        const data = snap.data() || {};
+      const projectsCol = collection(db, 'ideaVisualizerProjects');
+      const docRef = doc(projectsCol, projectId);
+      const snapDoc = await getDoc(docRef);
+      if(snapDoc.exists()){
+        const data = snapDoc.data() || {};
         const restored = {
           nodes: Array.isArray(data.nodes) ? data.nodes : [],
           links: Array.isArray(data.links) ? data.links : [],
@@ -237,7 +232,6 @@
         console.log('Loaded project from Firebase:', projectId);
       } else {
         console.log('No existing project in Firebase, starting fresh:', projectId);
-        // Start empty board (no default sample nodes for new project)
         state.nodes.forEach(n => { if(n.el && n.el.parentNode) n.el.parentNode.removeChild(n.el); });
         state.nodes = [];
         state.links = [];
