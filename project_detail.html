@@ -1,200 +1,205 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ideas to Visuals</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 0;
-      background: #f5f7fa;
-      color: #333;
-    }
-
-    header {
-      background: linear-gradient(135deg, #4a90e2, #9013fe);
-      color: white;
-      text-align: center;
-      padding: 2rem 1rem;
-    }
-
-    header h1 {
-      margin: 0;
-      font-size: 2.5rem;
-    }
-
-    header p {
-      margin-top: 0.5rem;
-      font-size: 1.2rem;
-    }
-
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-      gap: 1.5rem;
-      padding: 2rem;
-    }
-
-    .card {
-      background: white;
-      border-radius: 8px;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-      overflow: hidden;
-      cursor: pointer;
-      transition: transform 0.2s ease;
-    }
-
-    .card:hover {
-      transform: translateY(-5px);
-    }
-
-    .card img {
-      width: 100%;
-      height: 150px;
-      object-fit: cover;
-    }
-
-    .card-content {
-      padding: 1rem;
-    }
-
-    .card-content h3 {
-      margin: 0 0 0.5rem;
-      font-size: 1.2rem;
-    }
-
-    .card-content p {
-      margin: 0;
-      font-size: 0.95rem;
-      color: #555;
-    }
-
-    /* Modal styles */
-    .modal {
-      display: none;
-      position: fixed;
-      z-index: 1000;
-      left: 0;
-      top: 0;
-      width: 100%;
-      height: 100%;
-      overflow: auto;
-      background: rgba(0,0,0,0.6);
-    }
-
-    .modal-content {
-      background: white;
-      margin: 10% auto;
-      padding: 2rem;
-      border-radius: 8px;
-      width: 80%;
-      max-width: 600px;
-      box-shadow: 0 6px 12px rgba(0,0,0,0.2);
-      animation: fadeIn 0.3s ease;
-    }
-
-    @keyframes fadeIn {
-      from {opacity: 0; transform: scale(0.95);}
-      to {opacity: 1; transform: scale(1);}
-    }
-
-    .close {
-      color: #aaa;
-      float: right;
-      font-size: 1.5rem;
-      font-weight: bold;
-      cursor: pointer;
-    }
-
-    .close:hover {
-      color: #333;
-    }
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Idea Visualizer — Premium Dark</title>
+<style>
+  :root{
+    --bg:#0b0f14; --card:#0f1720; --muted:#94a3b8; --accent:#8b5cf6; --glass: rgba(255,255,255,0.03);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,'Helvetica Neue',Arial;color:#e6eef8;background:linear-gradient(180deg,var(--bg),#071019);}
+  header{display:flex;gap:18px;align-items:center;justify-content:space-between;padding:18px 28px;border-bottom:1px solid rgba(255,255,255,0.03);backdrop-filter:blur(6px)}
+  .brand{display:flex;gap:12px;align-items:center}
+  .logo{width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg,var(--accent),#06b6d4);display:flex;align-items:center;justify-content:center;color:white;font-weight:700}
+  h1{font-size:16px;margin:0}
+  .controls{display:flex;gap:10px;align-items:center}
+  .seg{background:var(--card);padding:6px;border-radius:10px;display:flex;gap:6px;align-items:center;border:1px solid rgba(255,255,255,0.03)}
+  button{background:transparent;border:1px solid transparent;color:var(--muted);padding:8px 12px;border-radius:8px;cursor:pointer}
+  button.active{color:white;background:linear-gradient(90deg,rgba(139,92,246,0.12),rgba(6,182,212,0.06));border-color:rgba(139,92,246,0.2)}
+  main{display:flex;gap:20px;padding:20px}
+  aside{width:320px;background:linear-gradient(180deg,var(--card),#091014);border-radius:12px;padding:16px;border:1px solid rgba(255,255,255,0.03);min-height:520px}
+  .panel h2{color:#dbeafe;margin:0 0 10px 0;font-size:13px}
+  label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+  textarea,input{width:100%;padding:10px;border-radius:8px;background:var(--glass);border:1px solid rgba(255,255,255,0.03);color:#e6eef8}
+  .btn{display:inline-flex;gap:8px;align-items:center;padding:10px 12px;border-radius:10px;background:linear-gradient(90deg,var(--accent),#06b6d4);color:white;border:none;cursor:pointer}
+  .small{font-size:13px;padding:8px 10px}
+  #canvasWrap{flex:1;min-height:520px;border-radius:12px;overflow:hidden;background:linear-gradient(180deg,rgba(255,255,255,0.02),transparent);border:1px solid rgba(255,255,255,0.03);position:relative}
+  #toolbar{position:absolute;right:14px;top:14px;display:flex;gap:8px;z-index:20}
+  .modeLabel{font-size:13px;color:var(--muted)}
+  /* node styles */
+  .node{position:absolute;min-width:140px;padding:12px;border-radius:10px;background:linear-gradient(180deg,#0e1620,#0b1318);border:1px solid rgba(255,255,255,0.04);color:#e6eef8;box-shadow:0 6px 18px rgba(2,6,23,0.6)}
+  .node .title{font-weight:700;margin-bottom:6px}
+  .node .meta{font-size:12px;color:var(--muted)}
+  .connector{width:10px;height:10px;border-radius:50%;background:var(--accent);position:absolute;right:-6px;top:50%;transform:translateY(-50%);box-shadow:0 4px 12px rgba(139,92,246,0.12)}
+  svg{position:absolute;inset:0;pointer-events:none}
+  .help{font-size:12px;color:var(--muted);margin-top:8px}
+</style>
 </head>
 <body>
-
-  <header>
-    <h1>Ideas in Motion</h1>
-    <p>A space where concepts take visual form</p>
-  </header>
-
-  <section class="grid">
-    <!-- Idea Card 1 -->
-    <div class="card" onclick="openModal('modal1')">
-      <img src="https://via.placeholder.com/400x150/4a90e2/ffffff?text=Macro+Idea" alt="Idea Visual">
-      <div class="card-content">
-        <h3>Macro Dashboard</h3>
-        <p>Visualizing global economic indicators in real-time.</p>
-      </div>
+<header>
+  <div class="brand"><div class="logo">IV</div><div><h1>Idea Visualizer — Premium Dark</h1><div class="help">Create mind maps, flowcharts & drag boards</div></div></div>
+  <div class="controls">
+    <div class="seg" role="tablist">
+      <button id="mode-map" class="active">Mind-map</button>
+      <button id="mode-flow">Flowchart</button>
+      <button id="mode-board">Drag board</button>
     </div>
-
-    <!-- Idea Card 2 -->
-    <div class="card" onclick="openModal('modal2')">
-      <img src="https://via.placeholder.com/400x150/9013fe/ffffff?text=Concept+Flow" alt="Idea Visual">
-      <div class="card-content">
-        <h3>Concept Evolution</h3>
-        <p>Tracing how ideas grow from thought to thesis.</p>
-      </div>
-    </div>
-
-    <!-- Idea Card 3 -->
-    <div class="card" onclick="openModal('modal3')">
-      <img src="https://via.placeholder.com/400x150/f5a623/ffffff?text=Brand+Vision" alt="Idea Visual">
-      <div class="card-content">
-        <h3>Brand Architecture</h3>
-        <p>Designing ecosystems of powerful, memorable names.</p>
-      </div>
-    </div>
-  </section>
-
-  <!-- Modals -->
-  <div id="modal1" class="modal">
-    <div class="modal-content">
-      <span class="close" onclick="closeModal('modal1')">&times;</span>
-      <h2>Macro Dashboard</h2>
-      <p>This visualization integrates FRED datasets to track monetary, fiscal, and liquidity conditions globally. Interactive charts allow users to explore trends and correlations.</p>
-      <img src="https://via.placeholder.com/500x250/4a90e2/ffffff?text=Macro+Chart" alt="Macro Chart">
-    </div>
+    <div style="width:20px"></div>
+    <button id="btn-export" class="btn small">Export SVG</button>
   </div>
-
-  <div id="modal2" class="modal">
-    <div class="modal-content">
-      <span class="close" onclick="closeModal('modal2')">&times;</span>
-      <h2>Concept Evolution</h2>
-      <p>Ideas evolve through stages: initial thought → sketch → structured framework → polished thesis. This section shows the journey visually.</p>
-      <img src="https://via.placeholder.com/500x250/9013fe/ffffff?text=Concept+Timeline" alt="Concept Timeline">
+</header>
+<main>
+  <aside>
+    <div class="panel">
+      <h2>Quick idea</h2>
+      <label>Paste / type your idea</label>
+      <textarea id="ideaText" rows="6" placeholder="e.g. build a premium trading dashboard with time cycles, liquidity, and alerts"></textarea>
+      <div style="display:flex;gap:8px;margin-top:10px"><button id="btn-create" class="btn">Create nodes</button><button id="btn-clear" class="small">Clear</button></div>
     </div>
-  </div>
 
-  <div id="modal3" class="modal">
-    <div class="modal-content">
-      <span class="close" onclick="closeModal('modal3')">&times;</span>
-      <h2>Brand Architecture</h2>
-      <p>Strong brands are built on clarity and resonance. This visualization maps how sub-brands connect under a holding company ecosystem.</p>
-      <img src="https://via.placeholder.com/500x250/f5a623/ffffff?text=Brand+Map" alt="Brand Map">
+    <div class="panel" style="margin-top:18px">
+      <h2>Selected</h2>
+      <div id="selectedInfo">No node selected</div>
+      <div style="margin-top:8px"><label>Title</label><input id="selTitle" /></div>
+      <div style="margin-top:8px"><label>Notes</label><textarea id="selNotes" rows="3"></textarea></div>
+      <div style="display:flex;gap:8px;margin-top:10px"><button id="btn-update" class="small">Update</button><button id="btn-delete" class="small">Delete</button></div>
     </div>
+
+    <div style="margin-top:18px" class="panel">
+      <h2>Help & Shortcuts</h2>
+      <div class="help">• Drag nodes to reposition<br>• Click connector then another node to link<br>• In Flowchart mode, nodes align on creation<br>• Double-click canvas to add a node</div>
+    </div>
+  </aside>
+
+  <div id="canvasWrap">
+    <svg id="svgLayer"></svg>
+    <div id="boardArea" style="width:100%;height:100%;position:relative"></div>
+    <div id="toolbar"></div>
   </div>
+</main>
 
-  <script>
-    function openModal(id) {
-      document.getElementById(id).style.display = "block";
+<script>
+(() => {
+  // state
+  const state = {mode:'map', nodes:[], links:[], selected:null, nodeId:1}
+  const canvas = document.getElementById('boardArea')
+  const svg = document.getElementById('svgLayer')
+  const ideaText = document.getElementById('ideaText')
+  const btnCreate = document.getElementById('btn-create')
+  const btnClear = document.getElementById('btn-clear')
+  const btnExport = document.getElementById('btn-export')
+
+  // mode buttons
+  document.getElementById('mode-map').addEventListener('click', () => setMode('map'))
+  document.getElementById('mode-flow').addEventListener('click', () => setMode('flow'))
+  document.getElementById('mode-board').addEventListener('click', () => setMode('board'))
+
+  function setMode(m){ state.mode=m; document.querySelectorAll('header .seg button').forEach(b=>b.classList.remove('active')); document.getElementById('mode-'+m).classList.add('active'); layoutNodes(); }
+
+  // helpers
+  function createNode(x,y,title,notes){
+    const id = 'n'+(state.nodeId++)
+    const el = document.createElement('div'); el.className='node'; el.dataset.id=id; el.style.left=(x||100)+'px'; el.style.top=(y||100)+'px';
+    el.innerHTML = `<div class="title">${escapeHtml(title||'New idea')}</div><div class="meta">${escapeHtml(notes||'')}</div><div class="connector" title="connect"></div>`
+    canvas.appendChild(el)
+    makeDraggable(el)
+    el.querySelector('.connector').addEventListener('click', e=> startConnect(id))
+    el.addEventListener('click', e=> selectNode(id,el))
+    el.addEventListener('dblclick', e=> editNodeInline(id,el))
+    state.nodes.push({id,el,x:parseInt(el.style.left),y:parseInt(el.style.top),title:title||'New idea',notes:notes||''})
+    drawLinks()
+    return id
+  }
+
+  function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') }
+
+  function makeDraggable(el){
+    let ox,oy,dragging=false
+    el.addEventListener('pointerdown', e=>{ if(e.target.classList.contains('connector')) return; dragging=true; ox = e.clientX - el.offsetLeft; oy = e.clientY - el.offsetTop; el.setPointerCapture(e.pointerId) })
+    window.addEventListener('pointermove', e=>{ if(!dragging) return; el.style.left = (e.clientX - ox)+'px'; el.style.top = (e.clientY - oy)+'px'; updateNodePos(el.dataset.id); drawLinks() })
+    window.addEventListener('pointerup', e=>{ dragging=false })
+  }
+
+  function updateNodePos(id){ const n = state.nodes.find(x=>x.id===id); if(!n) return; const r = n.el.getBoundingClientRect(); const parentRect = canvas.getBoundingClientRect(); n.x = n.el.offsetLeft; n.y = n.el.offsetTop }
+
+  // selection & edit
+  function selectNode(id,el){ state.selected = id; document.getElementById('selectedInfo').innerText = id; document.getElementById('selTitle').value = state.nodes.find(n=>n.id===id).title; document.getElementById('selNotes').value = state.nodes.find(n=>n.id===id).notes; }
+  document.getElementById('btn-update').addEventListener('click', ()=>{ if(!state.selected) return; const n = state.nodes.find(x=>x.id===state.selected); n.title = document.getElementById('selTitle').value; n.notes = document.getElementById('selNotes').value; n.el.querySelector('.title').innerText = n.title; n.el.querySelector('.meta').innerText = n.notes; })
+  document.getElementById('btn-delete').addEventListener('click', ()=>{ if(!state.selected) return; const i = state.nodes.findIndex(x=>x.id===state.selected); if(i>-1){ state.nodes[i].el.remove(); state.nodes.splice(i,1); state.links = state.links.filter(l=>l.from!==state.selected && l.to!==state.selected); state.selected = null; drawLinks(); document.getElementById('selectedInfo').innerText='No node selected' } })
+
+  function editNodeInline(id,el){ const n = state.nodes.find(x=>x.id===id); const t = prompt('Edit title', n.title); if(t!==null){ n.title=t; el.querySelector('.title').innerText=t } }
+
+  // connections
+  let connecting = null
+  function startConnect(id){ connecting = id; svg.style.pointerEvents='auto'; svg.addEventListener('click', finishConnectOnce) }
+  function finishConnectOnce(e){ const target = document.elementFromPoint(e.clientX,e.clientY); const nodeEl = getNodeElFromElement(target); if(nodeEl && nodeEl.dataset.id!==connecting){ linkNodes(connecting, nodeEl.dataset.id) } connecting=null; svg.style.pointerEvents='none'; svg.removeEventListener('click', finishConnectOnce); drawLinks() }
+
+  function getNodeElFromElement(el){ while(el && el!==document) { if(el.classList && el.classList.contains('node')) return el; el = el.parentNode } return null }
+
+  function linkNodes(a,b){ if(state.links.find(l=>l.from===a && l.to===b)) return; state.links.push({from:a,to:b}); }
+
+  function drawLinks(){ svg.innerHTML=''; state.links.forEach(l=>{
+    const na = state.nodes.find(n=>n.id===l.from); const nb = state.nodes.find(n=>n.id===l.to); if(!na||!nb) return; const aRect = na.el.getBoundingClientRect(); const bRect = nb.el.getBoundingClientRect(); const parentRect = canvas.getBoundingClientRect(); const x1 = aRect.left - parentRect.left + aRect.width; const y1 = aRect.top - parentRect.top + aRect.height/2; const x2 = bRect.left - parentRect.left; const y2 = bRect.top - parentRect.top + bRect.height/2; const path = document.createElementNS('http://www.w3.org/2000/svg','path'); const dx = Math.max(40, Math.abs(x2-x1)/2); const d = `M ${x1} ${y1} C ${x1+dx} ${y1} ${x2-dx} ${y2} ${x2} ${y2}`; path.setAttribute('d',d); path.setAttribute('stroke','rgba(139,92,246,0.8)'); path.setAttribute('fill','none'); path.setAttribute('stroke-width','2'); svg.appendChild(path);
+  })}
+
+  // create from text
+  btnCreate.addEventListener('click', ()=>{
+    const text = ideaText.value.trim(); if(!text) return; const parts = text.split(/\n|\.|\|/).map(s=>s.trim()).filter(Boolean);
+    // place algorithm
+    const cx = canvas.clientWidth/2, cy = canvas.clientHeight/2; if(state.mode==='map'){
+      // central root
+      const rootId = createNode(cx-80, cy-40, parts[0]||'Idea','root')
+      const angleStep = (Math.PI*2)/(Math.max(1,parts.length-1)); let r=160; for(let i=1;i<parts.length;i++){ const a = (i-1)*angleStep; const x = cx + Math.cos(a)*r; const y = cy + Math.sin(a)*r; const nid = createNode(x,y,parts[i]); linkNodes(rootId,nid) }
+    } else if(state.mode==='flow'){
+      let y=40; for(let i=0;i<parts.length;i++){ const x=40 + (i%3)*260; createNode(x,y,parts[i]); y += 140; }
+      // auto connect sequentially
+      for(let i=0;i<state.nodes.length-1;i++){ linkNodes(state.nodes[i].id, state.nodes[i+1].id) }
+    } else {
+      // board: create cards in grid
+      let x=20,y=20; for(let i=0;i<parts.length;i++){ createNode(x,y,parts[i]); x += 220; if(x>canvas.clientWidth-200){ x=20; y+=140 } }
     }
+    drawLinks()
+  })
 
-    function closeModal(id) {
-      document.getElementById(id).style.display = "none";
-    }
+  btnClear.addEventListener('click', ()=>{ state.nodes.forEach(n=>n.el.remove()); state.nodes=[]; state.links=[]; svg.innerHTML=''; state.nodeId=1 })
 
-    // Close modal when clicking outside content
-    window.onclick = function(event) {
-      const modals = document.querySelectorAll('.modal');
-      modals.forEach(modal => {
-        if (event.target === modal) {
-          modal.style.display = "none";
-        }
-      });
-    }
-  </script>
+  // create on dblclick
+  canvas.addEventListener('dblclick',(e)=>{ const r = canvas.getBoundingClientRect(); const x = e.clientX - r.left; const y = e.clientY - r.top; createNode(x,y,'New'); drawLinks() })
 
+  // export
+  btnExport.addEventListener('click', ()=>{
+    // assemble svg with nodes as foreignObject
+    const copySvg = document.createElementNS('http://www.w3.org/2000/svg','svg'); copySvg.setAttribute('xmlns','http://www.w3.org/2000/svg'); copySvg.setAttribute('width', canvas.clientWidth); copySvg.setAttribute('height', canvas.clientHeight);
+    // background
+    const rect = document.createElementNS('http://www.w3.org/2000/svg','rect'); rect.setAttribute('width','100%'); rect.setAttribute('height','100%'); rect.setAttribute('fill','#071019'); copySvg.appendChild(rect);
+    // links
+    state.links.forEach(l=>{
+      const na = state.nodes.find(n=>n.id===l.from); const nb = state.nodes.find(n=>n.id===l.to); if(!na||!nb) return; const aRect = na.el.getBoundingClientRect(); const bRect = nb.el.getBoundingClientRect(); const parentRect = canvas.getBoundingClientRect(); const x1 = aRect.left - parentRect.left + aRect.width; const y1 = aRect.top - parentRect.top + aRect.height/2; const x2 = bRect.left - parentRect.left; const y2 = bRect.top - parentRect.top + bRect.height/2; const path = document.createElementNS('http://www.w3.org/2000/svg','path'); const dx = Math.max(40, Math.abs(x2-x1)/2); const d = `M ${x1} ${y1} C ${x1+dx} ${y1} ${x2-dx} ${y2} ${x2} ${y2}`; path.setAttribute('d',d); path.setAttribute('stroke','#8b5cf6'); path.setAttribute('fill','none'); path.setAttribute('stroke-width','2'); copySvg.appendChild(path);
+    })
+    // nodes as foreignObject
+    state.nodes.forEach(n=>{
+      const fo = document.createElementNS('http://www.w3.org/2000/svg','foreignObject'); fo.setAttribute('x', n.x); fo.setAttribute('y', n.y); fo.setAttribute('width',160); fo.setAttribute('height',80);
+      const div = document.createElement('div'); div.setAttribute('xmlns','http://www.w3.org/1999/xhtml'); div.style.cssText='font-family:Inter,Arial;color:#e6eef8;background:transparent;padding:8px;border-radius:8px;'; div.innerHTML=`<div style="font-weight:700;font-size:14px">${escapeHtml(n.title)}</div><div style="font-size:12px;color:#94a3b8">${escapeHtml(n.notes)}</div>`;
+      fo.appendChild(div); copySvg.appendChild(fo);
+    })
+    const serializer = new XMLSerializer(); const str = serializer.serializeToString(copySvg); const blob = new Blob([str],{type:'image/svg+xml;charset=utf-8'}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href=url; a.download='idea-visual.svg'; a.click(); URL.revokeObjectURL(url);
+  })
+
+  // utility layout
+  function layoutNodes(){ if(state.mode==='flow'){ // snap to grid
+      state.nodes.forEach((n,i)=>{ const col = i%3; const row = Math.floor(i/3); n.x = 40 + col*260; n.y = 40 + row*140; n.el.style.left = n.x+'px'; n.el.style.top = n.y+'px' }); drawLinks(); }
+  }
+
+  // init sample
+  setMode('map')
+  createNode(260,180,'Central idea','double-click to edit')
+  createNode(500,120,'Branch A','')
+  createNode(420,320,'Branch B','')
+  linkNodes('n1','n2'); linkNodes('n1','n3'); drawLinks();
+
+})();
+</script>
 </body>
 </html>
