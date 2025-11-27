@@ -10,8 +10,8 @@
 <body>
 <header class="aries-topbar">
   <button id="aries-hamburger" class="aries-hamburger" aria-label="Open sidebar">☰</button>
-  <!-- no PROJECT MANAGER text here per request -->
-  <a href="index.html" class="aries-brand"><img src="goat.png" alt="Aries Logo" class="aries-logo"></a>
+  <!-- no PROJECT MANAGER text here per your earlier request -->
+  <a href="home.html" class="aries-brand"><img src="goat.png" alt="Aries Logo" class="aries-logo"></a>
 </header>
 
 <div id="aries-overlay" class="hidden" aria-hidden="true"></div>
@@ -30,8 +30,15 @@
 </main>
 
 <script type="module">
+  import { auth } from './firebase-config.js';
+  import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
   import './app.js';
-  // dashboard page has no special JS for now
+
+  onAuthStateChanged(auth, (user) => {
+    if (!user) {
+      window.location.href = 'index.html';
+    }
+  });
 </script>
 </body>
 </html>
