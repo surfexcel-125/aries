@@ -1,703 +1,184 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Visual Blocks Studio</title>
+<title>Idea Visualizer — Premium Pro (Fixed Background)</title>
 <style>
-  :root {
-    --bg: #0b0f14;
-    --panel: #11161d;
-    --panel2: #0f141a;
-    --border: #2a3440;
-    --accent: #36a3ff;
-    --accent2: #10b981;
-    --text: #d6e3f0;
-    --muted: #8aa0b8;
-  }
-  html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji"; }
-  .app { display: grid; grid-template-columns: 300px 1fr; grid-template-rows: auto 1fr; height: 100%; }
-  .toolbar { grid-column: 1 / -1; display: flex; gap: 8px; align-items: center; padding: 10px; border-bottom: 1px solid var(--border); background: linear-gradient(180deg,var(--panel),var(--panel2)); position: sticky; top:0; z-index:10; }
-  .toolbar button, .toolbar input, .toolbar select { background: #16202b; color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; font-size: 13px; }
-  .toolbar button:hover { border-color: var(--accent); }
-  .sidebar { grid-row: 2; border-right: 1px solid var(--border); background: var(--panel); display:flex; flex-direction:column; }
-  .section { padding: 12px; border-bottom: 1px solid var(--border); }
-  .section h3 { margin: 0 0 8px; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
-  .canvas-wrap { position: relative; overflow: hidden; }
-  .hud { position: absolute; bottom: 10px; left: 10px; background: #10151b; border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; font-size: 12px; color: var(--muted); z-index: 5; }
-  .grid { pointer-events:none; }
-  .block-rect { fill: #101721; stroke: #334458; stroke-width: 1.5; }
-  .block-rect.selected { stroke: var(--accent); }
-  .handle { fill: var(--accent); cursor: nwse-resize; }
-  .connector { stroke: #4d627a; stroke-width: 2; marker-end: url(#arrow); }
-  .connector.selected { stroke: var(--accent2); }
-  .label-fo div { font-size: 12px; color: var(--text); }
-  .tag { display:inline-block; background:#16202b; border:1px solid var(--border); border-radius:12px; padding:2px 8px; margin:2px 4px 0 0; font-size:11px; color:#b8c7d6; }
-  .btn-danger { border-color: #ef4444; color: #fca5a5; }
-  .btn-primary { border-color: var(--accent); color: #cdeaff; }
-  .btn-success { border-color: var(--accent2); color: #bdf2dc; }
-  .ghost-line { stroke: #2b3a4a; stroke-dasharray: 4 4; }
-  .snap-dot { fill: #2b3a4a; }
-  .tooltip { position:absolute; background:#0f141a; border:1px solid var(--border); color:var(--text); font-size:12px; padding:6px 8px; border-radius:6px; pointer-events:none; transform:translate(-50%,-120%); white-space:nowrap; }
+  :root{--bg:#071019;--muted:#90a0b8;--accent:#8b5cf6;--accent2:#06b6d4}
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;background:linear-gradient(180deg,var(--bg),#041018);color:#e6eef8}
+  header{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid rgba(255,255,255,0.03)}
+  .brand{display:flex;gap:12px;align-items:center}
+  .logo{width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-weight:700}
+  h1{margin:0;font-size:16px}
+  main{display:flex;gap:16px;padding:16px;height:calc(100% - 74px)}
+  aside{width:360px;background:linear-gradient(180deg,#0c1216,#071018);border-radius:12px;padding:16px;border:1px solid rgba(255,255,255,0.03);overflow:auto}
+  label{font-size:13px;color:var(--muted);display:block;margin-bottom:6px}
+  textarea,input,select{width:100%;padding:10px;border-radius:10px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.03);color:#e6eef8}
+  .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;background:linear-gradient(90deg,var(--accent),var(--accent2));color:white;border:none;cursor:pointer}
+  #canvasWrap{flex:1;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,0.03);position:relative;display:flex;flex-direction:column}
+  .toolbar{position:absolute;right:12px;top:12px;display:flex;gap:8px;z-index:40}
+  #viewport{flex:1;position:relative;overflow:hidden;background:linear-gradient(180deg,#071019,#041018)}
+  #panLayer{position:absolute;left:0;top:0;transform-origin:0 0}
+  .node{position:absolute;min-width:160px;padding:12px;border-radius:12px;background:linear-gradient(180deg,#0f1820,#071117);border:1px solid rgba(255,255,255,0.04);color:#e6eef8;box-shadow:0 18px 40px rgba(2,6,23,0.6);display:flex;flex-direction:column;gap:6px}
+  .node.shape-circle{border-radius:50%;padding:18px;text-align:center}
+  .node.shape-diamond{transform:rotate(45deg);width:160px;height:160px;display:flex;align-items:center;justify-content:center}
+  .node .title{font-weight:700}
+  .node .meta{font-size:12px;color:var(--muted)}
+  .node .icon{width:28px;height:28px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.03);font-weight:700}
+  .connector{position:absolute;width:12px;height:12px;border-radius:50%;background:var(--accent);right:-6px;top:50%;transform:translateY(-50%);box-shadow:0 8px 24px rgba(139,92,246,0.12)}
+  #svgLayer{position:absolute;inset:0;pointer-events:none;z-index:20}
+  #minimap{position:absolute;left:12px;bottom:12px;width:180px;height:120px;border-radius:8px;background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));border:1px solid rgba(255,255,255,0.03);padding:8px;z-index:50;pointer-events:auto}
+  #minimap canvas{width:100%;height:100%;display:block;border-radius:6px}
+  .footer{padding:8px 12px;border-top:1px solid rgba(255,255,255,0.02);font-size:13px;color:var(--muted);display:flex;justify-content:space-between}
 </style>
 </head>
 <body>
-<div class="app">
-  <div class="toolbar">
-    <button id="addText">+ Text</button>
-    <button id="addNote">+ Note</button>
-    <button id="addFrame">+ Frame</button>
-    <button id="addChart">+ Chart</button>
-    <label>
-      <input type="file" id="addImage" accept="image/*" style="display:none" />
-      <button id="addImageBtn">+ Image</button>
-    </label>
-    <button id="addConnector">↗ Connector</button>
-    <button id="snapshot" class="btn-success">Snapshot</button>
-    <button id="saveLocal" class="btn-primary">Save</button>
-    <button id="loadLocal">Load</button>
-    <button id="exportPNG" class="btn-primary">Export PNG</button>
-    <button id="clear" class="btn-danger">Clear</button>
-    <span style="margin-left:auto; color:var(--muted)">Pan: Right-Drag • Zoom: Ctrl + Wheel • Snap: Shift</span>
+<header>
+  <div class="brand"><div class="logo">IV</div><div><h1>Idea Visualizer — Pro</h1><div style="color:var(--muted)">Premium dark · mind-map · flow · board</div></div></div>
+  <div style="display:flex;gap:8px;align-items:center">
+    <button id="btn-saveLocal" class="btn">Save (local)</button>
+    <button id="btn-loadLocal" class="btn">Load (local)</button>
+    <button id="btn-exportPng" class="btn">Export PNG</button>
+    <input id="fileLoad" type="file" accept="application/json" style="display:none" />
   </div>
-
-  <div class="sidebar">
-    <div class="section">
-      <h3>Inspector</h3>
-      <div id="inspector"></div>
+</header>
+<main>
+  <aside>
+    <label>Paste / type your idea</label>
+    <textarea id="ideaText" rows="6" placeholder="Write a paragraph, notes or bullet points..."></textarea>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button id="btn-analyze" class="btn">Analyze & Create</button>
+      <button id="btn-clear" class="btn" style="background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--muted)">Clear</button>
     </div>
-    <div class="section">
-      <h3>Tags</h3>
-      <div id="tagsPanel"></div>
-      <div style="margin-top:8px;">
-        <input id="newTag" placeholder="Add tag…" />
-        <button id="addTagBtn">Add</button>
+
+    <label style="margin-top:12px">Mode</label>
+    <select id="modeSelect"><option value="map">Mind-map</option><option value="flow">Flowchart</option><option value="board">Board</option></select>
+
+    <label style="margin-top:8px">Layout detail</label>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button id="zoomIn" class="btn">+</button>
+      <button id="zoomOut" class="btn">−</button>
+      <button id="fitView" class="btn">Fit</button>
+    </div>
+
+    <label style="margin-top:12px">Generation Options</label>
+    <select id="genMode"><option value="semantic">Semantic</option><option value="split">Sentence</option><option value="keywords">Keywords</option></select>
+    <label style="margin-top:8px">Node shape</label>
+    <select id="nodeShape"><option value="rect">Rectangle</option><option value="circle">Circle</option><option value="diamond">Diamond</option></select>
+
+    <div style="margin-top:12px">
+      <label>Save/Load JSON</label>
+      <div style="display:flex;gap:8px;margin-top:6px">
+        <button id="downloadJson" class="btn">Download JSON</button>
+        <button id="openJson" class="btn">Upload JSON</button>
       </div>
     </div>
-    <div class="section">
-      <h3>Snapshots</h3>
-      <div id="snapshots"></div>
-    </div>
-    <div class="section">
-      <h3>Views</h3>
-      <div style="display:flex; gap:6px;">
-        <input id="viewName" placeholder="View name…" />
-        <button id="saveView">Save view</button>
-      </div>
-      <div id="viewsList" style="margin-top:8px;"></div>
-    </div>
-  </div>
 
-  <div class="canvas-wrap" id="canvasWrap">
-    <svg id="svg" width="100%" height="100%">
-      <defs>
-        <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
-          <path d="M0,0 L9,3 L0,6 Z" fill="#4d627a"></path>
-        </marker>
-      </defs>
-      <g id="viewport">
-        <g id="grid" class="grid"></g>
-        <g id="connectors"></g>
-        <g id="blocks"></g>
-        <g id="handles"></g>
-        <g id="overlay"></g>
-      </g>
-    </svg>
-    <div class="hud" id="hud">0 blocks • Zoom 1.00 • View default</div>
-    <div id="tooltip" class="tooltip" style="display:none;"></div>
+    <div style="margin-top:16px">
+      <h3 style="margin:0">Shortcuts</h3>
+      <div style="color:var(--muted);margin-top:6px">• Drag nodes to move · Click connector then target to link · Hold Space or middle mouse to pan · Ctrl/Cmd + wheel to zoom · Double-click empty to add node</div>
+    </div>
+  </aside>
+
+  <div id="canvasWrap">
+    <div class="toolbar">
+      <div style="background:rgba(255,255,255,0.02);padding:8px;border-radius:8px;display:flex;gap:6px"><button id="modeMap" class="btn">Mind-map</button><button id="modeFlow" class="btn">Flowchart</button><button id="modeBoard" class="btn">Board</button></div>
+    </div>
+
+    <div id="viewport">
+      <svg id="svgLayer"></svg>
+      <div id="panLayer"></div>
+    </div>
+
+    <div id="minimap"><canvas id="miniCanvas" width="320" height="200"></canvas></div>
+    <div class="footer"><div>Idea Visualizer Pro</div><div style="color:var(--muted)">Made for you</div></div>
   </div>
-</div>
+</main>
 
 <script>
-/* ========= Utility ========= */
-const rnd = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
-const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
-const uid = () => crypto.randomUUID();
+(() => {
+  const state = { nodes: [], links: [], nextId: 1, selected: null, mode: 'map', scale: 1, panX: 0, panY: 0, isPanning: false, panVel:{x:0,y:0}, panLast: null };
+  const panLayer = document.getElementById('panLayer');
+  const svg = document.getElementById('svgLayer');
+  const viewport = document.getElementById('viewport');
+  const miniCanvas = document.getElementById('miniCanvas'); const miniCtx = miniCanvas.getContext('2d');
+  const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+  function escapeHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-function createGrid() {
-  const g = document.getElementById('grid');
-  g.innerHTML = '';
-  const step = 40;
-  for (let i=-2000; i<=2000; i+=step) {
-    const h = line(-2000, i, 2000, i);
-    const v = line(i, -2000, i, 2000);
-    h.setAttribute('class','ghost-line');
-    v.setAttribute('class','ghost-line');
-    g.appendChild(h); g.appendChild(v);
-  }
-}
-
-function line(x1,y1,x2,y2) {
-  const l = document.createElementNS('http://www.w3.org/2000/svg','line');
-  l.setAttribute('x1',x1); l.setAttribute('y1',y1);
-  l.setAttribute('x2',x2); l.setAttribute('y2',y2);
-  l.setAttribute('stroke','#1f2a36'); l.setAttribute('stroke-width','1');
-  return l;
-}
-
-function rect(x,y,w,h, cls='') {
-  const r = document.createElementNS('http://www.w3.org/2000/svg','rect');
-  r.setAttribute('x',x); r.setAttribute('y',y);
-  r.setAttribute('width',w); r.setAttribute('height',h);
-  if (cls) r.setAttribute('class', cls);
-  return r;
-}
-
-function group(cls='') {
-  const g = document.createElementNS('http://www.w3.org/2000/svg','g');
-  if (cls) g.setAttribute('class', cls);
-  return g;
-}
-
-function foreignObject(x,y,w,h, html='') {
-  const fo = document.createElementNS('http://www.w3.org/2000/svg','foreignObject');
-  fo.setAttribute('x',x); fo.setAttribute('y',y);
-  fo.setAttribute('width',w); fo.setAttribute('height',h);
-  const div = document.createElement('div');
-  div.innerHTML = html;
-  div.style.color = 'var(--text)';
-  fo.appendChild(div);
-  return fo;
-}
-
-function path(d, cls='') {
-  const p = document.createElementNS('http://www.w3.org/2000/svg','path');
-  p.setAttribute('d', d);
-  if (cls) p.setAttribute('class', cls);
-  return p;
-}
-
-function download(name, dataUrl) {
-  const a = document.createElement('a');
-  a.href = dataUrl; a.download = name;
-  document.body.appendChild(a); a.click(); a.remove();
-}
-
-function svgToPNG(svgEl, scale=2) {
-  return new Promise((resolve) => {
-    const xml = new XMLSerializer().serializeToString(svgEl);
-    const svg64 = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml);
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      const b = svgEl.getBoundingClientRect();
-      canvas.width = Math.max(1, Math.floor(b.width * scale));
-      canvas.height = Math.max(1, Math.floor(b.height * scale));
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = getComputedStyle(document.body).backgroundColor;
-      ctx.fillRect(0,0,canvas.width,canvas.height);
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      resolve(canvas.toDataURL('image/png'));
-    };
-    img.src = svg64;
-  });
-}
-
-/* ========= State ========= */
-const state = {
-  blocks: [],           // {id,type,x,y,w,h,content,props,tags:[]}
-  connectors: [],       // {id,from,to,label}
-  selected: null,       // id of block or connector
-  mode: 'select',       // 'select' | 'addConnector'
-  pan: {x: 0, y: 0},
-  zoom: 1,
-  views: {},            // name -> {blocks, connectors, pan, zoom}
-  snapshots: [],        // [{id, ts, note, viewName}]
-};
-
-const svg = document.getElementById('svg');
-const viewport = document.getElementById('viewport');
-const blocksG = document.getElementById('blocks');
-const handlesG = document.getElementById('handles');
-const connectorsG = document.getElementById('connectors');
-const hud = document.getElementById('hud');
-const tooltip = document.getElementById('tooltip');
-
-function updateHUD() {
-  hud.textContent = `${state.blocks.length} blocks • Zoom ${state.zoom.toFixed(2)} • View ${currentViewName()}`;
-}
-
-/* ========= Viewport mapping ========= */
-// screen = (world + pan) * zoom
-function screenToWorld(sx, sy) {
-  return { x: (sx / state.zoom) - state.pan.x, y: (sy / state.zoom) - state.pan.y };
-}
-function worldToScreen(wx, wy) {
-  return { x: (wx + state.pan.x) * state.zoom, y: (wy + state.pan.y) * state.zoom };
-}
-function applyViewport() {
-  // FIX: Do not multiply pan by zoom in translate; order is translate then scale
-  viewport.setAttribute('transform', `translate(${state.pan.x},${state.pan.y}) scale(${state.zoom})`);
-}
-
-/* ========= Rendering ========= */
-function render() {
-  connectorsG.innerHTML = '';
-  for (const c of state.connectors) {
-    const from = state.blocks.find(b => b.id === c.from);
-    const to = state.blocks.find(b => b.id === c.to);
-    if (!from || !to) continue;
-    const x1 = from.x + from.w/2, y1 = from.y + from.h/2;
-    const x2 = to.x + to.w/2, y2 = to.y + to.h/2;
-    const d = `M ${x1} ${y1} L ${x2} ${y2}`;
-    const p = path(d, 'connector' + (state.selected === c.id ? ' selected' : ''));
-    p.setAttribute('data-id', c.id);
-    connectorsG.appendChild(p);
+  function createNode(x,y,title='Idea',notes='',shape='rect',icon='★'){
+    const id = 'n'+(state.nextId++);
+    const el = document.createElement('div'); el.className = 'node'; if(shape==='circle') el.classList.add('shape-circle'); if(shape==='diamond') el.classList.add('shape-diamond');
+    el.dataset.id = id; el.style.left = x+'px'; el.style.top = y+'px';
+    el.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><div class='title'>${escapeHtml(title)}</div><div class='icon'>${icon}</div></div><div class='meta'>${escapeHtml(notes)}</div><div class='connector'></div>`;
+    panLayer.appendChild(el);
+    makeDraggable(el);
+    el.querySelector('.connector').addEventListener('click', ()=> startConnect(id));
+    el.addEventListener('dblclick', (e)=>{ e.stopPropagation(); const t = prompt('Edit title', title); if(t!==null){ const n = state.nodes.find(n=>n.id===id); n.title = t; el.querySelector('.title').innerText = t; } });
+    el.addEventListener('click', (e)=>{ e.stopPropagation(); selectNode(id); });
+    state.nodes.push({ id, el, x, y, title, notes, shape, icon });
+    draw(); return id;
   }
 
-  blocksG.innerHTML = '';
-  handlesG.innerHTML = '';
-  for (const b of state.blocks) {
-    const g = group();
-    const r = rect(b.x, b.y, b.w, b.h, 'block-rect' + (state.selected === b.id ? ' selected' : ''));
-    r.setAttribute('rx', 8);
-    r.setAttribute('data-id', b.id);
-    g.appendChild(r);
-
-    const padding = 10;
-    const fo = foreignObject(b.x+padding, b.y+padding, b.w-2*padding, b.h-2*padding);
-    const div = fo.firstChild;
-    div.style.fontSize = '13px';
-    div.style.lineHeight = '1.4';
-
-    if (b.type === 'text') {
-      div.contentEditable = 'true';
-      div.innerHTML = b.content || '<h3>New Idea</h3><p>Describe...</p>';
-      div.addEventListener('input', () => { b.content = div.innerHTML; saveAutosync(); });
-    } else if (b.type === 'note') {
-      div.contentEditable = 'true';
-      div.innerHTML = b.content || '<p><strong>Note:</strong> jot something down…</p>';
-      div.addEventListener('input', () => { b.content = div.innerHTML; saveAutosync(); });
-      r.style.fill = '#16212a';
-    } else if (b.type === 'frame') {
-      div.innerHTML = b.content || '<strong>Frame</strong><br/><span style="color:var(--muted)">Group related blocks conceptually.</span>';
-      r.style.fill = '#0c1218';
-      r.style.strokeDasharray = '6 4';
-    } else if (b.type === 'chart') {
-      div.innerHTML = `<div style="color:var(--muted)">Chart placeholder</div>
-        <div>Series: <strong>${(b.props && b.props.seriesId) || 'DGS10'}</strong></div>
-        <div style="margin-top:6px;font-size:12px;color:#97b0c8">Bind real data in a full app; here it’s a visual stub.</div>`;
-      r.style.fill = '#121a22';
-    } else if (b.type === 'image') {
-      div.innerHTML = `<img src="${b.props.url}" style="max-width:100%;max-height:${b.h-20}px;border-radius:6px;" />` +
-                      (b.content ? `<div style="margin-top:6px;color:var(--muted)">${b.content}</div>` : '');
-      r.style.fill = '#0f151c';
-    }
-
-    if (b.tags && b.tags.length) {
-      const tagsHTML = b.tags.map(t => `<span class="tag">${t}</span>`).join('');
-      const tagsFO = foreignObject(b.x+padding, b.y+b.h-24, b.w-2*padding, 20, `<div>${tagsHTML}</div>`);
-      g.appendChild(tagsFO);
-    }
-
-    const h = rect(b.x + b.w - 8, b.y + b.h - 8, 8, 8, 'handle');
-    h.setAttribute('data-id', b.id);
-    handlesG.appendChild(h);
-
-    blocksG.appendChild(g);
-  }
-  updateInspector();
-  updateTagsPanel();
-  updateSnapshots();
-  updateViewsList();
-  updateHUD();
-}
-
-/* ========= Init grid & viewport ========= */
-createGrid();
-applyViewport();
-
-/* ========= Selection & interactions ========= */
-let dragging = null; // { id, dx, dy }
-let resizing = null; // { id, ox, oy, ow, oh }
-let panning = null;  // { sx, sy, ox, oy }
-
-function findBlockByEl(target) {
-  const id = target.getAttribute('data-id');
-  return state.blocks.find(b => b.id === id);
-}
-
-svg.addEventListener('mousedown', (e) => {
-  const pt = screenToWorld(e.clientX, e.clientY);
-  const target = e.target;
-
-  if (e.button === 2) { // right-click drag for pan
-    panning = { sx: e.clientX, sy: e.clientY, ox: state.pan.x, oy: state.pan.y };
-    return;
+  function makeDraggable(el){ let ox,oy,drag=false; el.addEventListener('pointerdown', e=>{ if(e.target.classList.contains('connector')) return; drag=true; ox = e.clientX - el.offsetLeft; oy = e.clientY - el.offsetTop; el.setPointerCapture && el.setPointerCapture(e.pointerId); });
+    window.addEventListener('pointermove', e=>{ if(!drag) return; el.style.left = (e.clientX - ox) + 'px'; el.style.top = (e.clientY - oy) + 'px'; const n = state.nodes.find(n=>n.id === el.dataset.id); n.x = parseFloat(el.style.left); n.y = parseFloat(el.style.top); draw(); });
+    window.addEventListener('pointerup', ()=>drag=false);
   }
 
-  if (target.classList.contains('handle')) {
-    const b = findBlockByEl(target);
-    state.selected = b.id;
-    const bb = { ox: b.x, oy: b.y, ow: b.w, oh: b.h };
-    resizing = { id: b.id, ...bb };
-    render();
-    return;
-  }
+  function selectNode(id){ state.selected = id; }
 
-  if (target.classList.contains('block-rect')) {
-    const b = findBlockByEl(target);
-    state.selected = b.id;
-    dragging = { id: b.id, dx: pt.x - b.x, dy: pt.y - b.y };
-    render();
-    return;
-  }
+  let connecting = null;
+  function startConnect(id){ connecting = id; svg.style.pointerEvents = 'auto'; svg.addEventListener('click', finishConnectOnce); }
+  function finishConnectOnce(e){ svg.style.pointerEvents = 'none'; const el = document.elementFromPoint(e.clientX, e.clientY); const nodeEl = getNode(el); if(nodeEl && nodeEl.dataset.id !== connecting){ state.links.push({ from: connecting, to: nodeEl.dataset.id }); } connecting = null; svg.removeEventListener('click', finishConnectOnce); draw(); }
+  function getNode(el){ while(el && el !== document){ if(el.classList && el.classList.contains('node')) return el; el = el.parentNode; } return null; }
 
-  if (target.tagName === 'path' && target.classList.contains('connector')) {
-    const id = target.getAttribute('data-id');
-    state.selected = id;
-    render();
-    return;
-  }
+  function draw(){ panLayer.style.transform = `translate(${state.panX}px, ${state.panY}px) scale(${state.scale})`; while(svg.firstChild) svg.removeChild(svg.firstChild); state.links.forEach(l=>{ const a = state.nodes.find(n=>n.id===l.from); const b = state.nodes.find(n=>n.id===l.to); if(!a||!b) return; const ax = a.x + a.el.offsetWidth; const ay = a.y + (a.el.offsetHeight/2); const bx = b.x; const by = b.y + (b.el.offsetHeight/2); const x1 = ax*state.scale + state.panX; const y1 = ay*state.scale + state.panY; const x2 = bx*state.scale + state.panX; const y2 = by*state.scale + state.panY; const dx = Math.max(40, Math.abs(x2-x1)/2); const path = document.createElementNS('http://www.w3.org/2000/svg','path'); path.setAttribute('d', `M ${x1} ${y1} C ${x1+dx} ${y1} ${x2-dx} ${y2} ${x2} ${y2}`); path.setAttribute('stroke','rgba(139,92,246,0.9)'); path.setAttribute('fill','none'); path.setAttribute('stroke-width','2'); svg.appendChild(path); }); updateMinimap(); }
 
-  state.selected = null;
-  render();
-});
+  function updateMinimap(){ const cw = miniCanvas.width, ch = miniCanvas.height; miniCtx.clearRect(0,0,cw,ch); const padding = 20; let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity; state.nodes.forEach(n=>{ minX=Math.min(minX,n.x); minY=Math.min(minY,n.y); maxX=Math.max(maxX,n.x + n.el.offsetWidth); maxY=Math.max(maxY,n.y + n.el.offsetHeight); }); if(minX===Infinity){ miniCtx.fillStyle='rgba(255,255,255,0.02)'; miniCtx.fillRect(0,0,cw,ch); return; } const scaleX = (cw - padding*2) / Math.max(1, maxX - minX); const scaleY = (ch - padding*2) / Math.max(1, maxY - minY); const s = Math.min(scaleX, scaleY); state.nodes.forEach(n=>{ const nx = padding + (n.x - minX)*s; const ny = padding + (n.y - minY)*s; miniCtx.fillStyle = '#8b5cf6'; miniCtx.fillRect(nx, ny, Math.max(2, n.el.offsetWidth*s*0.08), Math.max(2, n.el.offsetHeight*s*0.06)); }); const vw = viewport.clientWidth, vh = viewport.clientHeight; const viewLeft = (-state.panX)/state.scale; const viewTop = (-state.panY)/state.scale; const viewW = vw/state.scale; const viewH = vh/state.scale; const rx = padding + (viewLeft - minX)*s; const ry = padding + (viewTop - minY)*s; miniCtx.strokeStyle='rgba(255,255,255,0.4)'; miniCtx.lineWidth=1; miniCtx.strokeRect(rx, ry, viewW*s, viewH*s); }
+  miniCanvas.addEventListener('click', (e)=>{ const rect = miniCanvas.getBoundingClientRect(); const cx = e.clientX - rect.left; const cy = e.clientY - rect.top; let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity; state.nodes.forEach(n=>{ minX=Math.min(minX,n.x); minY=Math.min(minY,n.y); maxX=Math.max(maxX,n.x + n.el.offsetWidth); maxY=Math.max(maxY,n.y + n.el.offsetHeight); }); if(minX===Infinity) return; const padding=20; const cw=miniCanvas.width,ch=miniCanvas.height; const scaleX=(cw-padding*2)/Math.max(1,maxX-minX); const scaleY=(ch-padding*2)/Math.max(1,maxY-minY); const s=Math.min(scaleX,scaleY); const worldX = minX + (cx - padding)/s; const worldY = minY + (cy - padding)/s; // center viewport on clicked world point
+    state.panX = (viewport.clientWidth / 2) - (worldX * state.scale); state.panY = (viewport.clientHeight / 2) - (worldY * state.scale); draw(); });
 
-svg.addEventListener('mousemove', (e) => {
-  const pt = screenToWorld(e.clientX, e.clientY);
-  if (dragging) {
-    const b = state.blocks.find(x => x.id === dragging.id);
-    let nx = pt.x - dragging.dx, ny = pt.y - dragging.dy;
-    if (e.shiftKey) {
-      const step = 20;
-      nx = Math.round(nx/step)*step; ny = Math.round(ny/step)*step;
-    }
-    b.x = nx; b.y = ny;
-    render();
-    return;
-  }
-  if (resizing) {
-    const b = state.blocks.find(x => x.id === resizing.id);
-    const w = clamp(pt.x - b.x, 120, 1200);
-    const h = clamp(pt.y - b.y, 80, 800);
-    b.w = e.shiftKey ? Math.round(w/20)*20 : w;
-    b.h = e.shiftKey ? Math.round(h/20)*20 : h;
-    render();
-    return;
-  }
-  if (panning) {
-    const dx = (e.clientX - panning.sx) / state.zoom;
-    const dy = (e.clientY - panning.sy) / state.zoom;
-    state.pan.x = panning.ox + dx;
-    state.pan.y = panning.oy + dy;
-    applyViewport();
-    return;
-  }
-});
+  function startPan(e){ state.isPanning = true; state.panLast = {x:e.clientX,y:e.clientY,time:Date.now()}; state.panVel.x = 0; state.panVel.y = 0; }
+  function movePan(e){ if(!state.isPanning) return; const dx = e.clientX - state.panLast.x; const dy = e.clientY - state.panLast.y; state.panX += dx; state.panY += dy; const now = Date.now(); const dt = Math.max(16, now - state.panLast.time); state.panVel.x = dx/dt; state.panVel.y = dy/dt; state.panLast = {x:e.clientX,y:e.clientY,time:now}; draw(); }
+  function endPan(){ state.isPanning = false; let vx = state.panVel.x*40, vy = state.panVel.y*40; const friction = 0.95; const step = ()=>{ vx *= friction; vy *= friction; if(Math.abs(vx) < 0.01 && Math.abs(vy) < 0.01) return; state.panX += vx; state.panY += vy; draw(); requestAnimationFrame(step); }; requestAnimationFrame(step); }
 
-window.addEventListener('mouseup', () => {
-  if (dragging || resizing) saveAutosync();
-  dragging = null; resizing = null; panning = null;
-});
+  // start pan only when clicking the viewport (background) or middle-button
+  viewport.addEventListener('pointerdown', (e)=>{ if(e.target !== viewport && e.button !== 1) return; startPan(e); viewport.setPointerCapture && viewport.setPointerCapture(e.pointerId); });
+  viewport.addEventListener('pointermove', movePan);
+  viewport.addEventListener('pointerup', (e)=>{ viewport.releasePointerCapture && viewport.releasePointerCapture(e.pointerId); endPan(); });
+  viewport.addEventListener('pointercancel', endPan);
 
-svg.addEventListener('contextmenu', (e) => e.preventDefault());
+  viewport.addEventListener('wheel', (e)=>{ if(!e.ctrlKey && !e.metaKey){ state.panY -= e.deltaY; draw(); return; } e.preventDefault(); const oldScale = state.scale; const factor = Math.exp(-e.deltaY*0.0015); state.scale = clamp(state.scale * factor, 0.4, 2.5); const rect = viewport.getBoundingClientRect(); const mx = e.clientX - rect.left; const my = e.clientY - rect.top; const worldX = (mx - state.panX)/oldScale; const worldY = (my - state.panY)/oldScale; state.panX = mx - worldX*state.scale; state.panY = my - worldY*state.scale; draw(); }, { passive:false });
 
-svg.addEventListener('wheel', (e) => {
-  if (e.ctrlKey) {
-    e.preventDefault();
-    const before = screenToWorld(e.clientX, e.clientY);
-    const delta = e.deltaY < 0 ? 0.1 : -0.1;
-    state.zoom = clamp(state.zoom + delta, 0.3, 3);
-    applyViewport();
-    const after = screenToWorld(e.clientX, e.clientY);
-    // FIX: correct sign to keep cursor anchored
-    state.pan.x += (before.x - after.x);
-    state.pan.y += (before.y - after.y);
-    applyViewport();
-    updateHUD();
-  }
-});
+  function fitView(){ if(state.nodes.length===0){ state.scale = 1; state.panX = state.panY = 0; draw(); return; } let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity; state.nodes.forEach(n=>{ minX=Math.min(minX,n.x); minY=Math.min(minY,n.y); maxX=Math.max(maxX,n.x + n.el.offsetWidth); maxY=Math.max(maxY,n.y + n.el.offsetHeight); }); const vw = viewport.clientWidth, vh = viewport.clientHeight; const contentW = Math.max(1, maxX-minX+80); const contentH = Math.max(1, maxY-minY+80); const scale = Math.min(vw/contentW, vh/contentH); state.scale = clamp(scale,0.5,2); // center content
+    const centerX = (minX + maxX) / 2; const centerY = (minY + maxY) / 2; state.panX = (vw / 2) - (centerX * state.scale); state.panY = (vh / 2) - (centerY * state.scale); draw(); }
 
-/* ========= CRUD ========= */
-function addBlock(type, props={}) {
-  const id = uid();
-  const b = {
-    id, type,
-    x: rnd(-200, 200), y: rnd(-100, 200),
-    w: type==='note' ? 240 : 320,
-    h: type==='image' ? 240 : (type==='note' ? 140 : 200),
-    content: '',
-    props,
-    tags: []
-  };
-  if (type === 'text') b.content = '<h3>New Idea</h3><p>Describe...</p>';
-  state.blocks.push(b);
-  state.selected = id;
-  render(); saveAutosync();
-}
+  document.getElementById('btn-exportPng').addEventListener('click', async ()=>{ const w = viewport.clientWidth, h = viewport.clientHeight; const exportSvg = document.createElementNS('http://www.w3.org/2000/svg','svg'); exportSvg.setAttribute('xmlns','http://www.w3.org/2000/svg'); exportSvg.setAttribute('width', w); exportSvg.setAttribute('height', h); const bg = document.createElementNS('http://www.w3.org/2000/svg','rect'); bg.setAttribute('width','100%'); bg.setAttribute('height','100%'); bg.setAttribute('fill','#071019'); exportSvg.appendChild(bg); state.links.forEach(l=>{ const a = state.nodes.find(n=>n.id===l.from); const b = state.nodes.find(n=>n.id===l.to); if(!a||!b) return; const ax = a.x + a.el.offsetWidth, ay = a.y + a.el.offsetHeight/2; const bx = b.x, by = b.y + b.el.offsetHeight/2; const x1 = ax*state.scale + state.panX, y1 = ay*state.scale + state.panY; const x2 = bx*state.scale + state.panX, y2 = by*state.scale + state.panY; const dx = Math.max(40, Math.abs(x2-x1)/2); const path = document.createElementNS('http://www.w3.org/2000/svg','path'); path.setAttribute('d', `M ${x1} ${y1} C ${x1+dx} ${y1} ${x2-dx} ${y2} ${x2} ${y2}`); path.setAttribute('stroke','#8b5cf6'); path.setAttribute('fill','none'); path.setAttribute('stroke-width','2'); exportSvg.appendChild(path); }); state.nodes.forEach(n=>{ const fo = document.createElementNS('http://www.w3.org/2000/svg','foreignObject'); const nx = n.x*state.scale + state.panX; const ny = n.y*state.scale + state.panY; fo.setAttribute('x', nx); fo.setAttribute('y', ny); fo.setAttribute('width', n.el.offsetWidth*state.scale); fo.setAttribute('height', n.el.offsetHeight*state.scale); const div = document.createElement('div'); div.setAttribute('xmlns','http://www.w3.org/1999/xhtml'); div.style.cssText = `width:${n.el.offsetWidth*state.scale}px;height:${n.el.offsetHeight*state.scale}px;font-family:Inter,Arial;color:#e6eef8;background:transparent;padding:8px;box-sizing:border-box;`; div.innerHTML = `<div style=\"font-weight:700;font-size:${14*state.scale}px\">${escapeHtml(n.title)}</div><div style=\"font-size:${12*state.scale}px;color:#90a0b8\">${escapeHtml(n.notes||'')}</div>`; fo.appendChild(div); exportSvg.appendChild(fo); }); const str = new XMLSerializer().serializeToString(exportSvg); const img = new Image(); const blob = new Blob([str],{type:'image/svg+xml;charset=utf-8'}); const url = URL.createObjectURL(blob); img.onload = ()=>{ const c = document.createElement('canvas'); c.width = w; c.height = h; const ctx = c.getContext('2d'); ctx.fillStyle = '#071019'; ctx.fillRect(0,0,w,h); ctx.drawImage(img,0,0); URL.revokeObjectURL(url); const a = document.createElement('a'); a.href = c.toDataURL('image/png'); a.download = 'idea-visual.png'; a.click(); }; img.src = url; });
 
-function removeSelected() {
-  if (!state.selected) return;
-  const isConnector = state.connectors.some(c => c.id === state.selected);
-  if (isConnector) {
-    state.connectors = state.connectors.filter(c => c.id !== state.selected);
-  } else {
-    state.blocks = state.blocks.filter(b => b.id !== state.selected);
-    state.connectors = state.connectors.filter(c => c.from !== state.selected && c.to !== state.selected);
-  }
-  state.selected = null;
-  render(); saveAutosync();
-}
+  document.getElementById('btn-saveLocal').addEventListener('click', ()=>{ const payload = { nodes: state.nodes.map(n=>({ id:n.id,x:n.x,y:n.y,title:n.title,notes:n.notes,shape:n.shape,icon:n.icon })), links: state.links }; localStorage.setItem('idea_visual_v1', JSON.stringify(payload)); alert('Saved locally'); });
+  document.getElementById('btn-loadLocal').addEventListener('click', ()=>{ const raw = localStorage.getItem('idea_visual_v1'); if(!raw) return alert('Nothing saved'); const data = JSON.parse(raw); clearBoard(); data.nodes.forEach(n=> createNode(n.x,n.y,n.title,n.notes,n.shape,n.icon)); data.links.forEach(l=> state.links.push(l)); draw(); });
+  document.getElementById('downloadJson').addEventListener('click', ()=>{ const payload = { nodes: state.nodes.map(n=>({ id:n.id,x:n.x,y:n.y,title:n.title,notes:n.notes,shape:n.shape,icon:n.icon })), links: state.links }; const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download='idea-board.json'; a.click(); URL.revokeObjectURL(url); });
+  document.getElementById('openJson').addEventListener('click', ()=> document.getElementById('fileLoad').click());
+  document.getElementById('fileLoad').addEventListener('change', (e)=>{ const f = e.target.files[0]; if(!f) return; const reader = new FileReader(); reader.onload = ()=>{ try{ const data = JSON.parse(reader.result); clearBoard(); data.nodes.forEach(n=> createNode(n.x,n.y,n.title,n.notes,n.shape,n.icon)); data.links.forEach(l=> state.links.push(l)); draw(); }catch(err){ alert('Invalid JSON') } }; reader.readAsText(f); });
 
-function addConnectorMode() {
-  state.mode = 'addConnector';
-  showTip('Click source block, then target block to connect.');
-}
+  function clearBoard(){ state.nodes.forEach(n=>n.el.remove()); state.nodes=[]; state.links=[]; state.nextId=1; draw(); }
 
-let connectorDraft = null;
-svg.addEventListener('click', (e) => {
-  if (state.mode !== 'addConnector') return;
-  const t = e.target;
-  if (!t.classList.contains('block-rect')) return;
-  const b = findBlockByEl(t);
-  if (!connectorDraft) {
-    connectorDraft = { from: b.id };
-    showTip('Now click target block.');
-  } else {
-    const id = uid();
-    state.connectors.push({ id, from: connectorDraft.from, to: b.id, label: '' });
-    connectorDraft = null;
-    state.mode = 'select';
-    hideTip();
-    render(); saveAutosync();
-  }
-});
+  function analyzeAndCreate(){ const text = document.getElementById('ideaText').value.trim(); if(!text) return; const mode = document.getElementById('modeSelect').value; const parts = document.getElementById('genMode').value === 'keywords' ? extractKeywords(text) : (document.getElementById('genMode').value === 'split' ? text.split(/\n|\.|\|/).map(s=>s.trim()).filter(Boolean) : semanticParts(text)); clearBoard(); if(mode==='map'){ const cx = 800, cy = 400; const root = createNode(cx,cy,parts[0]||'Idea','', document.getElementById('nodeShape').value, '★'); const step = Math.PI*2/Math.max(1, parts.length-1); let r = 220; for(let i=1;i<parts.length;i++){ const a = (i-1)*step; const x = cx + Math.cos(a)*r; const y = cy + Math.sin(a)*r; const id = createNode(x,y,parts[i],'', document.getElementById('nodeShape').value, '•'); state.links.push({from:root,to:id}); } } else if(mode==='flow'){ let x = 60, y = 60; for(let i=0;i<parts.length;i++){ const id = createNode(x,y,parts[i],'', document.getElementById('nodeShape').value, String(i+1)); if(i>0) state.links.push({from: state.nodes[state.nodes.length-2].id, to: id}); y += 160; } } else { let x = 40, y = 40; for(let i=0;i<parts.length;i++){ createNode(x,y,parts[i],'', document.getElementById('nodeShape').value, '▢'); x += 260; if(x > 1200){ x = 40; y += 160; } } } fitView(); draw(); }
+  document.getElementById('btn-analyze').addEventListener('click', analyzeAndCreate);
 
-/* ========= Inspector ========= */
-const inspector = document.getElementById('inspector');
+  function extractKeywords(text){ const words = text.toLowerCase().replace(/[^a-z0-9\s]/g,' ').split(/\s+/).filter(Boolean); const freq={}; words.forEach(w=>{ if(w.length<4) return; freq[w]=(freq[w]||0)+1; }); return Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,12).map(x=>x[0]); }
+  function semanticParts(text){ const paragraphs = text.split(/\n\n+/).map(p=>p.trim()).filter(Boolean); const out = []; paragraphs.forEach(p=>{ const s = p.split(/[\.\n]/).map(x=>x.trim()).filter(Boolean); if(s.length<=2) out.push(p); else out.push(...s.slice(0,6)); }); return out.slice(0,24); }
 
-function updateInspector() {
-  inspector.innerHTML = '';
-  if (!state.selected) {
-    inspector.innerHTML = '<div style="color:var(--muted)">No selection</div>';
-    return;
-  }
-  const conn = state.connectors.find(c => c.id === state.selected);
-  if (conn) {
-    inspector.innerHTML = `
-      <div><strong>Connector</strong></div>
-      <div style="margin-top:8px;">
-        <label>Label</label>
-        <input id="connLabel" value="${conn.label}" />
-      </div>
-      <div style="margin-top:8px;">
-        <button id="deleteSel" class="btn-danger">Delete</button>
-      </div>
-    `;
-    document.getElementById('connLabel').addEventListener('input', (e)=>{ conn.label = e.target.value; render(); saveAutosync(); });
-    document.getElementById('deleteSel').addEventListener('click', removeSelected);
-    return;
-  }
+  window.addEventListener('keydown', (e)=>{ if(e.key === ' '){ e.preventDefault(); } if(e.key === '+' || e.key === '=') zoomBy(1.1); if(e.key === '-') zoomBy(1/1.1); if(e.key === 'f') fitView(); });
+  document.getElementById('zoomIn').addEventListener('click', ()=> zoomBy(1.1)); document.getElementById('zoomOut').addEventListener('click', ()=> zoomBy(1/1.1)); document.getElementById('fitView').addEventListener('click', fitView);
+  function zoomBy(f){ const old = state.scale; state.scale = clamp(state.scale * f, 0.4, 2.5); const vw = viewport.clientWidth/2, vh = viewport.clientHeight/2; const worldX = (vw - state.panX)/old; const worldY = (vh - state.panY)/old; state.panX = vw - worldX*state.scale; state.panY = vh - worldY*state.scale; draw(); }
 
-  const b = state.blocks.find(x => x.id === state.selected);
-  if (!b) return;
-  inspector.innerHTML = `
-    <div><strong>Block</strong> · <span style="color:var(--muted)">${b.type}</span></div>
-    <div style="margin-top:8px; display:grid; grid-template-columns: 1fr 1fr; gap:6px;">
-      <label>X <input id="ix" type="number" value="${b.x}"></label>
-      <label>Y <input id="iy" type="number" value="${b.y}"></label>
-      <label>W <input id="iw" type="number" value="${b.w}"></label>
-      <label>H <input id="ih" type="number" value="${b.h}"></label>
-    </div>
-    <div style="margin-top:8px;">
-      <label>Content</label>
-      <textarea id="icontent" rows="4" style="width:100%">${b.content || ''}</textarea>
-    </div>
-    ${b.type==='chart' ? `
-      <div style="margin-top:8px;">
-        <label>Series ID</label>
-        <input id="iseries" value="${(b.props && b.props.seriesId) || ''}">
-      </div>` : ''}
-    ${b.type==='image' ? `
-      <div style="margin-top:8px;">
-        <label>Caption</label>
-        <input id="icap" value="${b.content || ''}">
-      </div>` : ''}
-    <div style="margin-top:8px;">
-      <label>Tags</label>
-      <input id="itags" placeholder="comma,separated" value="${(b.tags||[]).join(',')}">
-    </div>
-    <div style="margin-top:8px; display:flex; gap:6px;">
-      <button id="deleteSel" class="btn-danger">Delete</button>
-    </div>
-  `;
-  document.getElementById('ix').addEventListener('input',(e)=>{ b.x = parseFloat(e.target.value||0); render(); saveAutosync(); });
-  document.getElementById('iy').addEventListener('input',(e)=>{ b.y = parseFloat(e.target.value||0); render(); saveAutosync(); });
-  document.getElementById('iw').addEventListener('input',(e)=>{ b.w = clamp(parseFloat(e.target.value||0),120,1200); render(); saveAutosync(); });
-  document.getElementById('ih').addEventListener('input',(e)=>{ b.h = clamp(parseFloat(e.target.value||0),80,800); render(); saveAutosync(); });
-  const ic = document.getElementById('icontent'); ic.addEventListener('input', (e)=>{ b.content = e.target.value; render(); saveAutosync(); });
-  const del = document.getElementById('deleteSel'); del.addEventListener('click', removeSelected);
-  const it = document.getElementById('itags'); it.addEventListener('input', (e)=>{ b.tags = e.target.value.split(',').map(s=>s.trim()).filter(Boolean); render(); saveAutosync(); });
-  const is = document.getElementById('iseries'); if (is) is.addEventListener('input',(e)=>{ b.props = {...(b.props||{}), seriesId: e.target.value }; render(); saveAutosync(); });
-  const icap = document.getElementById('icap'); if (icap) icap.addEventListener('input',(e)=>{ b.content = e.target.value; render(); saveAutosync(); });
-}
+  createNode(220,160,'Central idea','Double-click to edit','rect','◎'); createNode(520,120,'Branch A','','rect','A'); createNode(520,320,'Branch B','','rect','B'); state.links.push({from:'n1',to:'n2'}); state.links.push({from:'n1',to:'n3'}); fitView(); draw();
 
-/* ========= Tags ========= */
-const tagsPanel = document.getElementById('tagsPanel');
-function allTags() {
-  const set = new Set();
-  state.blocks.forEach(b => (b.tags||[]).forEach(t => set.add(t)));
-  return Array.from(set);
-}
-function updateTagsPanel() {
-  const tags = allTags();
-  tagsPanel.innerHTML = tags.length ? tags.map(t => `<span class="tag" data-tag="${t}">${t}</span>`).join('') : '<div style="color:var(--muted)">No tags yet</div>';
-  tagsPanel.querySelectorAll('.tag').forEach(el => {
-    el.addEventListener('click', () => filterByTag(el.getAttribute('data-tag')));
-  });
-}
-function filterByTag(tag) {
-  state.selected = null;
-  blocksG.querySelectorAll('.block-rect').forEach(r => {
-    const b = state.blocks.find(x => x.id === r.getAttribute('data-id'));
-    const has = (b.tags||[]).includes(tag);
-    r.style.opacity = has ? 1 : 0.2;
-  });
-}
+  viewport.addEventListener('dblclick', (e)=>{ const rect = viewport.getBoundingClientRect(); const x = (e.clientX - rect.left - state.panX)/state.scale; const y = (e.clientY - rect.top - state.panY)/state.scale; createNode(x,y,'New node','', document.getElementById('nodeShape').value, '★'); draw(); });
 
-/* ========= Snapshots & Views ========= */
-function currentViewName() {
-  const names = Object.keys(state.views);
-  for (const n of names) {
-    const v = state.views[n];
-    const idsA = v.blocks.map(b=>b.id).join(',');
-    const idsB = state.blocks.map(b=>b.id).join(',');
-    if (idsA === idsB) return n;
-  }
-  return 'default';
-}
-function snapshot(note='') {
-  const id = uid();
-  state.snapshots.unshift({ id, ts: Date.now(), note, viewName: currentViewName() });
-  render(); saveAutosync();
-}
-function updateSnapshots() {
-  const el = document.getElementById('snapshots');
-  if (!state.snapshots.length) { el.innerHTML = '<div style="color:var(--muted)">No snapshots yet</div>'; return; }
-  el.innerHTML = state.snapshots.map(s => {
-    const d = new Date(s.ts); const time = d.toLocaleString();
-    return `<div style="margin-bottom:8px;"><strong>${time}</strong><br/><span style="color:var(--muted)">${s.note||'Snapshot'}</span></div>`;
-  }).join('');
-}
-function saveView(name) {
-  state.views[name] = {
-    blocks: JSON.parse(JSON.stringify(state.blocks)),
-    connectors: JSON.parse(JSON.stringify(state.connectors)),
-    pan: {...state.pan},
-    zoom: state.zoom,
-  };
-  render(); saveAutosync();
-}
-function loadView(name) {
-  const v = state.views[name];
-  if (!v) return;
-  state.blocks = JSON.parse(JSON.stringify(v.blocks));
-  state.connectors = JSON.parse(JSON.stringify(v.connectors));
-  state.pan = {...v.pan}; state.zoom = v.zoom;
-  applyViewport(); render(); saveAutosync();
-}
-function updateViewsList() {
-  const el = document.getElementById('viewsList');
-  const names = Object.keys(state.views);
-  if (!names.length) { el.innerHTML = '<div style="color:var(--muted)">No views saved</div>'; return; }
-  el.innerHTML = names.map(n => `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-    <span>${n}</span><button data-view="${n}">Load</button>
-  </div>`).join('');
-  el.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => loadView(btn.getAttribute('data-view'))));
-}
-
-/* ========= Tooltip ========= */
-function showTip(txt, x=null, y=null) {
-  tooltip.textContent = txt;
-  tooltip.style.display = 'block';
-  if (x!=null && y!=null) { tooltip.style.left = x+'px'; tooltip.style.top = y+'px'; }
-}
-function hideTip() { tooltip.style.display = 'none'; }
-
-/* ========= Persistence ========= */
-function saveAutosync() {
-  localStorage.setItem('visual_blocks_state', JSON.stringify(state));
-  updateHUD();
-}
-function loadAutosync() {
-  const raw = localStorage.getItem('visual_blocks_state');
-  if (!raw) return;
-  try {
-    const s = JSON.parse(raw);
-    // Only assign known keys
-    state.blocks = s.blocks || [];
-    state.connectors = s.connectors || [];
-    state.selected = null;
-    state.mode = 'select';
-    state.pan = s.pan || {x:0,y:0};
-    state.zoom = s.zoom || 1;
-    state.views = s.views || {};
-    state.snapshots = s.snapshots || [];
-    applyViewport();
-    render();
-  } catch(e) { console.warn('Failed to load state', e); }
-}
-
-/* ========= Controls ========= */
-document.getElementById('addText').addEventListener('click', () => addBlock('text'));
-document.getElementById('addNote').addEventListener('click', () => addBlock('note'));
-document.getElementById('addFrame').addEventListener('click', () => addBlock('frame'));
-document.getElementById('addChart').addEventListener('click', () => addBlock('chart'));
-document.getElementById('addImageBtn').addEventListener('click', () => document.getElementById('addImage').click());
-document.getElementById('addImage').addEventListener('change', (e) => {
-  const file = e.target.files[0]; if (!file) return;
-  const url = URL.createObjectURL(file);
-  addBlock('image', { url });
-  e.target.value = '';
-});
-document.getElementById('addConnector').addEventListener('click', addConnectorMode);
-
-document.getElementById('snapshot').addEventListener('click', () => {
-  const note = prompt('Snapshot note (optional):', '');
-  snapshot(note||'');
-});
-
-document.getElementById('saveLocal').addEventListener('click', () => {
-  saveAutosync();
-  showTip('Saved to local storage');
-  setTimeout(hideTip, 1000);
-});
-document.getElementById('loadLocal').addEventListener('click', () => {
-  loadAutosync();
-  showTip('Loaded from local storage');
-  setTimeout(hideTip, 1000);
-});
-
-document.getElementById('exportPNG').addEventListener('click', async () => {
-  const dataUrl = await svgToPNG(svg, 2);
-  download('visual_blocks.png', dataUrl);
-});
-
-document.getElementById('clear').addEventListener('click', () => {
-  if (!confirm('Clear all blocks and connectors?')) return;
-  state.blocks = []; state.connectors = []; state.selected = null; state.snapshots = []; state.views = {};
-  render(); saveAutosync();
-});
-
-document.getElementById('saveView').addEventListener('click', () => {
-  const name = document.getElementById('viewName').value.trim();
-  if (!name) return alert('Provide a view name');
-  saveView(name);
-});
-
-/* ========= Keyboard shortcuts ========= */
-window.addEventListener('keydown', (e) => {
-  if (e.key === 'Delete') removeSelected();
-  if (e.metaKey || e.ctrlKey) {
-    if (e.key.toLowerCase() === 's') { e.preventDefault(); saveAutosync(); showTip('Saved'); setTimeout(hideTip, 800); }
-    if (e.key.toLowerCase() === 'e') { e.preventDefault(); document.getElementById('exportPNG').click(); }
-  }
-});
-
-/* ========= Init ========= */
-render();
-loadAutosync();
+})();
 </script>
 </body>
 </html>
