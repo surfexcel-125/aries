@@ -1,7 +1,5 @@
-// app.js — ready-to-replace (adds static nav links + project buttons in sidebar)
-// - Firebase auth + AriesDB facade
-// - robust header + sliding overlay sidebar wiring
-// - populates static nav links and dynamic projects inside sidebar
+// app.js — full file (ready-to-replace)
+// (keeps Firebase + sidebar wiring as before) — only populateSidebarContent() changed to produce consistent sidebar
 
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
@@ -109,9 +107,8 @@ window.AriesDB = {
   }
 };
 
-/* ===================== UI: Header + Sliding Sidebar ===================== */
-/* This section wires the hamburger -> sidebar. It is defensive about selectors. */
 
+/* ===================== UI: Header + Sliding Sidebar (unchanged wiring) ===================== */
 (function () {
   const SLIDE_MS = 300;
   const HAMBURGER_SELECTORS = ['#aries-hamburger', '.aries-hamburger', '.topbar .hamburger', '.hamburger'];
@@ -196,7 +193,9 @@ window.AriesDB = {
     document.addEventListener('click', (e) => {
       if (!sidebar.classList.contains('open')) return;
       const t = e.target;
-      if (!sidebar.contains(t) && t !== hamburger && !hamburger.contains(t) && t !== overlay) closeSidebar();
+      if (!sidebar.contains(t) && t !== hamburger && !hamburger.contains(t) && t !== overlay) {
+        closeSidebar();
+      }
     }, true);
 
     document.addEventListener('keydown', (e) => {
@@ -236,15 +235,14 @@ window.AriesDB = {
     if (!ok) watchAndWire();
   }
 
-  /* ===================== Sidebar population: static nav + projects ===================== */
+  /* ===================== Sidebar population: static nav + projects (CONSISTENT) ===================== */
 
   async function populateSidebarContent() {
     const sidebar = document.querySelector('#aries-sidebar') || document.querySelector('.aries-sidebar') || document.querySelector('.sidebar');
     if (!sidebar) return;
-    // choose nav container: prefer explicit .aries-sidebar-nav or .aries-sidebar-content, else sidebar itself
-    let nav = sidebar.querySelector('.aries-sidebar-nav') || sidebar.querySelector('.aries-sidebar-content') || null;
 
-    // If nav is not present, create it and append
+    // prefer explicit nav container if present
+    let nav = sidebar.querySelector('.aries-sidebar-nav') || sidebar.querySelector('.aries-sidebar-content') || null;
     if (!nav) {
       nav = document.createElement('nav');
       nav.className = 'aries-sidebar-nav aries-sidebar-content';
@@ -252,63 +250,44 @@ window.AriesDB = {
       sidebar.appendChild(nav);
     }
 
-    // If nav already contains visible .aries-project items, don't stomp existing structure.
-    const existingProjects = nav.querySelectorAll('.aries-project');
-    // We'll still ensure the static nav exists at the top. If static already present (by id), skip creating.
-    const staticContainerId = 'aries-static-nav';
-    let staticContainer = nav.querySelector(`#${staticContainerId}`);
-    if (!staticContainer) {
-      staticContainer = document.createElement('div');
-      staticContainer.id = staticContainerId;
-      staticContainer.style.display = 'flex';
-      staticContainer.style.flexDirection = 'column';
-      staticContainer.style.gap = '10px';
-      // Insert static links (these have class .aries-project so they are visible under your CSS rule)
-      const staticLinks = [
-        { title: 'Dashboard', href: 'index.html' },
-        { title: 'Projects', href: 'projects.html' }
-      ];
-      staticLinks.forEach(link => {
-        const a = document.createElement('a');
-        a.className = 'aries-project';
-        a.href = link.href;
-        a.textContent = link.title;
-        a.style.display = 'block';
-        a.style.textDecoration = 'none';
-        // Add keyboard & enter handling — anchors will naturally navigate
-        staticContainer.appendChild(a);
-      });
+    // Remove any demo / placeholder project buttons to ensure consistent sidebar
+    // We only want the static nav + dynamic projects
+    nav.innerHTML = ''; // clear everything — we will add only allowed items
 
-      // Insert staticContainer as the first child of nav
-      nav.insertAdjacentElement('afterbegin', staticContainer);
-    }
+    // STATIC NAV (consistent across all pages) — only these two links
+    const staticContainer = document.createElement('div');
+    staticContainer.id = 'aries-static-nav';
+    staticContainer.style.display = 'flex';
+    staticContainer.style.flexDirection = 'column';
+    staticContainer.style.gap = '8px';
+    const staticLinks = [
+      { title: 'Dashboard', href: 'index.html' },
+      { title: 'Projects', href: 'projects.html' }
+    ];
+    staticLinks.forEach(link => {
+      const a = document.createElement('a');
+      a.className = 'aries-project';
+      a.href = link.href;
+      a.textContent = link.title;
+      a.style.display = 'block';
+      a.style.textDecoration = 'none';
+      staticContainer.appendChild(a);
+    });
+    nav.appendChild(staticContainer);
 
-    // If there are already project items after static links, skip populating projects to avoid duplicates
-    const afterStatic = nav.querySelectorAll('.aries-project');
-    if (afterStatic && afterStatic.length >  staticContainer.querySelectorAll('.aries-project').length) {
-      // There are user-provided project buttons — leave them as-is.
-      return;
-    }
-
-    // Fetch projects and render below static nav
+    // DYNAMIC PROJECTS (if any)
     try {
       const projects = await window.AriesDB.getProjects();
-      // Remove previous dynamic project block if present
-      const dynamicId = 'aries-dynamic-projects';
-      const prev = nav.querySelector(`#${dynamicId}`);
-      if (prev) prev.remove();
-
       if (!projects || projects.length === 0) {
-        // nothing more to show
+        // no projects — nothing else to show
         return;
       }
-
       const dyn = document.createElement('div');
-      dyn.id = dynamicId;
-      dyn.style.marginTop = '8px';
+      dyn.id = 'aries-dynamic-projects';
+      dyn.style.marginTop = '10px';
       dyn.style.display = 'flex';
       dyn.style.flexDirection = 'column';
-      dyn.style.gap = '8px';
+      dyn.style.gap = '6px';
 
       projects.forEach(p => {
         const btn = document.createElement('a');
@@ -318,20 +297,20 @@ window.AriesDB = {
         dyn.appendChild(btn);
       });
 
-      // append after static container
-      staticContainer.insertAdjacentElement('afterend', dyn);
-
+      nav.appendChild(dyn);
     } catch (e) {
       console.warn('populateSidebarContent failed', e);
     }
   }
 
-  // attempt populate after DOM ready and again after a short delay
+  // run populate shortly after boot (ensures nav is consistent)
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => { setTimeout(populateSidebarContent, 220); });
-  } else { setTimeout(populateSidebarContent, 220); }
+    document.addEventListener('DOMContentLoaded', () => setTimeout(populateSidebarContent, 220));
+  } else {
+    setTimeout(populateSidebarContent, 220);
+  }
 
-  // Expose for debug / manual refresh
+  // expose helper to refresh sidebar (if you change projects)
   window.aries = window.aries || {};
   window.aries.refreshSidebar = populateSidebarContent;
 
