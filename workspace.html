@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Idea Visualizer — Premium Dark (Fixed)</title>
+<title>Idea Visualizer — Premium Dark (Fixed + Undo/Redo + Delete + Modal Edit)</title>
 <style>
   :root{--bg:#071019; --card:#0f1720; --muted:#90a0b8; --accent:#8b5cf6; --glass: rgba(255,255,255,0.03);} *{box-sizing:border-box}
   body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;color:#e6eef8;background:linear-gradient(180deg,var(--bg),#041018)}
@@ -15,6 +15,7 @@
   textarea,input{width:100%;padding:10px;margin-top:6px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);color:#e6eef8;resize:vertical}
   button{cursor:pointer;border-radius:8px;padding:8px 12px;border:none}
   .btn{background:linear-gradient(90deg,var(--accent),#06b6d4);color:white}
+  .muted{color:var(--muted);font-size:13px}
 
   /* Canvas area */
   #canvasWrap{flex:1;height:600px;border:1px solid rgba(255,255,255,0.03);border-radius:12px;position:relative;background:linear-gradient(180deg,#071019,#041018);overflow:hidden;touch-action:none}
@@ -32,12 +33,22 @@
   #canvasWrap{ -ms-overflow-style: none; scrollbar-width: none; }
 
   .node.connecting{box-shadow:0 24px 60px rgba(139,92,246,0.35);border-color:rgba(139,92,246,0.6)}
+  .node.selected{outline:2px solid rgba(139,92,246,0.45);box-shadow:0 24px 60px rgba(139,92,246,0.12)}
+
+  /* Modal */
+  .modal-backdrop{position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(0,0,0,0.6);display:none;align-items:center;justify-content:center;z-index:1000}
+  .modal{background:#08121a;padding:18px;border-radius:12px;min-width:320px;border:1px solid rgba(255,255,255,0.04)}
+  .modal input,.modal textarea{width:100%;margin-top:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);padding:8px;border-radius:8px;color:#e6eef8}
+  .row{display:flex;gap:8px}
+  .small{padding:6px 8px;font-size:13px}
 </style>
 </head>
 <body>
 <header>
   <h1>Idea Visualizer — Premium Dark</h1>
-  <div style="display:flex;gap:8px">
+  <div style="display:flex;gap:8px;align-items:center">
+    <button id="btn-undo" class="btn small" title="Undo (Ctrl+Z)">Undo</button>
+    <button id="btn-redo" class="btn small" title="Redo (Ctrl+Y)">Redo</button>
     <button id="btn-fit" class="btn">Fit</button>
     <button id="btn-export" class="btn">Export SVG</button>
   </div>
@@ -52,8 +63,11 @@
     <button id="btn-create" class="btn">Create Nodes</button>
     <button id="btn-workflow" class="btn">Create Workflow</button>
   </div>
-  <button id="btn-clear" style="margin-top:10px">Clear</button>
-  <div style="margin-top:12px;color:var(--muted);font-size:13px">Tips: Drag empty background to pan. Use mouse wheel to zoom. Click connector dot then click target node to link. Use <strong>Fit</strong> to center created cards.</div>
+  <div style="display:flex;gap:8px;margin-top:10px">
+    <button id="btn-delete" class="btn" style="background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted)">Delete Selected</button>
+    <button id="btn-clear" class="btn" style="background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted)">Clear</button>
+  </div>
+  <div style="margin-top:12px" class="muted">Tips: Drag empty background to pan. Use mouse wheel to zoom. Click connector dot then click target node to link. Double-click a node to edit. Use Undo/Redo or Delete key to remove selected node.</div>
 </aside>
 <div id="canvasWrap">
   <div id="boardArea">
@@ -61,45 +75,150 @@
   </div>
 </div>
 </main>
+
+<!-- Modal for editing node (in-canvas) -->
+<div id="modal" class="modal-backdrop" role="dialog" aria-hidden="true">
+  <div class="modal" role="document">
+    <div style="font-weight:700">Edit Node</div>
+    <label style="margin-top:8px">Title</label>
+    <input id="modalTitle" type="text" />
+    <label style="margin-top:8px">Body</label>
+    <textarea id="modalBody" rows="4"></textarea>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">
+      <button id="modalCancel" class="btn small" style="background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted)">Cancel</button>
+      <button id="modalSave" class="btn small">Save</button>
+    </div>
+  </div>
+</div>
+
 <script>
 (() => {
+  // ---------- state & history ----------
   const state = {
     nodes: [], links: [], selected: null, nodeId: 1,
     view: { x: 0, y: 0, scale: 1 },
     connecting: null
   };
 
+  // history stack for undo/redo
+  const history = { past: [], future: [], max: 60 };
+
+  function snapshot(){
+    // create deep copy snapshot of minimal state needed
+    const snap = {
+      nodes: state.nodes.map(n => ({ id: n.id, x: n.x, y: n.y, title: n.title, notes: n.notes })),
+      links: state.links.map(l => ({ from: l.from, to: l.to })),
+      nodeId: state.nodeId,
+      view: { x: state.view.x, y: state.view.y, scale: state.view.scale },
+      selected: state.selected
+    };
+    return snap;
+  }
+  function applySnapshot(snap){
+    // clear board + render nodes from snapshot
+    // remove existing elements
+    state.nodes.forEach(n => { if(n.el && n.el.parentNode) n.el.parentNode.removeChild(n.el); });
+    state.nodes = [];
+    state.links = [];
+    state.nodeId = snap.nodeId || 1;
+    state.view = snap.view ? { ...snap.view } : { x:0,y:0,scale:1 };
+    // create nodes without altering history
+    snap.nodes.forEach(n => {
+      createNode(n.x, n.y, n.title, n.notes, { id: n.id, addToState: true, skipHistory: true });
+    });
+    state.links = snap.links.map(l => ({ from: l.from, to: l.to }));
+    state.selected = snap.selected || null;
+    applyView();
+    drawLinks();
+    updateSelectionVisual();
+  }
+
+  function pushHistory(){ // push current state to past, clear future
+    const s = snapshot();
+    history.past.push(s);
+    if(history.past.length > history.max) history.past.shift();
+    history.future = [];
+    updateUndoRedoButtons();
+  }
+  function undo(){
+    if(history.past.length === 0) return;
+    const current = snapshot();
+    history.future.push(current);
+    const prev = history.past.pop();
+    applySnapshot(prev);
+    updateUndoRedoButtons();
+  }
+  function redo(){
+    if(history.future.length === 0) return;
+    const current = snapshot();
+    history.past.push(current);
+    const next = history.future.pop();
+    applySnapshot(next);
+    updateUndoRedoButtons();
+  }
+  function updateUndoRedoButtons(){
+    document.getElementById('btn-undo').disabled = history.past.length === 0;
+    document.getElementById('btn-redo').disabled = history.future.length === 0;
+  }
+
+  // ---------- DOM references ----------
   const wrap = document.getElementById('canvasWrap');
   const board = document.getElementById('boardArea');
   const svg = document.getElementById('svgLayer');
+  const modal = document.getElementById('modal');
+  const modalTitle = document.getElementById('modalTitle');
+  const modalBody = document.getElementById('modalBody');
+  let editingNodeId = null;
 
+  // ---------- view transform ----------
   function applyView(){
     board.style.transform = `translate(${state.view.x}px, ${state.view.y}px) scale(${state.view.scale})`;
-    // keep svg aligned with board coordinate space (svg is inside board so it inherits transform)
   }
   applyView();
 
+  // ---------- helpers ----------
   function escapeHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function clientToBoard(clientX, clientY){
+    const rect = board.getBoundingClientRect();
+    const bx = (clientX - rect.left - state.view.x) / state.view.scale;
+    const by = (clientY - rect.top - state.view.y) / state.view.scale;
+    return { x: bx, y: by };
+  }
+  function getNode(el){ while(el && el !== document){ if(el.classList && el.classList.contains('node')) return el; el = el.parentNode; } return null; }
+  function findNodeById(id){ return state.nodes.find(n => n.id === id); }
+  function updateSelectionVisual(){
+    state.nodes.forEach(n => n.el.classList.toggle('selected', state.selected === n.id));
+  }
 
-  function createNode(x, y, title = 'New', notes = ''){
-    const id = 'n' + (state.nodeId++);
+  // ---------- create node (supports creating from snapshot) ----------
+  // options: { id, addToState=true, skipHistory=false }
+  function createNode(x, y, title = 'New', notes = '', options = {}){
+    const addToState = options.addToState !== false;
+    let id = options.id;
+    if(!id){ id = 'n' + (state.nodeId++); } else {
+      // ensure nodeId increments past provided id if it contains numeric suffix
+      const m = id.match(/^n(\d+)$/);
+      if(m){ state.nodeId = Math.max(state.nodeId, parseInt(m[1],10) + 1); }
+    }
+
     const el = document.createElement('div');
     el.className = 'node'; el.dataset.id = id;
     el.style.left = x + 'px'; el.style.top = y + 'px';
     el.innerHTML = `<div class="title">${escapeHtml(title)}</div><div class="meta">${escapeHtml(notes)}</div><div class="connector" title="Connect"></div>`;
     board.appendChild(el);
-    el.style.zIndex = String(state.nodeId * 10);
+    el.style.zIndex = String(1000 + (parseInt(id.replace('n','')) || 0));
 
-    // make draggable
+    // add draggable behavior
     makeDraggable(el);
 
+    // connector click
     const conn = el.querySelector('.connector');
     conn.addEventListener('click', (e)=>{
       e.stopPropagation(); e.preventDefault();
-      // click-to-connect: if already connecting, finish connection to this node (click-to-connect)
       if(state.connecting){
         if(state.connecting !== id){
           state.links.push({ from: state.connecting, to: id });
+          pushHistory(); // connection created
         }
         cancelConnect();
         drawLinks();
@@ -108,79 +227,80 @@
       startConnect(id);
     });
 
-    el.addEventListener('click', (e)=> { e.stopPropagation(); selectNode(id); });
+    // click selects
+    el.addEventListener('click', (e)=>{ e.stopPropagation(); selectNode(id); });
 
-    state.nodes.push({ id, el, x, y, title, notes });
+    // double-click opens modal editor
+    el.addEventListener('dblclick', (e)=>{ e.stopPropagation(); openEditModal(id); });
+
+    const nodeObj = { id, el, x, y, title, notes };
+    if(addToState) state.nodes.push(nodeObj);
     drawLinks();
+    if(addToState && options.skipHistory !== true){
+      pushHistory();
+    }
     return id;
   }
 
+  // ---------- drag ----------
   function makeDraggable(el){
-    let ox=0, oy=0;
-    let dragging = false;
+    let ox=0, oy=0, dragging=false, moved=false;
     let moveHandler, upHandler;
-
     el.addEventListener('pointerdown', e => {
-      // don't start drag when clicking connector
       if(e.target.classList && e.target.classList.contains('connector')) return;
       e.preventDefault();
-      dragging = true;
+      dragging = true; moved = false;
       const rect = board.getBoundingClientRect();
       ox = (e.clientX - rect.left - state.view.x) / state.view.scale - parseFloat(el.style.left || 0);
       oy = (e.clientY - rect.top - state.view.y) / state.view.scale - parseFloat(el.style.top || 0);
 
-      // attach move/up handlers to document and remove them on pointerup
       moveHandler = function(ev){
         if(!dragging) return;
         const r = board.getBoundingClientRect();
         const nx = (ev.clientX - r.left - state.view.x) / state.view.scale - ox;
         const ny = (ev.clientY - r.top - state.view.y) / state.view.scale - oy;
+        const prevLeft = parseFloat(el.style.left || 0);
+        const prevTop = parseFloat(el.style.top || 0);
+        if(Math.abs(nx - prevLeft) > 1 || Math.abs(ny - prevTop) > 1) moved = true;
         el.style.left = nx + 'px'; el.style.top = ny + 'px';
         const n = state.nodes.find(it => it.id === el.dataset.id);
         if(n){ n.x = nx; n.y = ny; }
         drawLinks();
       };
-      upHandler = function(){
+      upHandler = function(ev){
         dragging = false;
         document.removeEventListener('pointermove', moveHandler);
         document.removeEventListener('pointerup', upHandler);
+        if(moved){
+          pushHistory(); // record move as action
+        }
       };
       document.addEventListener('pointermove', moveHandler);
       document.addEventListener('pointerup', upHandler);
-
-      if(el.setPointerCapture) try{ el.setPointerCapture(e.pointerId); }catch(err){}
+      try{ el.setPointerCapture && el.setPointerCapture(e.pointerId); }catch(err){}
     });
   }
 
-  function selectNode(id){ state.selected = id; }
+  // ---------- selection ----------
+  function selectNode(id){
+    state.selected = id;
+    updateSelectionVisual();
+  }
 
-  // Connection logic
+  // ---------- connections (preview + finish) ----------
   let previewPath = null;
-
   function startConnect(id){
     state.connecting = id;
-    // highlight source node
-    const src = state.nodes.find(n=>n.id===id);
+    const src = findNodeById(id);
     if(src) src.el.classList.add('connecting');
-
     window.addEventListener('mousemove', followMouse);
     window.addEventListener('click', finishConnectOnce);
     window.addEventListener('keydown', onConnectKey);
   }
-
-  function onConnectKey(e){ if(e.key === 'Escape') { cancelConnect(); } }
-
-  function clientToBoard(clientX, clientY){
-    // Convert client coordinates to board (untransformed) coordinates.
-    const rect = board.getBoundingClientRect();
-    const bx = (clientX - rect.left - state.view.x) / state.view.scale;
-    const by = (clientY - rect.top - state.view.y) / state.view.scale;
-    return { x: bx, y: by };
-  }
-
+  function onConnectKey(e){ if(e.key === 'Escape') cancelConnect(); }
   function followMouse(e){
     if(!state.connecting) return;
-    const src = state.nodes.find(n=>n.id===state.connecting);
+    const src = findNodeById(state.connecting);
     if(!src) return;
     const b = clientToBoard(e.clientX, e.clientY);
     const x1 = src.x + src.el.offsetWidth;
@@ -196,21 +316,20 @@
     const d = `M ${x1} ${y1} C ${x1+dx} ${y1} ${x2-dx} ${y2} ${x2} ${y2}`;
     previewPath.setAttribute('d', d);
   }
-
   function finishConnectOnce(e){
     if(!state.connecting) return;
     const target = document.elementFromPoint(e.clientX, e.clientY);
     const nodeEl = getNode(target);
     if(nodeEl && nodeEl.dataset.id !== state.connecting){
       state.links.push({ from: state.connecting, to: nodeEl.dataset.id });
+      pushHistory();
     }
     cancelConnect();
     drawLinks();
   }
-
   function cancelConnect(){
     if(previewPath){ previewPath.remove(); previewPath = null; }
-    const src = state.nodes.find(n=>n.id===state.connecting);
+    const src = findNodeById(state.connecting);
     if(src) src.el.classList.remove('connecting');
     window.removeEventListener('mousemove', followMouse);
     window.removeEventListener('click', finishConnectOnce);
@@ -218,14 +337,12 @@
     state.connecting = null;
   }
 
-  function getNode(el){ while(el && el !== document){ if(el.classList && el.classList.contains('node')) return el; el = el.parentNode; } return null; }
-
+  // ---------- draw links ----------
   function drawLinks(){
-    // clear existing paths
     while(svg.firstChild) svg.removeChild(svg.firstChild);
     state.links.forEach(l=>{
-      const a = state.nodes.find(n=>n.id===l.from);
-      const b = state.nodes.find(n=>n.id===l.to);
+      const a = findNodeById(l.from);
+      const b = findNodeById(l.to);
       if(!a||!b) return;
       const x1 = a.x + a.el.offsetWidth; const y1 = a.y + a.el.offsetHeight/2;
       const x2 = b.x; const y2 = b.y + b.el.offsetHeight/2;
@@ -237,7 +354,7 @@
     });
   }
 
-  // Fit all nodes
+  // ---------- fit ----------
   function fitAll(padding=80){
     if(state.nodes.length===0) return;
     let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
@@ -255,11 +372,10 @@
     applyView();
   }
 
-  // Create nodes from inputs
+  // ---------- create nodes from inputs ----------
   document.getElementById('btn-create').addEventListener('click', ()=>{
     const rawTitles = document.getElementById('ideaText').value || '';
     const rawBodies = document.getElementById('cardBody').value || '';
-    // correct, robust newline split
     const titles = rawTitles.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
     const bodies = rawBodies.split(/\r?\n/).map(s=>s.trim());
     if(titles.length===0) return;
@@ -283,22 +399,56 @@
     const gap = 340; const ids = [];
     titles.forEach((t,i)=>{ ids.push(createNode(startX + i*gap, y, t, bodies[i]||'')); });
     for(let i=1;i<ids.length;i++) state.links.push({ from: ids[i-1], to: ids[i] });
+    pushHistory();
     drawLinks();
   });
 
+  // ---------- clear ----------
   document.getElementById('btn-clear').addEventListener('click', ()=>{
-    state.nodes.forEach(n=>n.el.remove());
-    state.nodes = [];
-    state.links = [];
-    while(svg.firstChild) svg.removeChild(svg.firstChild);
-    state.nodeId=1;
-    state.view={x:0,y:0,scale:1};
-    applyView();
+    pushHistory();
+    state.nodes.forEach(n=>{ if(n.el && n.el.parentNode) n.el.parentNode.removeChild(n.el); });
+    state.nodes = []; state.links = []; while(svg.firstChild) svg.removeChild(svg.firstChild);
+    state.nodeId=1; state.view={x:0,y:0,scale:1}; applyView();
   });
 
-  document.getElementById('btn-fit').addEventListener('click', ()=>{ fitAll(); });
+  // ---------- delete node ----------
+  function deleteSelectedNode(){
+    const id = state.selected;
+    if(!id) return;
+    // remove element
+    const idx = state.nodes.findIndex(n => n.id === id);
+    if(idx === -1) return;
+    pushHistory();
+    const node = state.nodes[idx];
+    if(node.el && node.el.parentNode) node.el.parentNode.removeChild(node.el);
+    state.nodes.splice(idx,1);
+    // remove links referencing it
+    state.links = state.links.filter(l => l.from !== id && l.to !== id);
+    state.selected = null;
+    drawLinks();
+  }
+  document.getElementById('btn-delete').addEventListener('click', ()=> deleteSelectedNode());
+  // Delete key
+  window.addEventListener('keydown', e=>{
+    if(e.key === 'Delete' || e.key === 'Backspace'){
+      // avoid interfering with typing in inputs
+      if(document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.isContentEditable)) return;
+      deleteSelectedNode();
+    }
+    // Undo / Redo keyboard
+    if((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')){
+      e.preventDefault(); undo();
+    } else if((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && (e.key === 'Z')) )){
+      e.preventDefault(); redo();
+    }
+  });
 
-  // Pan: drag empty background (wrap)
+  // ---------- undo/redo buttons ----------
+  document.getElementById('btn-undo').addEventListener('click', ()=> undo());
+  document.getElementById('btn-redo').addEventListener('click', ()=> redo());
+  updateUndoRedoButtons();
+
+  // ---------- pan ----------
   let panning=false, sx=0, sy=0;
   wrap.addEventListener('pointerdown', e=>{
     if(getNode(e.target)) return; // clicked on node
@@ -308,7 +458,7 @@
   window.addEventListener('pointermove', e=>{ if(!panning) return; const dx=e.clientX-sx, dy=e.clientY-sy; sx=e.clientX; sy=e.clientY; state.view.x += dx; state.view.y += dy; applyView(); });
   window.addEventListener('pointerup', e=>{ panning=false; try{ wrap.releasePointerCapture && wrap.releasePointerCapture(e.pointerId);}catch(e){} });
 
-  // Zoom with wheel (cursor-centered)
+  // ---------- zoom ----------
   wrap.addEventListener('wheel', e=>{
     e.preventDefault();
     const delta = -e.deltaY;
@@ -323,11 +473,10 @@
     applyView();
   }, { passive:false });
 
-  // Export SVG (basic - exports links)
+  // ---------- export svg ----------
   document.getElementById('btn-export').addEventListener('click', ()=>{
     const exportSvg = document.createElementNS('http://www.w3.org/2000/svg','svg');
     exportSvg.setAttribute('xmlns','http://www.w3.org/2000/svg');
-    // compute bounding box for export
     if(state.nodes.length===0){
       exportSvg.setAttribute('width', 1200);
       exportSvg.setAttribute('height', 800);
@@ -342,8 +491,8 @@
     }
 
     state.links.forEach(l=>{
-      const a = state.nodes.find(n=>n.id===l.from);
-      const b = state.nodes.find(n=>n.id===l.to);
+      const a = findNodeById(l.from);
+      const b = findNodeById(l.to);
       if(!a||!b) return;
       const x1 = a.x + a.el.offsetWidth; const y1 = a.y + a.el.offsetHeight/2;
       const x2 = b.x; const y2 = b.y + b.el.offsetHeight/2;
@@ -354,47 +503,97 @@
       exportSvg.appendChild(p);
     });
 
-    // optionally append node rectangles + text if you want; keeping it minimal as before
+    // add node rectangles & text so exported svg is self-contained
+    state.nodes.forEach(n=>{
+      const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+      const rx = Math.round(n.x);
+      const ry = Math.round(n.y);
+      const rw = Math.round(n.el.offsetWidth);
+      const rh = Math.round(n.el.offsetHeight);
+      const rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
+      rect.setAttribute('x', rx); rect.setAttribute('y', ry); rect.setAttribute('width', rw); rect.setAttribute('height', rh);
+      rect.setAttribute('rx', 10); rect.setAttribute('ry', 10); rect.setAttribute('fill', '#0f1720'); rect.setAttribute('stroke', '#1f2937');
+
+      const title = document.createElementNS('http://www.w3.org/2000/svg','text');
+      title.setAttribute('x', rx + 12); title.setAttribute('y', ry + 20); title.setAttribute('font-size', 14); title.setAttribute('fill', '#e6eef8');
+      title.textContent = n.title || '';
+
+      const body = document.createElementNS('http://www.w3.org/2000/svg','text');
+      body.setAttribute('x', rx + 12); body.setAttribute('y', ry + 40); body.setAttribute('font-size', 12); body.setAttribute('fill', '#90a0b8');
+      body.textContent = n.notes || '';
+
+      g.appendChild(rect); g.appendChild(title); g.appendChild(body);
+      exportSvg.appendChild(g);
+    });
+
     const s = new XMLSerializer().serializeToString(exportSvg);
     const blob = new Blob([s],{type:'image/svg+xml'});
     const url=URL.createObjectURL(blob);
     const a=document.createElement('a'); a.href=url; a.download='idea-visual.svg'; document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+    a.click(); a.remove(); URL.revokeObjectURL(url);
   });
 
-  // initial sample
-  createNode(220,160,'Central idea','Double-click to edit');
-  createNode(520,120,'Branch A','');
-  createNode(520,320,'Branch B','');
+  // ---------- initial sample ----------
+  createNode(220,160,'Central idea','Double-click to edit', { skipHistory: true });
+  createNode(520,120,'Branch A','', { skipHistory: true });
+  createNode(520,320,'Branch B','', { skipHistory: true });
+  pushHistory(); // initial baseline
   drawLinks();
 
-  // edit on double click (updates state)
-  wrap.addEventListener('dblclick', e=>{
-    const nodeEl = getNode(e.target); if(!nodeEl) return;
-    const id = nodeEl.dataset.id; const node = state.nodes.find(n=>n.id===id);
+  // ---------- modal edit ----------
+  function openEditModal(id){
+    const node = findNodeById(id);
     if(!node) return;
-    const newTitle = prompt('Edit title', node.title || '');
-    if(newTitle!==null){
-      node.title = newTitle;
-      node.el.querySelector('.title').innerText = newTitle;
-    }
-    const newBody = prompt('Edit body', node.notes || '');
-    if(newBody!==null){
-      node.notes = newBody;
-      node.el.querySelector('.meta').innerText = newBody;
-    }
+    editingNodeId = id;
+    modalTitle.value = node.title || '';
+    modalBody.value = node.notes || '';
+    modal.style.display = 'flex';
+    modal.setAttribute('aria-hidden','false');
+    modalTitle.focus();
+  }
+  function closeModal(){
+    editingNodeId = null;
+    modal.style.display = 'none';
+    modal.setAttribute('aria-hidden','true');
+  }
+  document.getElementById('modalCancel').addEventListener('click', ()=> closeModal());
+  document.getElementById('modalSave').addEventListener('click', ()=>{
+    if(!editingNodeId) return;
+    const node = findNodeById(editingNodeId);
+    if(!node) return;
+    pushHistory();
+    node.title = modalTitle.value;
+    node.notes = modalBody.value;
+    node.el.querySelector('.title').innerText = node.title;
+    node.el.querySelector('.meta').innerText = node.notes;
+    closeModal();
     drawLinks();
   });
+  // close modal on backdrop click
+  modal.addEventListener('click', e=>{ if(e.target === modal) closeModal(); });
 
-  // keep svg element sized to board (in case you change board size in CSS)
-  function syncSvgSize(){
-    svg.setAttribute('width', board.offsetWidth);
-    svg.setAttribute('height', board.offsetHeight);
-  }
+  // ---------- double-click editing (already wired in createNode) ----------
+  // ---------- keep svg sized ----------
+  function syncSvgSize(){ svg.setAttribute('width', board.offsetWidth); svg.setAttribute('height', board.offsetHeight); }
   window.addEventListener('resize', ()=>{ syncSvgSize(); applyView(); });
   syncSvgSize();
+
+  // ---------- utility: delete node by id (exposed) ----------
+  function deleteNodeById(id){
+    const idx = state.nodes.findIndex(n => n.id === id);
+    if(idx === -1) return;
+    const node = state.nodes[idx];
+    if(node.el && node.el.parentNode) node.el.parentNode.removeChild(node.el);
+    state.nodes.splice(idx, 1);
+    state.links = state.links.filter(l => l.from !== id && l.to !== id);
+    if(state.selected === id) state.selected = null;
+  }
+
+  // ---------- selection when clicking background clears selection ----------
+  wrap.addEventListener('click', e=>{ if(getNode(e.target)) return; state.selected = null; updateSelectionVisual(); });
+
+  // ---------- helper to ensure no memory leaks on applySnapshot ----------
+  // applySnapshot handles removing DOM and recreating nodes
 
 })();
 </script>
