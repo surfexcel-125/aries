@@ -17,7 +17,6 @@
   .btn{background:linear-gradient(90deg,var(--accent),#06b6d4);color:white}
   .muted{color:var(--muted);font-size:13px}
 
-  /* Canvas area */
   #canvasWrap{flex:1;height:600px;border:1px solid rgba(255,255,255,0.03);border-radius:12px;position:relative;background:linear-gradient(180deg,#071019,#041018);overflow:hidden;touch-action:none}
   #boardArea{width:4000px;height:2500px;position:absolute;left:0;top:0;transform-origin:0 0}
   .node{position:absolute;min-width:160px;padding:12px;border-radius:10px;color:#e6eef8;background:linear-gradient(180deg,#0f1820,#071117);border:1px solid rgba(255,255,255,0.04);box-shadow:0 18px 40px rgba(2,6,23,0.6);user-select:none}
@@ -34,7 +33,7 @@
 
   .modal-backdrop{position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(0,0,0,0.6);display:none;align-items:center;justify-content:center;z-index:1000}
   .modal{background:#08121a;padding:18px;border-radius:12px;min-width:320px;border:1px solid rgba(255,255,255,0.04)}
-  .modal input,.modal textarea{width:100%;margin-top:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);padding:8px;border-radius:8px;color:#e6eef8}
+  .modal input,modal textarea{width:100%;margin-top:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);padding:8px;border-radius:8px;color:#e6eef8}
   .row{display:flex;gap:8px}
   .small{padding:6px 8px;font-size:13px}
 </style>
@@ -95,14 +94,18 @@
 </div>
 
 <script type="module">
-  import { db } from './firebase-config.js';
+  import { auth, db } from './firebase-config.js';
+  import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
   import { collection, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
 
-  // Optional: if you want project name in the header and AriesDB is defined in app.js
-  // import './app.js';
+  // Require login for workspace
+  onAuthStateChanged(auth, (user) => {
+    if (!user) {
+      window.location.href = 'index.html';
+    }
+  });
 
 (() => {
-  // ---------- project id from URL ----------
   function getProjectIdFromUrl() {
     const params = new URLSearchParams(window.location.search);
     return params.get('id') || null;
@@ -110,7 +113,6 @@
 
   const workspaceTitleEl = document.getElementById('workspaceTitle');
 
-  // ---------- state & history ----------
   const state = {
     nodes: [], links: [], selected: null, nodeId: 1,
     view: { x: 0, y: 0, scale: 1 },
@@ -190,13 +192,12 @@
     scheduleSave();
   }
 
-  // ---------- Firebase save/load (doc id = project id) ----------
   async function saveToFirebase(){
     if(!currentProjectId || !db) return;
     const payload = snapshot();
     payload.updatedAt = new Date().toISOString();
     try {
-      const boardsCol = collection(db, 'workspaceBoards');   // collection name for boards
+      const boardsCol = collection(db, 'workspaceBoards');
       const ref = doc(boardsCol, currentProjectId);
       await setDoc(ref, payload, { merge: true });
       console.log('Saved board for project:', currentProjectId);
@@ -227,7 +228,7 @@
         applySnapshot(restored);
         history.past = [];
         history.future = [];
-        pushHistory(); // baseline + schedule save
+        pushHistory();
         console.log('Loaded board for project:', projectId);
       } else {
         console.log('No board yet for this project, starting fresh:', projectId);
@@ -257,7 +258,6 @@
     loadFromFirebase(currentProjectId);
   }
 
-  // ---------- DOM refs ----------
   const wrap = document.getElementById('canvasWrap');
   const board = document.getElementById('boardArea');
   const svg = document.getElementById('svgLayer');
@@ -266,13 +266,11 @@
   const modalBody = document.getElementById('modalBody');
   let editingNodeId = null;
 
-  // ---------- view transform ----------
   function applyView(){
     board.style.transform = `translate(${state.view.x}px, ${state.view.y}px) scale(${state.view.scale})`;
   }
   applyView();
 
-  // ---------- helpers ----------
   function escapeHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   function clientToBoard(clientX, clientY){
     const rect = board.getBoundingClientRect();
@@ -286,7 +284,6 @@
     state.nodes.forEach(n => n.el.classList.toggle('selected', state.selected === n.id));
   }
 
-  // ---------- create node ----------
   function createNode(x, y, title = 'New', notes = '', options = {}){
     const addToState = options.addToState !== false;
     let id = options.id;
@@ -320,7 +317,6 @@
     });
 
     el.addEventListener('click', (e)=>{ e.stopPropagation(); selectNode(id); });
-
     el.addEventListener('dblclick', (e)=>{ e.stopPropagation(); openEditModal(id); });
 
     const nodeObj = { id, el, x, y, title, notes };
@@ -332,7 +328,6 @@
     return id;
   }
 
-  // ---------- drag ----------
   function makeDraggable(el){
     let ox=0, oy=0, dragging=false, moved=false;
     let moveHandler, upHandler;
@@ -371,13 +366,11 @@
     });
   }
 
-  // ---------- selection ----------
   function selectNode(id){
     state.selected = id;
     updateSelectionVisual();
   }
 
-  // ---------- connections ----------
   let previewPath = null;
   function startConnect(id){
     state.connecting = id;
@@ -427,7 +420,6 @@
     state.connecting = null;
   }
 
-  // ---------- draw links ----------
   function drawLinks(){
     while(svg.firstChild) svg.removeChild(svg.firstChild);
     state.links.forEach(l=>{
@@ -444,150 +436,48 @@
     });
   }
 
-  // ---------- fit ----------
-  function fitAll(padding=80){
-    if(state.nodes.length===0) return;
-    let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
-    state.nodes.forEach(n=>{
-      minX=Math.min(minX,n.x); minY=Math.min(minY,n.y);
-      maxX=Math.max(maxX,n.x + n.el.offsetWidth); maxY=Math.max(maxY,n.y + n.el.offsetHeight);
-    });
-    const boardW = Math.max(1, maxX-minX); const boardH = Math.max(1, maxY-minY);
-    const wrapRect = wrap.getBoundingClientRect();
-    const scale = Math.min((wrapRect.width - padding*2)/boardW, (wrapRect.height - padding*2)/boardH, 1);
-    const centerX = (minX + maxX)/2; const centerY = (minY + maxY)/2;
-    state.view.scale = Math.max(0.2, scale);
-    state.view.x = wrapRect.width/2 - centerX*state.view.scale;
-    state.view.y = wrapRect.height/2 - centerY*state.view.scale;
-    applyView();
-  }
-
-  // ---------- clear helpers ----------
   function clearBoardOnly(){
     state.nodes.forEach(n=>{ if(n.el && n.el.parentNode) n.el.parentNode.removeChild(n.el); });
     state.nodes = [];
     state.links = [];
-    while(svg.firstChild) svg.removeChild(svg.firstChild);
+    state.selected = null;
     state.nodeId = 1;
-    state.view = { x:0, y:0, scale:1 };
-    applyView();
     drawLinks();
   }
 
   function initializeDefaultBoard(){
     clearBoardOnly();
-    createNode(220,160,'Central idea','Double-click to edit', { skipHistory: true });
-    createNode(520,120,'Branch A','', { skipHistory: true });
-    createNode(520,320,'Branch B','', { skipHistory: true });
+    createNode(220,160,'Central idea','Double-click to edit',{ skipHistory:true });
+    createNode(520,120,'Branch A','',{ skipHistory:true });
+    createNode(520,320,'Branch B','',{ skipHistory:true });
     history.past = [];
     history.future = [];
     pushHistory();
     drawLinks();
   }
 
-  // ---------- create nodes from inputs ----------
-  document.getElementById('btn-create').addEventListener('click', ()=>{
-    const rawTitles = document.getElementById('ideaText').value || '';
-    const rawBodies = document.getElementById('cardBody').value || '';
-    const titles = rawTitles.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-    const bodies = rawBodies.split(/\r?\n/).map(s=>s.trim());
-    if(titles.length===0) return;
-    const wrapRect = wrap.getBoundingClientRect();
-    const centerBoardX = (wrapRect.width/2 - state.view.x)/state.view.scale;
-    const centerBoardY = (wrapRect.height/2 - state.view.y)/state.view.scale;
-    let x = Math.max(60, centerBoardX - 60); let y = Math.max(60, centerBoardY - 40);
-    titles.forEach((t,i)=>{ createNode(x,y,t,bodies[i]||''); y += 140; });
-    drawLinks();
-  });
-
-  document.getElementById('btn-workflow').addEventListener('click', ()=>{
-    const rawTitles = document.getElementById('ideaText').value || '';
-    const rawBodies = document.getElementById('cardBody').value || '';
-    const titles = rawTitles.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-    const bodies = rawBodies.split(/\r?\n/).map(s=>s.trim());
-    if(titles.length===0) return;
-    const wrapRect = wrap.getBoundingClientRect();
-    let startX = Math.max(80, (wrapRect.width/2 - state.view.x)/state.view.scale - (titles.length*170)/2);
-    let y = Math.max(120, (wrapRect.height/2 - state.view.y)/state.view.scale - 40);
-    const gap = 340; const ids = [];
-    titles.forEach((t,i)=>{ ids.push(createNode(startX + i*gap, y, t, bodies[i]||'')); });
-    for(let i=1;i<ids.length;i++) state.links.push({ from: ids[i-1], to: ids[i] });
-    pushHistory();
-    drawLinks();
-  });
-
-  // ---------- clear ----------
-  document.getElementById('btn-clear').addEventListener('click', ()=>{
-    pushHistory();
-    clearBoardOnly();
-  });
-
-  // ---------- delete node ----------
-  function deleteSelectedNode(){
-    const id = state.selected;
-    if(!id) return;
-    const idx = state.nodes.findIndex(n => n.id === id);
-    if(idx === -1) return;
-    pushHistory();
-    const node = state.nodes[idx];
-    if(node.el && node.el.parentNode) node.el.parentNode.removeChild(node.el);
-    state.nodes.splice(idx,1);
-    state.links = state.links.filter(l => l.from !== id && l.to !== id);
-    state.selected = null;
-    drawLinks();
-  }
-  document.getElementById('btn-delete').addEventListener('click', ()=> deleteSelectedNode());
-
-  window.addEventListener('keydown', e=>{
-    if(e.key === 'Delete' || e.key === 'Backspace'){
-      if(document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.isContentEditable)) return;
-      deleteSelectedNode();
-    }
-    if((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')){
-      e.preventDefault(); undo();
-    } else if((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && (e.key === 'Z')) )){
-      e.preventDefault(); redo();
-    }
-  });
-
   document.getElementById('btn-undo').addEventListener('click', ()=> undo());
   document.getElementById('btn-redo').addEventListener('click', ()=> redo());
-  updateUndoRedoButtons();
-
-  // ---------- pan & zoom ----------
-  let panning=false, sx=0, sy=0;
-  wrap.addEventListener('pointerdown', e=>{
-    if(getNode(e.target)) return;
-    panning=true; sx=e.clientX; sy=e.clientY;
-    try{ wrap.setPointerCapture && wrap.setPointerCapture(e.pointerId); }catch(err){}
-  });
-  window.addEventListener('pointermove', e=>{
-    if(!panning) return;
-    const dx=e.clientX-sx, dy=e.clientY-sy; sx=e.clientX; sy=e.clientY;
-    state.view.x += dx; state.view.y += dy; applyView();
-  });
-  window.addEventListener('pointerup', e=>{
-    panning=false;
-    try{ wrap.releasePointerCapture && wrap.releasePointerCapture(e.pointerId);}catch(e){}
-  });
-
-  wrap.addEventListener('wheel', e=>{
-    e.preventDefault();
-    const delta = -e.deltaY;
-    const factor = 1 + (delta>0?0.08:-0.08);
-    const before = clientToBoard(e.clientX, e.clientY);
-    state.view.scale = Math.max(0.2, Math.min(3, state.view.scale * factor));
-    const afterScreenX = before.x * state.view.scale + state.view.x;
-    const afterScreenY = before.y * state.view.scale + state.view.y;
-    const rect = board.getBoundingClientRect();
-    state.view.x += (e.clientX - rect.left) - afterScreenX;
-    state.view.y += (e.clientY - rect.top) - afterScreenY;
+  document.getElementById('btn-fit').addEventListener('click', ()=>{
+    if(state.nodes.length===0) return;
+    let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+    state.nodes.forEach(n=>{
+      minX=Math.min(minX,n.x); minY=Math.min(minY,n.y);
+      maxX=Math.max(maxX,n.x + n.el.offsetWidth); maxY=Math.max(maxY,n.y + n.el.offsetHeight);
+    });
+    const boardW = Math.max(1, maxX-minX);
+    const boardH = Math.max(1, maxY-minY);
+    const wrapRect = wrap.getBoundingClientRect();
+    const padding = 80;
+    const scale = Math.min((wrapRect.width - padding*2)/boardW, (wrapRect.height - padding*2)/boardH, 1);
+    const centerX = (minX + maxX)/2;
+    const centerY = (minY + maxY)/2;
+    state.view.scale = Math.max(0.2, scale);
+    state.view.x = wrapRect.width/2 - centerX*state.view.scale;
+    state.view.y = wrapRect.height/2 - centerY*state.view.scale;
     applyView();
-  }, { passive:false });
+  });
 
-  document.getElementById('btn-fit').addEventListener('click', ()=> fitAll());
-
-  // ---------- export svg ----------
   document.getElementById('btn-export').addEventListener('click', ()=>{
     const exportSvg = document.createElementNS('http://www.w3.org/2000/svg','svg');
     exportSvg.setAttribute('xmlns','http://www.w3.org/2000/svg');
@@ -649,7 +539,11 @@
     a.click(); a.remove(); URL.revokeObjectURL(url);
   });
 
-  // ---------- modal edit ----------
+  document.getElementById('btn-clear').addEventListener('click', ()=>{
+    pushHistory();
+    clearBoardOnly();
+  });
+
   function openEditModal(id){
     const node = findNodeById(id);
     if(!node) return;
@@ -686,13 +580,11 @@
 
   wrap.addEventListener('click', e=>{ if(getNode(e.target)) return; state.selected = null; updateSelectionVisual(); });
 
-  // ---------- initial load ----------
   (function initialLoad(){
     const urlId = getProjectIdFromUrl();
     if(urlId){
       setCurrentProject(urlId);
     } else {
-      // fallback: last project or default board
       let lastId = null;
       try{ lastId = localStorage.getItem('ariesLastProjectId'); } catch(e){}
       if(lastId){
