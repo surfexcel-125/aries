@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Idea Visualizer — Premium Dark (Firebase Autosave per Project)</title>
+<title>Workspace — Aries</title>
 <style>
   :root{--bg:#071019; --card:#0f1720; --muted:#90a0b8; --accent:#8b5cf6; --glass: rgba(255,255,255,0.03);} *{box-sizing:border-box}
   body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;color:#e6eef8;background:linear-gradient(180deg,var(--bg),#041018)}
@@ -19,23 +19,19 @@
 
   /* Canvas area */
   #canvasWrap{flex:1;height:600px;border:1px solid rgba(255,255,255,0.03);border-radius:12px;position:relative;background:linear-gradient(180deg,#071019,#041018);overflow:hidden;touch-action:none}
-  /* boardArea is transformed; set large virtual size */
   #boardArea{width:4000px;height:2500px;position:absolute;left:0;top:0;transform-origin:0 0}
   .node{position:absolute;min-width:160px;padding:12px;border-radius:10px;color:#e6eef8;background:linear-gradient(180deg,#0f1820,#071117);border:1px solid rgba(255,255,255,0.04);box-shadow:0 18px 40px rgba(2,6,23,0.6);user-select:none}
   .node .title{font-weight:700;margin-bottom:4px}
   .node .meta{font-size:12px;color:var(--muted);white-space:pre-wrap}
   .connector{width:14px;height:14px;border-radius:50%;background:var(--accent);position:absolute;right:8px;top:50%;transform:translateY(-50%);cursor:pointer;box-shadow:0 6px 14px rgba(139,92,246,0.25);border:2px solid rgba(255,255,255,0.06);pointer-events:auto;z-index:20}
-  /* SVG matches board coordinates */
   #svgLayer{position:absolute;left:0;top:0;width:4000px;height:2500px;pointer-events:none}
 
-  /* hide native scrollbars if any */
   #canvasWrap::-webkit-scrollbar{display:none}
   #canvasWrap{ -ms-overflow-style: none; scrollbar-width: none; }
 
   .node.connecting{box-shadow:0 24px 60px rgba(139,92,246,0.35);border-color:rgba(139,92,246,0.6)}
   .node.selected{outline:2px solid rgba(139,92,246,0.45);box-shadow:0 24px 60px rgba(139,92,246,0.12)}
 
-  /* Modal */
   .modal-backdrop{position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(0,0,0,0.6);display:none;align-items:center;justify-content:center;z-index:1000}
   .modal{background:#08121a;padding:18px;border-radius:12px;min-width:320px;border:1px solid rgba(255,255,255,0.04)}
   .modal input,.modal textarea{width:100%;margin-top:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);padding:8px;border-radius:8px;color:#e6eef8}
@@ -45,7 +41,7 @@
 </head>
 <body>
 <header>
-  <h1>Idea Visualizer — Premium Dark</h1>
+  <h1 id="workspaceTitle">Workspace — Aries</h1>
   <div style="display:flex;gap:8px;align-items:center">
     <button id="btn-undo" class="btn small" title="Undo (Ctrl+Z)">Undo</button>
     <button id="btn-redo" class="btn small" title="Redo (Ctrl+Y)">Redo</button>
@@ -55,18 +51,10 @@
 </header>
 <main>
 <aside>
-  <!-- Project controls -->
-  <label>Project ID</label>
-  <div style="display:flex;gap:8px;margin-top:6px">
-    <input id="projectIdInput" placeholder="e.g. eu-session-plan" />
-    <button id="btn-load-project" class="btn" style="flex-shrink:0">Load</button>
+  <div class="muted" style="margin-bottom:10px">
+    This workspace is linked to your Aries project. Changes are autosaved to the cloud.
   </div>
-  <div class="muted" style="margin-top:6px;margin-bottom:10px">
-    Boards are auto-saved per project to Firebase.
-  </div>
-  <hr style="border:none;border-top:1px solid rgba(255,255,255,0.06);margin:10px 0 14px" />
 
-  <!-- Existing controls -->
   <label>Card</label>
   <textarea id="ideaText" rows="3" placeholder="Card titles — one per line"></textarea>
   <label style="margin-top:10px">Body (one per line)</label>
@@ -79,7 +67,11 @@
     <button id="btn-delete" class="btn" style="background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted)">Delete Selected</button>
     <button id="btn-clear" class="btn" style="background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted)">Clear</button>
   </div>
-  <div style="margin-top:12px" class="muted">Tips: Drag empty background to pan. Use mouse wheel to zoom. Click connector dot then click target node to link. Double-click a node to edit. Use Undo/Redo or Delete key to remove selected node.</div>
+  <div style="margin-top:12px" class="muted">
+    Tips: Drag empty background to pan. Use mouse wheel to zoom.
+    Click connector dot then click target node to link. Double-click a node to edit.
+    Use Undo/Redo or Delete key to remove selected node.
+  </div>
 </aside>
 <div id="canvasWrap">
   <div id="boardArea">
@@ -88,7 +80,6 @@
 </div>
 </main>
 
-<!-- Modal for editing node (in-canvas) -->
 <div id="modal" class="modal-backdrop" role="dialog" aria-hidden="true">
   <div class="modal" role="document">
     <div style="font-weight:700">Edit Node</div>
@@ -103,12 +94,22 @@
   </div>
 </div>
 
-<!-- Main logic as ES module -->
 <script type="module">
-import { db } from './firebase-config.js';
-import { collection, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
+  import { db } from './firebase-config.js';
+  import { collection, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
+
+  // Optional: if you want project name in the header and AriesDB is defined in app.js
+  // import './app.js';
 
 (() => {
+  // ---------- project id from URL ----------
+  function getProjectIdFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('id') || null;
+  }
+
+  const workspaceTitleEl = document.getElementById('workspaceTitle');
+
   // ---------- state & history ----------
   const state = {
     nodes: [], links: [], selected: null, nodeId: 1,
@@ -116,7 +117,6 @@ import { collection, doc, getDoc, setDoc } from "https://www.gstatic.com/firebas
     connecting: null
   };
 
-  // Firebase / autosave state
   const SAVE_DEBOUNCE_MS = 1200;
   let saveTimeout = null;
   let currentProjectId = null;
@@ -124,14 +124,13 @@ import { collection, doc, getDoc, setDoc } from "https://www.gstatic.com/firebas
   const history = { past: [], future: [], max: 60 };
 
   function snapshot(){
-    const snap = {
+    return {
       nodes: state.nodes.map(n => ({ id: n.id, x: n.x, y: n.y, title: n.title, notes: n.notes })),
       links: state.links.map(l => ({ from: l.from, to: l.to })),
       nodeId: state.nodeId,
       view: { x: state.view.x, y: state.view.y, scale: state.view.scale },
       selected: state.selected
     };
-    return snap;
   }
 
   function applySnapshot(snap){
@@ -191,18 +190,18 @@ import { collection, doc, getDoc, setDoc } from "https://www.gstatic.com/firebas
     scheduleSave();
   }
 
-  // ---------- Firebase save/load (modular v9) ----------
+  // ---------- Firebase save/load (doc id = project id) ----------
   async function saveToFirebase(){
     if(!currentProjectId || !db) return;
     const payload = snapshot();
     payload.updatedAt = new Date().toISOString();
     try {
-      const projectsCol = collection(db, 'ideaVisualizerProjects');
-      const docRef = doc(projectsCol, currentProjectId);
-      await setDoc(docRef, payload, { merge: true });
-      console.log('Saved project to Firebase:', currentProjectId);
+      const boardsCol = collection(db, 'workspaceBoards');   // collection name for boards
+      const ref = doc(boardsCol, currentProjectId);
+      await setDoc(ref, payload, { merge: true });
+      console.log('Saved board for project:', currentProjectId);
     } catch(err){
-      console.error('Error saving project to Firebase:', err);
+      console.error('Error saving board:', err);
     }
   }
 
@@ -213,9 +212,9 @@ import { collection, doc, getDoc, setDoc } from "https://www.gstatic.com/firebas
       return;
     }
     try{
-      const projectsCol = collection(db, 'ideaVisualizerProjects');
-      const docRef = doc(projectsCol, projectId);
-      const snapDoc = await getDoc(docRef);
+      const boardsCol = collection(db, 'workspaceBoards');
+      const ref = doc(boardsCol, projectId);
+      const snapDoc = await getDoc(ref);
       if(snapDoc.exists()){
         const data = snapDoc.data() || {};
         const restored = {
@@ -228,47 +227,43 @@ import { collection, doc, getDoc, setDoc } from "https://www.gstatic.com/firebas
         applySnapshot(restored);
         history.past = [];
         history.future = [];
-        pushHistory(); // establish baseline + schedule save
-        console.log('Loaded project from Firebase:', projectId);
+        pushHistory(); // baseline + schedule save
+        console.log('Loaded board for project:', projectId);
       } else {
-        console.log('No existing project in Firebase, starting fresh:', projectId);
-        state.nodes.forEach(n => { if(n.el && n.el.parentNode) n.el.parentNode.removeChild(n.el); });
-        state.nodes = [];
-        state.links = [];
-        while(svg.firstChild) svg.removeChild(svg.firstChild);
-        state.nodeId = 1;
-        state.view = { x:0, y:0, scale:1 };
-        applyView();
-        drawLinks();
+        console.log('No board yet for this project, starting fresh:', projectId);
+        clearBoardOnly();
         history.past = [];
         history.future = [];
         pushHistory();
       }
     } catch(err){
-      console.error('Error loading project from Firebase:', err);
+      console.error('Error loading board:', err);
       initializeDefaultBoard();
     }
   }
 
   function setCurrentProject(projectId){
     const trimmed = (projectId || '').trim();
-    if(!trimmed) return;
+    if(!trimmed) {
+      alert('No project ID in URL. Open this page via the Projects screen (Edit button).');
+      initializeDefaultBoard();
+      return;
+    }
     currentProjectId = trimmed;
-    try{
-      localStorage.setItem('ideaVisualizerCurrentProjectId', currentProjectId);
-    }catch(e){}
+    workspaceTitleEl.textContent = `Workspace — Project ${currentProjectId}`;
+    try {
+      localStorage.setItem('ariesLastProjectId', currentProjectId);
+    } catch(e){}
     loadFromFirebase(currentProjectId);
   }
 
-  // ---------- DOM references ----------
+  // ---------- DOM refs ----------
   const wrap = document.getElementById('canvasWrap');
   const board = document.getElementById('boardArea');
   const svg = document.getElementById('svgLayer');
   const modal = document.getElementById('modal');
   const modalTitle = document.getElementById('modalTitle');
   const modalBody = document.getElementById('modalBody');
-  const projectInput = document.getElementById('projectIdInput');
-  const btnLoadProject = document.getElementById('btn-load-project');
   let editingNodeId = null;
 
   // ---------- view transform ----------
@@ -291,8 +286,7 @@ import { collection, doc, getDoc, setDoc } from "https://www.gstatic.com/firebas
     state.nodes.forEach(n => n.el.classList.toggle('selected', state.selected === n.id));
   }
 
-  // ---------- create node (supports creating from snapshot) ----------
-  // options: { id, addToState=true, skipHistory=false }
+  // ---------- create node ----------
   function createNode(x, y, title = 'New', notes = '', options = {}){
     const addToState = options.addToState !== false;
     let id = options.id;
@@ -316,7 +310,7 @@ import { collection, doc, getDoc, setDoc } from "https://www.gstatic.com/firebas
       if(state.connecting){
         if(state.connecting !== id){
           state.links.push({ from: state.connecting, to: id });
-          pushHistory(); // connection created
+          pushHistory();
         }
         cancelConnect();
         drawLinks();
@@ -368,7 +362,7 @@ import { collection, doc, getDoc, setDoc } from "https://www.gstatic.com/firebas
         document.removeEventListener('pointermove', moveHandler);
         document.removeEventListener('pointerup', upHandler);
         if(moved){
-          pushHistory(); // record move as action
+          pushHistory();
         }
       };
       document.addEventListener('pointermove', moveHandler);
@@ -383,7 +377,7 @@ import { collection, doc, getDoc, setDoc } from "https://www.gstatic.com/firebas
     updateSelectionVisual();
   }
 
-  // ---------- connections (preview + finish) ----------
+  // ---------- connections ----------
   let previewPath = null;
   function startConnect(id){
     state.connecting = id;
@@ -468,6 +462,29 @@ import { collection, doc, getDoc, setDoc } from "https://www.gstatic.com/firebas
     applyView();
   }
 
+  // ---------- clear helpers ----------
+  function clearBoardOnly(){
+    state.nodes.forEach(n=>{ if(n.el && n.el.parentNode) n.el.parentNode.removeChild(n.el); });
+    state.nodes = [];
+    state.links = [];
+    while(svg.firstChild) svg.removeChild(svg.firstChild);
+    state.nodeId = 1;
+    state.view = { x:0, y:0, scale:1 };
+    applyView();
+    drawLinks();
+  }
+
+  function initializeDefaultBoard(){
+    clearBoardOnly();
+    createNode(220,160,'Central idea','Double-click to edit', { skipHistory: true });
+    createNode(520,120,'Branch A','', { skipHistory: true });
+    createNode(520,320,'Branch B','', { skipHistory: true });
+    history.past = [];
+    history.future = [];
+    pushHistory();
+    drawLinks();
+  }
+
   // ---------- create nodes from inputs ----------
   document.getElementById('btn-create').addEventListener('click', ()=>{
     const rawTitles = document.getElementById('ideaText').value || '';
@@ -502,9 +519,7 @@ import { collection, doc, getDoc, setDoc } from "https://www.gstatic.com/firebas
   // ---------- clear ----------
   document.getElementById('btn-clear').addEventListener('click', ()=>{
     pushHistory();
-    state.nodes.forEach(n=>{ if(n.el && n.el.parentNode) n.el.parentNode.removeChild(n.el); });
-    state.nodes = []; state.links = []; while(svg.firstChild) svg.removeChild(svg.firstChild);
-    state.nodeId=1; state.view={x:0,y:0,scale:1}; applyView();
+    clearBoardOnly();
   });
 
   // ---------- delete node ----------
@@ -523,7 +538,6 @@ import { collection, doc, getDoc, setDoc } from "https://www.gstatic.com/firebas
   }
   document.getElementById('btn-delete').addEventListener('click', ()=> deleteSelectedNode());
 
-  // Delete + Undo/Redo keys
   window.addEventListener('keydown', e=>{
     if(e.key === 'Delete' || e.key === 'Backspace'){
       if(document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.isContentEditable)) return;
@@ -536,22 +550,27 @@ import { collection, doc, getDoc, setDoc } from "https://www.gstatic.com/firebas
     }
   });
 
-  // ---------- undo/redo buttons ----------
   document.getElementById('btn-undo').addEventListener('click', ()=> undo());
   document.getElementById('btn-redo').addEventListener('click', ()=> redo());
   updateUndoRedoButtons();
 
-  // ---------- pan ----------
+  // ---------- pan & zoom ----------
   let panning=false, sx=0, sy=0;
   wrap.addEventListener('pointerdown', e=>{
     if(getNode(e.target)) return;
     panning=true; sx=e.clientX; sy=e.clientY;
     try{ wrap.setPointerCapture && wrap.setPointerCapture(e.pointerId); }catch(err){}
   });
-  window.addEventListener('pointermove', e=>{ if(!panning) return; const dx=e.clientX-sx, dy=e.clientY-sy; sx=e.clientX; sy=e.clientY; state.view.x += dx; state.view.y += dy; applyView(); });
-  window.addEventListener('pointerup', e=>{ panning=false; try{ wrap.releasePointerCapture && wrap.releasePointerCapture(e.pointerId);}catch(e){} });
+  window.addEventListener('pointermove', e=>{
+    if(!panning) return;
+    const dx=e.clientX-sx, dy=e.clientY-sy; sx=e.clientX; sy=e.clientY;
+    state.view.x += dx; state.view.y += dy; applyView();
+  });
+  window.addEventListener('pointerup', e=>{
+    panning=false;
+    try{ wrap.releasePointerCapture && wrap.releasePointerCapture(e.pointerId);}catch(e){}
+  });
 
-  // ---------- zoom ----------
   wrap.addEventListener('wheel', e=>{
     e.preventDefault();
     const delta = -e.deltaY;
@@ -566,6 +585,8 @@ import { collection, doc, getDoc, setDoc } from "https://www.gstatic.com/firebas
     applyView();
   }, { passive:false });
 
+  document.getElementById('btn-fit').addEventListener('click', ()=> fitAll());
+
   // ---------- export svg ----------
   document.getElementById('btn-export').addEventListener('click', ()=>{
     const exportSvg = document.createElementNS('http://www.w3.org/2000/svg','svg');
@@ -575,7 +596,10 @@ import { collection, doc, getDoc, setDoc } from "https://www.gstatic.com/firebas
       exportSvg.setAttribute('height', 800);
     } else {
       let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
-      state.nodes.forEach(n=>{ minX=Math.min(minX,n.x); minY=Math.min(minY,n.y); maxX=Math.max(maxX,n.x + n.el.offsetWidth); maxY=Math.max(maxY,n.y + n.el.offsetHeight); });
+      state.nodes.forEach(n=>{
+        minX=Math.min(minX,n.x); minY=Math.min(minY,n.y);
+        maxX=Math.max(maxX,n.x + n.el.offsetWidth); maxY=Math.max(maxY,n.y + n.el.offsetHeight);
+      });
       const w = Math.max(800, Math.ceil(maxX - minX + 40));
       const h = Math.max(600, Math.ceil(maxY - minY + 40));
       exportSvg.setAttribute('width', w);
@@ -656,70 +680,26 @@ import { collection, doc, getDoc, setDoc } from "https://www.gstatic.com/firebas
   });
   modal.addEventListener('click', e=>{ if(e.target === modal) closeModal(); });
 
-  // ---------- keep svg sized ----------
   function syncSvgSize(){ svg.setAttribute('width', board.offsetWidth); svg.setAttribute('height', board.offsetHeight); }
   window.addEventListener('resize', ()=>{ syncSvgSize(); applyView(); });
   syncSvgSize();
 
-  // ---------- utility: delete node by id (exposed) ----------
-  function deleteNodeById(id){
-    const idx = state.nodes.findIndex(n => n.id === id);
-    if(idx === -1) return;
-    const node = state.nodes[idx];
-    if(node.el && node.el.parentNode) node.el.parentNode.removeChild(node.el);
-    state.nodes.splice(idx, 1);
-    state.links = state.links.filter(l => l.from !== id && l.to !== id);
-    if(state.selected === id) state.selected = null;
-  }
-
-  // ---------- selection when clicking background clears selection ----------
   wrap.addEventListener('click', e=>{ if(getNode(e.target)) return; state.selected = null; updateSelectionVisual(); });
-
-  // ---------- fit button ----------
-  document.getElementById('btn-fit').addEventListener('click', ()=> fitAll());
-
-  // ---------- default board for first-time / fallback ----------
-  function initializeDefaultBoard(){
-    state.nodes.forEach(n=>{ if(n.el && n.el.parentNode) n.el.parentNode.removeChild(n.el); });
-    state.nodes = [];
-    state.links = [];
-    while(svg.firstChild) svg.removeChild(svg.firstChild);
-    state.nodeId = 1;
-    state.view = { x:0, y:0, scale:1 };
-    applyView();
-    createNode(220,160,'Central idea','Double-click to edit', { skipHistory: true });
-    createNode(520,120,'Branch A','', { skipHistory: true });
-    createNode(520,320,'Branch B','', { skipHistory: true });
-    history.past = [];
-    history.future = [];
-    pushHistory(); // initial baseline
-    drawLinks();
-  }
-
-  // ---------- Project input events ----------
-  btnLoadProject.addEventListener('click', ()=>{
-    const pid = projectInput.value || '';
-    setCurrentProject(pid);
-  });
-  projectInput.addEventListener('keydown', e=>{
-    if(e.key === 'Enter'){
-      e.preventDefault();
-      btnLoadProject.click();
-    }
-  });
 
   // ---------- initial load ----------
   (function initialLoad(){
-    let lastId = null;
-    try{
-      lastId = localStorage.getItem('ideaVisualizerCurrentProjectId');
-    }catch(e){}
-    if(lastId){
-      projectInput.value = lastId;
-      currentProjectId = lastId;
-      loadFromFirebase(lastId);
+    const urlId = getProjectIdFromUrl();
+    if(urlId){
+      setCurrentProject(urlId);
     } else {
-      initializeDefaultBoard();
+      // fallback: last project or default board
+      let lastId = null;
+      try{ lastId = localStorage.getItem('ariesLastProjectId'); } catch(e){}
+      if(lastId){
+        setCurrentProject(lastId);
+      } else {
+        initializeDefaultBoard();
+      }
     }
   })();
 
