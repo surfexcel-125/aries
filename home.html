@@ -7,70 +7,69 @@
 
   <link rel="stylesheet" href="main.css">
 
-  <!-- Decorative fonts close to your slide.
-       If you have the exact font, replace these with your own @font-face or link. -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Rye&family=Cinzel:wght@500;700&display=swap" rel="stylesheet">
-
+  <!-- Load Snap ITC & Magneto fonts -->
   <style>
+    @font-face {
+      font-family: "SnapITC";
+      src: url("SnapITC.ttf") format("truetype");
+    }
+
+    @font-face {
+      font-family: "Magneto";
+      src: url("Magneto.ttf") format("truetype");
+    }
+
     html, body {
       height: 100%;
       margin: 0;
       padding: 0;
     }
 
-    /* Keep scroll behaviour but allow our layout */
     html { overflow-y: scroll; }
 
-    /* Hide the header logo so the top bar matches your image
-       (black bar with only hamburger at the left). */
-    .aries-brand {
-      display: none;
-    }
+    .aries-brand { display: none; }
 
-    /* Main area takes the full height under the top bar and centers the content */
     .page-wrapper {
-      min-height: calc(100vh - 56px); /* adjust if your top bar height is different */
+      min-height: calc(100vh - 56px);
       display: flex;
-      align-items: center;     /* vertical center */
-      justify-content: center; /* horizontal center of the whole block */
+      align-items: center;
+      justify-content: center;
     }
 
     .aries-hero {
       width: 100%;
-      max-width: 1100px;
+      max-width: 1200px;
       display: flex;
       align-items: center;
       justify-content: space-between;
     }
 
     .aries-title-block {
-      margin-left: 140px; /* pushes the text in from the left like your slide */
+      margin-left: 130px;
     }
 
     .aries-title {
       margin: 0;
-      font-size: 90px; /* big like the slide */
-      font-family: "Rye", "Times New Roman", serif; /* replace with exact font if you have it */
-      font-weight: 400;
+      font-size: 110px;          /* Bigger title */
+      font-family: "SnapITC";    /* SNAP ITC */
+      color: #000;               /* Pure black */
+      letter-spacing: 2px;
     }
 
     .aries-subtitle {
-      margin: 20px 0 0;
-      font-size: 32px;
-      font-family: "Cinzel", "Times New Roman", serif;
-      color: #555555; /* grey like in the image */
+      margin: 25px 0 0;
+      font-size: 40px;
+      font-family: "Magneto";    /* Magneto font */
+      color: #868686;            /* Light grey */
     }
 
     .aries-hero-logo {
-      width: 380px;  /* big ram head */
+      width: 480px;              /* BIGGER logo */
       height: auto;
-      margin-right: 140px; /* pulls it in from the right edge like your slide */
+      margin-right: 120px;
       object-fit: contain;
     }
 
-    /* Optional: don’t let it break too badly on small screens */
     @media (max-width: 900px) {
       .page-wrapper {
         min-height: auto;
@@ -87,31 +86,28 @@
         margin: 0;
       }
       .aries-title {
-        font-size: 56px;
+        font-size: 70px;
         text-align: center;
       }
       .aries-subtitle {
         text-align: center;
       }
       .aries-hero-logo {
-        margin-top: 24px;
-        width: 260px;
+        margin-top: 20px;
+        width: 300px;
       }
     }
   </style>
 </head>
 <body>
+
 <header class="aries-topbar">
   <button id="aries-hamburger" class="aries-hamburger" aria-label="Open sidebar">☰</button>
-  <!-- brand logo hidden via CSS above -->
-  <a href="home.html" class="aries-brand">
-    <img src="goat.png" alt="Aries Logo" class="aries-logo">
-  </a>
 </header>
 
 <div id="aries-overlay" class="hidden" aria-hidden="true"></div>
-<aside id="aries-sidebar" class="aries-sidebar hidden" role="complementary" aria-label="Project list" aria-hidden="true">
-  <nav class="aries-sidebar-nav aries-sidebar-content" role="navigation" aria-label="Projects"></nav>
+<aside id="aries-sidebar" class="aries-sidebar hidden" aria-hidden="true">
+  <nav class="aries-sidebar-nav aries-sidebar-content"></nav>
 </aside>
 
 <main class="page-wrapper">
@@ -120,6 +116,7 @@
       <h1 class="aries-title">Aries</h1>
       <p class="aries-subtitle">King</p>
     </div>
+
     <img src="goat.png" alt="Aries logo" class="aries-hero-logo">
   </section>
 </main>
