@@ -3,157 +3,253 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Projects — Aries</title>
-  <link rel="stylesheet" href="main.css">
+  <title>Workspace — Project</title>
+
+  <!-- Minimal theme / reset -->
   <style>
-    /* Status Pill Styles (copied from previous projects.html styles for completeness) */
-    .status-pill {
-        background: #f3f3f3; 
-        padding: 6px 14px; 
-        border-radius: 99px;
-        border: 2px solid #4a6468; 
-        font-weight: 700; 
-        cursor: pointer;
-        text-decoration: none; 
-        color: black; 
-        display: inline-block;
-        font-size: 12px;
+    :root{
+      --accent: #2e86ff;
+      --accent-hover: #1b74ff;
+      --link-color: #3b4b54;
+      --link-selected: #1b74ff;
+      --grid-color: rgba(0,0,0,0.06);
+      --header-height: 72px;
+    }
+    html,body{ height:100%; margin:0; font-family:Inter,system-ui,Segoe UI,Arial; color:#0f172a; background:#f8fafc; }
+    /* Header */
+    .topbar {
+      height: var(--header-height);
+      background: #000; /* black header requested */
+      color: #fff;
+      display: flex;
+      align-items: center;
+      padding: 0 18px;
+      box-shadow: 0 6px 18px rgba(2,6,23,0.25);
+      position: fixed;
+      left: 0;
+      right: 0;
+      top: 0;
+      z-index: 12000;
+    }
+    .topbar .left, .topbar .center, .topbar .right { display:flex; align-items:center; }
+    .topbar .left { flex:0 0 auto; gap:12px; }
+    .topbar .center { flex:1 1 auto; justify-content:center; }
+    .topbar .right { flex:0 0 auto; gap:10px; }
+    .menu-btn { width:36px; height:36px; border-radius:6px; display:inline-flex; align-items:center; justify-content:center; background:transparent; color:#fff; border:none; cursor:pointer; font-size:20px; }
+    .header-title { font-weight:700; font-size:18px; letter-spacing:0.2px; color:#fff; }
+    .header-actions { display:flex; gap:10px; align-items:center; }
+
+    /* Top buttons */
+    .btn { background:#fff; color:#111827; border-radius:8px; padding:8px 12px; border:1px solid rgba(0,0,0,0.12); cursor:pointer; font-weight:600; }
+    .btn.ghost { background:transparent; color:#fff; border:1px solid rgba(255,255,255,0.06); }
+    .btn.primary { background:var(--accent); color:#fff; border:none; }
+    .link-btn { color:#c8a0ff; text-decoration:none; padding-left:8px; font-weight:600; }
+
+    /* Layout below header */
+    #canvas { position: absolute; left: 0; right: 0; top: var(--header-height); bottom: 0; overflow: hidden; background: #f3f4f6; }
+    #board { position: absolute; left: 0; top: 0; width:2000px; height:1500px; transform-origin:0 0; }
+    svg#svg { position: absolute; left:0; top:0; width:100%; height:100%; pointer-events:none; }
+
+    /* Inspector (right) */
+    #inspector {
+      width: 360px;
+      position: fixed;
+      right: 16px;
+      top: calc(var(--header-height) + 16px);
+      bottom: 16px;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 10px 40px rgba(2,6,23,0.12);
+      padding: 18px;
+      box-sizing: border-box;
+      z-index: 14000;
+      transition: transform 180ms ease, opacity 160ms ease;
+    }
+    #inspector.hidden { transform: translateX(22px) scale(0.99); opacity:0; pointer-events:none; }
+    #inspector.visible { transform: none; opacity:1; pointer-events:auto; }
+    #inspector h3{ margin:0 0 14px 0; color:#0f172a; }
+    #inspector label{ display:block; margin-top:10px; color:#475569; font-size:13px; }
+    #inspector input[type="text"], #inspector textarea, #inspector select, #inspector input[type="number"] {
+      width:100%; padding:8px; box-sizing:border-box; border:1px solid rgba(15,23,42,0.06); border-radius:6px; margin-top:6px;
+      font-size:14px;
+    }
+    #inspector .actions { margin-top:12px; display:flex; gap:8px; justify-content:flex-start; }
+    #statusMeta { margin-top:12px; color:#64748b; font-size:13px; }
+
+    /* Floating tools (bottom-left) */
+    #floatingTools {
+      position: fixed; left: 18px; bottom: 18px; z-index:13000;
+      background: rgba(255,255,255,0.96); padding:10px; border-radius:12px; box-shadow: 0 8px 30px rgba(2,6,23,0.06);
+      display:flex; gap:8px; align-items:center;
     }
 
-    /* New: Explicit initial loading screen style */
-    #initialLoader {
-        text-align: center;
-        padding: 50px;
-        font-size: 1.2rem;
-        color: #666;
+    /* Context menu */
+    #contextMenu { position: absolute; display:none; z-index:16000; background:#fff; border:1px solid rgba(0,0,0,0.08); border-radius:8px; padding:6px; min-width:160px; box-shadow: 0 8px 26px rgba(2,6,23,0.12); }
+    #contextMenu button { display:block; width:100%; text-align:left; padding:8px; border:none; background:transparent; cursor:pointer; }
+
+    /* Node minimal style (workspace.js will override many styles) */
+    .node { user-select:none; }
+    .node .node-title { font-size:16px; }
+    .node .node-body { font-size:13px; margin-top:6px; color:#475569; }
+
+    /* Small bottom-right controls panel */
+    .controls-panel { position: fixed; right: 18px; bottom: 18px; z-index:13000; background: rgba(255,255,255,0.96); padding:8px; border-radius:12px; box-shadow: 0 8px 30px rgba(2,6,23,0.06); display:flex; gap:6px; align-items:center; }
+
+    /* responsive */
+    @media (max-width:900px) {
+      #inspector { display:none; } /* hide inspector on small screens */
+      .topbar .center { justify-content:flex-start; padding-left:12px; }
     }
   </style>
 </head>
 <body>
 
-  <header class="topbar">
-    <button class="hamburger">☰</button>
-    <div class="brand">PROJECT MANAGER</div>
-    <img src="images/goat.png" class="logo">
-  </header>
+  <!-- Top header -->
+  <div class="topbar" role="navigation" aria-label="Workspace header">
+    <div class="left">
+      <button id="menuToggle" class="menu-btn" aria-label="Open menu">☰</button>
+    </div>
 
-  <div class="page-wrapper">
-    <div class="container">
-      <div class="projects-bar">
-        <h2 style="margin:0; font-family:'Sitka Small'; letter-spacing:1px;">MY PROJECTS</h2>
-        <button id="openNewProjectModal" class="new-project-btn">+ NEW PROJECT</button>
-      </div>
+    <div class="center">
+      <div id="headerTitle" class="header-title">Finex</div>
+    </div>
 
-      <div id="projectsList" class="projects-list" style="display:none;">
-        </div>
-      
-      <div id="initialLoader">
-        <div class="loader-spinner"></div>
-        <p>Connecting to Aries Cloud... Please wait.</p>
-      </div>
-
-      <div id="noProjects" style="display:none; padding:40px; text-align:center; color:#666;">
-        No projects found. Start by creating one!
-      </div>
+    <div class="right header-actions">
+      <button id="saveBoard" class="btn" title="Save Board">Save Board</button>
+      <button id="exportJson" class="btn" title="Export JSON">Export JSON</button>
+      <label style="display:flex;align-items:center;">
+        <input id="importFile" type="file" accept="application/json" style="display:none" />
+        <button id="importJsonBtn" class="btn" title="Import JSON">Import JSON</button>
+      </label>
+      <button id="inspectorToggle" class="btn ghost" title="Toggle inspector">Inspector</button>
+      <a href="/projects" id="backToProjects" class="link-btn">← Project</a>
     </div>
   </div>
 
-  <div id="newProjectModal" class="modal-backdrop">
-      <div class="modal-box">
-          <div class="modal-title">Create New Project</div>
-          <input type="text" id="projectNameInput" class="modal-input" placeholder="e.g. Website Redesign">
-          <div class="modal-actions">
-              <button id="cancelProjectBtn" class="btn-ghost">Cancel</button>
-              <button id="confirmProjectBtn" class="btn-primary">Create</button>
-          </div>
-      </div>
+  <!-- Canvas & board -->
+  <div id="canvas" aria-label="Workspace canvas">
+    <div id="board" aria-hidden="false">
+      <!-- svg overlay created/presented by JS (workspace.js expects <svg id="svg">) -->
+      <svg id="svg" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
   </div>
 
-  <script type="module">
-    import './app.js'; 
+  <!-- Inspector sidebar (toggleable) -->
+  <aside id="inspector" class="hidden" aria-hidden="true">
+    <h3>Inspector</h3>
+    <div>Selected: <span id="selectedCount">0</span></div>
 
-    const listEl = document.getElementById('projectsList');
-    const initialLoader = document.getElementById('initialLoader');
-    const modal = document.getElementById('newProjectModal');
-    const input = document.getElementById('projectNameInput');
-    const confirmBtn = document.getElementById('confirmProjectBtn');
-    
-    // Helper to render a single project row
-    function createProjectRow(p) {
-        const row = document.createElement('div');
-        row.className = 'project-row';
-        row.innerHTML = `
-            <div class="project-inner">
-                <a href="project_detail.html?id=${p.id}" class="project-pill project-name-pill">
-                    <img src="images/goat.png" style="width:30px; border-radius:4px;">
-                    ${p.name}
-                </a>
-                <div>
-                    STATUS: 
-                    <button class="status-pill" data-project-id="${p.id}">${p.status || 'Active'}</button>
-                </div>
-            </div>
-        `;
-        return row;
-    }
+    <div id="inspectorSingle" style="display:none;">
+      <label>Node ID<div id="inspectorId" style="font-weight:600;color:#334155;margin-top:6px"></div></label>
+      <label>Type
+        <select id="inspectorType">
+          <option value="page">Page</option>
+          <option value="action">Action</option>
+          <option value="decision">Decision</option>
+        </select>
+      </label>
+      <label>Title
+        <input id="inspectorTitle" type="text" />
+      </label>
+      <label>Body
+        <textarea id="inspectorBody"></textarea>
+      </label>
+      <div style="display:flex;gap:8px;">
+        <div style="flex:1;">
+          <label>Width <input id="inspectorW" type="number" /></label>
+        </div>
+        <div style="flex:1;">
+          <label>Height <input id="inspectorH" type="number" /></label>
+        </div>
+      </div>
+      <div class="actions">
+        <button id="inspectorSave" class="btn primary">Save</button>
+        <button id="inspectorDelete" class="btn" style="border:1px solid rgba(244,67,54,0.2); color:#f44336">Delete</button>
+      </div>
+    </div>
 
-    // 1. Load Projects
-    async function loadProjects() {
-        try {
-            // This is the line that will pause until app.js resolves the Firebase auth
-            const projects = await window.AriesDB.getProjects();
-            
-            initialLoader.style.display = 'none'; // Hide the loading message
-            listEl.style.display = 'flex'; // Show the project list
-            listEl.innerHTML = ''; // Clear any loading content
-            
-            if(projects.length === 0) {
-                document.getElementById('noProjects').style.display = 'block';
-                return;
-            }
-            document.getElementById('noProjects').style.display = 'none';
+    <div id="inspectorMulti" style="display:none;">
+      <div>Multiple items selected</div>
+    </div>
 
-            projects.forEach(p => listEl.appendChild(createProjectRow(p)));
-            
-        } catch (error) {
-            console.error("Failed to load projects:", error);
-            initialLoader.innerHTML = '<p style="color:red;">Error connecting to Aries Cloud. Check your console (F12) for network errors.</p>';
-            listEl.style.display = 'none';
-        }
-    }
+    <div style="margin-top:14px;">
+      <div style="display:flex;gap:8px;align-items:center;">
+        <label><input id="showGrid" type="checkbox" checked/> Grid</label>
+        <label style="margin-left:8px">Size <input id="gridSize" type="number" value="25" style="width:74px" /></label>
+      </div>
 
-    // Start loading immediately after DOM is ready
-    document.addEventListener('DOMContentLoaded', loadProjects);
+      <div style="margin-top:10px;">
+        <button id="autosizeBtn" class="btn">Auto-resize board</button>
+        <button id="clearAllBtn" class="btn">Clear board</button>
+      </div>
 
+      <div id="statusMeta">No changes</div>
+    </div>
+  </aside>
 
-    // Modal Logic (New Project Creation)
-    document.getElementById('openNewProjectModal').onclick = () => {
-        modal.classList.add('active');
-        input.focus();
-    };
-    
-    document.getElementById('cancelProjectBtn').onclick = () => modal.classList.remove('active');
-    modal.addEventListener('click', (e) => { 
-        if (e.target === modal) modal.classList.remove('active');
-    });
+  <!-- Floating tools (JS will create #floatingTools if needed) -->
+  <div id="floatingTools" style="display:none;"></div>
 
-    confirmBtn.onclick = async () => {
-        const name = input.value.trim();
-        if(!name) return;
-        
-        confirmBtn.textContent = "Creating...";
-        confirmBtn.disabled = true;
-        
-        const newId = await window.AriesDB.createProject(name);
-        
-        if (newId) {
-            window.location.href = `project_detail.html?id=${newId}`;
-        } else {
-            alert("Error creating project. Please try again.");
-            confirmBtn.textContent = "Create";
-            confirmBtn.disabled = false;
-        }
-    };
+  <!-- Controls panel bottom-right -->
+  <div class="controls-panel">
+    <button id="zoomOutCorner" class="btn">-</button>
+    <div id="zoomIndicator">100%</div>
+    <button id="zoomInCorner" class="btn">+</button>
+    <label style="display:flex;align-items:center;padding-left:8px;">
+      <button id="centerBtn" class="btn">Center</button>
+      <button id="zoomFitBtn" class="btn">Zoom to fit</button>
+    </label>
+  </div>
+
+  <!-- Context menu -->
+  <div id="contextMenu" role="menu" aria-hidden="true">
+    <button id="contextEdit">Edit</button>
+    <button id="contextDelete">Delete</button>
+  </div>
+
+  <!-- Minimal helpers & wiring for header/inspector toggles (keeps workspace.js intact) -->
+  <script>
+    // expose project id (workspace.js expects window.currentProjectId)
+    (function(){
+      const url = new URL(window.location.href);
+      window.currentProjectId = url.searchParams.get('id') || 'local';
+      // inspector toggle behavior
+      const inspectorToggle = document.getElementById('inspectorToggle');
+      const inspector = document.getElementById('inspector');
+      if (inspectorToggle && inspector) {
+        inspectorToggle.addEventListener('click', ()=> {
+          if (inspector.classList.contains('hidden')) {
+            inspector.classList.remove('hidden');
+            inspector.classList.add('visible');
+            inspector.setAttribute('aria-hidden','false');
+          } else {
+            inspector.classList.remove('visible');
+            inspector.classList.add('hidden');
+            inspector.setAttribute('aria-hidden','true');
+          }
+        });
+      }
+
+      // ensure backToProjects is fully visible and not clipped
+      const back = document.getElementById('backToProjects');
+      if (back) back.style.padding = '6px 8px';
+
+      // topbar menu icon - left side
+      const menuToggle = document.getElementById('menuToggle');
+      if (menuToggle) {
+        menuToggle.addEventListener('click', ()=> {
+          // simple slide-in sample menu stub (you can replace with your nav)
+          alert('Menu toggle (implement your sidebar)'); 
+        });
+      }
+
+      // floatingTools placeholder: keep visible (workspace.js may create its own)
+      const ft = document.getElementById('floatingTools');
+      if (ft) { ft.style.display = 'block'; ft.innerHTML = '<button id="toolAddPage" class="btn">Page</button><button id="toolAddAction" class="btn">Action</button><button id="toolAddDecision" class="btn">Decision</button><button id="toolDeleteNode" class="btn">Delete</button><button id="toolDeleteLink" class="btn">Delete Link</button>'; }
+    })();
   </script>
+
+  <!-- Load workspace.js (replace this file with the workspace.js I gave you) -->
+  <script src="./workspace.js" defer></script>
 </body>
 </html>
