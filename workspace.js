@@ -1,19 +1,17 @@
-/* workspace.js — Full advanced workspace
-   - multi-segment editable connectors (polyline)
+/* workspace.js — Full advanced workspace (replacement)
+   - Smart addNodeAt: places nodes in visible viewport when coordinates are missing/out-of-view
    - 8 visible anchors + forced snap-to-anchor
-   - precise cursor-following preview
-   - double-click node/link modals (edit/delete)
-   - path edit mode (drag handles, dblclick handle to remove, dblclick path to add)
-   - undo/redo stack
-   - palette, templates, align/distribute, bring/send, autosize, zoom-to-fit
-   - inspector integration preserved
-   - defensive checks and debug API
+   - Precise cursor-following link preview while drawing (no blocking prompts)
+   - Multi-segment editable connectors (polyline) with bend-point editing
+   - Double-click node/link modals for edit/delete and path editing toggle
+   - Undo/Redo, templates, palette, inspector preserved
+   - Defensive checks, debug API
+   - This file is intentionally long — do not shorten it.
 */
 
 (function () {
   // ---------- Utilities ----------
   const $ = id => document.getElementById(id) || null;
-  const cls = (n) => document.getElementsByClassName(n);
   const uid = (p = 'id') => p + Math.random().toString(36).slice(2, 9);
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const deepClone = (o) => JSON.parse(JSON.stringify(o));
@@ -73,7 +71,7 @@
     board.appendChild(svg);
   }
 
-  // optional existing UI elements (we keep them if present)
+  // Optional elements (if present)
   const headerTitle = $('headerTitle');
   const toolAddPage = $('toolAddPage');
   const toolAddAction = $('toolAddAction');
@@ -95,7 +93,7 @@
   const autosizeBtn = $('autosizeBtn');
   const clearAllBtn = $('clearAllBtn');
 
-  // optional inspector
+  // Inspector optional fields
   const inspector = $('inspector');
   const selectedCount = $('selectedCount');
   const inspectorSingle = $('inspectorSingle');
@@ -111,14 +109,14 @@
   const statusMeta = $('statusMeta');
 
   // ---------- State ----------
-  const model = { nodes: [], links: [] }; // nodes: {id,x,y,w,h,type,title,body,zIndex}; links: {id,source,target,sourceAnchorIdx,targetAnchorIdx,points:[{x,y}],label,cp}
+  const model = { nodes: [], links: [] }; // nodes: {id,x,y,w,h,type,title,body,zIndex}
   const state = {
     transform: { x: 0, y: 0, scale: 1 },
     selectedNodes: new Set(),
     selectedLinkId: null,
-    dragInfo: null,   // node drag or pan
-    linkDraw: null,   // {sourceId, sourceAnchorIdx, startX, startY, currentX, currentY}
-    handleDrag: null, // {linkId, startClientX, startClientY, startCp}
+    dragInfo: null,
+    linkDraw: null,
+    handleDrag: null,
     highestZ: 15,
     dirty: false,
     undoStack: [],
@@ -127,7 +125,7 @@
     grid: { enabled: true, size: 25 }
   };
 
-  // ---------- Small helpers ----------
+  // ---------- Helpers ----------
   function screenToBoard(sx, sy) {
     const rect = board.getBoundingClientRect();
     return { x: (sx - rect.left) / state.transform.scale, y: (sy - rect.top) / state.transform.scale };
@@ -147,15 +145,16 @@
       return false;
     } catch (e) { return false; }
   }
+  function deepCopyState() { return deepClone({ nodes: model.nodes, links: model.links }); }
   function saveSnapshot() {
-    state.undoStack.push(deepClone({ nodes: model.nodes, links: model.links }));
+    state.undoStack.push(deepCopyState());
     if (state.undoStack.length > CONFIG.maxUndo) state.undoStack.shift();
     state.redoStack = [];
   }
   function undo() {
     if (state.undoStack.length === 0) return;
     const last = state.undoStack.pop();
-    state.redoStack.push(deepClone({ nodes: model.nodes, links: model.links }));
+    state.redoStack.push(deepCopyState());
     model.nodes.length = 0; model.links.length = 0;
     last.nodes.forEach(n => model.nodes.push(n)); last.links.forEach(l => model.links.push(l));
     state.selectedNodes.clear(); state.selectedLinkId = null;
@@ -164,40 +163,46 @@
   function redo() {
     if (state.redoStack.length === 0) return;
     const next = state.redoStack.pop();
-    state.undoStack.push(deepClone({ nodes: model.nodes, links: model.links }));
+    state.undoStack.push(deepCopyState());
     model.nodes.length = 0; model.links.length = 0;
     next.nodes.forEach(n => model.nodes.push(n)); next.links.forEach(l => model.links.push(l));
     state.selectedNodes.clear(); state.selectedLinkId = null;
     renderNodes(); renderLinks(); markDirty(false);
   }
-
   function markDirty(userTriggered = true) {
     state.dirty = true;
     if (statusMeta && userTriggered) statusMeta.textContent = 'Unsaved changes';
     if (saveBoardBtn && userTriggered) saveBoardBtn.textContent = 'Saving...';
-    // optionally auto-save after delay — keep as you had earlier: debounce
     clearTimeout(state._autoSaveTimer);
     state._autoSaveTimer = setTimeout(() => {
       if (window.AriesDB && typeof window.AriesDB.saveProjectWorkspace === 'function') {
-        const pid = window.currentProjectId || (window.location && (new URL(window.location.href)).searchParams.get('id')) || 'local';
+        const pid = window.currentProjectId || (new URL(window.location.href)).searchParams.get('id') || 'local';
         window.AriesDB.saveProjectWorkspace(pid, model.nodes, model.links).then(()=> {
           state.dirty = false;
           if (statusMeta) statusMeta.textContent = 'Saved';
           if (saveBoardBtn) { saveBoardBtn.textContent = 'Save Board'; }
-        }).catch((err) => {
+        }).catch((err)=> {
           console.warn('Auto-save failed', err);
           if (statusMeta) statusMeta.textContent = 'Save failed';
           if (saveBoardBtn) { saveBoardBtn.textContent = 'Save Board'; }
         });
       } else {
-        // local only
         if (statusMeta) statusMeta.textContent = 'Local';
         if (saveBoardBtn) saveBoardBtn.textContent = 'Save Board';
       }
     }, 900);
   }
 
-  // ---------- Anchors (8 per node) ----------
+  // ---------- Visible board helpers (NEW) ----------
+  // Compute board coords visible in the canvas (taking transform into account)
+  function getVisibleBoardRect() {
+    const rect = canvas.getBoundingClientRect();
+    const topLeft = screenToBoard(rect.left, rect.top);
+    const bottomRight = screenToBoard(rect.left + rect.width, rect.top + rect.height);
+    return { left: topLeft.x, top: topLeft.y, right: bottomRight.x, bottom: bottomRight.y, width: bottomRight.x - topLeft.x, height: bottomRight.y - topLeft.y };
+  }
+
+  // ---------- Anchors ----------
   function computeAnchorsForNode(node) {
     const el = document.getElementById(`node-${node.id}`);
     const boardRect = board.getBoundingClientRect();
@@ -208,14 +213,14 @@
       const w = r.width / state.transform.scale;
       const h = r.height / state.transform.scale;
       return [
-        { x: left, y: top },                 // top-left
-        { x: left + w / 2, y: top },         // top-mid
-        { x: left + w, y: top },             // top-right
-        { x: left + w, y: top + h / 2 },     // right-mid
-        { x: left + w, y: top + h },         // bottom-right
-        { x: left + w / 2, y: top + h },     // bottom-mid
-        { x: left, y: top + h },             // bottom-left
-        { x: left, y: top + h / 2 }          // left-mid
+        { x: left, y: top },
+        { x: left + w / 2, y: top },
+        { x: left + w, y: top },
+        { x: left + w, y: top + h / 2 },
+        { x: left + w, y: top + h },
+        { x: left + w / 2, y: top + h },
+        { x: left, y: top + h },
+        { x: left, y: top + h / 2 }
       ];
     } else {
       const x = node.x, y = node.y, w = node.w || 220, h = node.h || 100;
@@ -226,6 +231,7 @@
       ];
     }
   }
+
   function nearestAnchorIndex(node, boardPoint) {
     const anchors = computeAnchorsForNode(node);
     let best = 0, bestD = Infinity;
@@ -237,12 +243,36 @@
     return best;
   }
 
-  // ---------- Node & Link model ops ----------
+  // ---------- Model operations with SMART placement ----------
+  // addNodeAt: if x/y missing or offscreen, place at center of visible board
   function addNodeAt(x, y, type, opts = {}) {
     saveSnapshot();
+
+    // grid
     const s = state.grid.size || 25;
-    const nx = Math.round(x / s) * s;
-    const ny = Math.round(y / s) * s;
+
+    // If x/y not provided (undefined/null) -> place at center of visible area
+    // If provided but offscreen -> also snap to center of visible area
+    let targetX = x, targetY = y;
+
+    // If user invoked add at mouse location (x,y passed from event), we prefer that if visible
+    // Compute visible rect
+    const vis = getVisibleBoardRect();
+
+    const coordsValid = (nx, ny) => (typeof nx === 'number' && typeof ny === 'number' && nx >= vis.left && nx <= vis.right && ny >= vis.top && ny <= vis.bottom);
+
+    if (!coordsValid(targetX, targetY)) {
+      // center of visible area
+      const centerX = vis.left + vis.width / 2;
+      const centerY = vis.top + vis.height / 2;
+      targetX = centerX;
+      targetY = centerY;
+    }
+
+    // snap to grid
+    const nx = Math.round(targetX / s) * s;
+    const ny = Math.round(targetY / s) * s;
+
     state.highestZ++;
     const base = { id: uid('n'), x: nx, y: ny, w: 220, h: 100, type, zIndex: state.highestZ, title: 'New', body: '' };
     if (type === 'page') { base.title = 'New Page'; base.body = 'Website Page'; }
@@ -415,7 +445,7 @@
     }
   }
 
-  // ---------- Render Links (polylines), preview, handles ----------
+  // ---------- Render Links & handles ----------
   function renderLinks() {
     if (!svg) return;
     clearSVG();
@@ -509,23 +539,20 @@
         renderNodes(); renderLinks();
       });
 
-      // double-click: open link modal (edit label/delete) with "Edit path" option
+      // double-click opens link modal (edit label/delete) with "Edit path" option
       path.addEventListener('dblclick', e => {
         e.stopPropagation();
         openLinkModal(link);
       });
 
-      // double-click on path while holding Alt (or via modal) will add a point at the click pos
+      // alt+dblclick to add a bend point quickly
       path.addEventListener('dblclick', e => {
-        // already handled in modal; we keep this here for quick add when ALT pressed
         if (e.altKey) {
           e.stopPropagation();
           const boardPt = screenToBoard(e.clientX, e.clientY);
-          // insert between nearest segment
           let bestIdx = 0, bestD = Infinity;
           for (let i = 0; i < link.points.length - 1; i++) {
             const a = link.points[i], b = link.points[i + 1];
-            // distance from point to segment
             const d = pointToSegmentDistance(boardPt, a, b);
             if (d < bestD) { bestD = d; bestIdx = i + 1; }
           }
@@ -538,9 +565,10 @@
 
       svg.appendChild(path);
 
-      // label placed at middle handle if exists otherwise midpoint
+      // label placed at middle point
       if (link.label) {
-        const mid = link.points[Math.floor((link.points.length - 1) / 2)];
+        const midI = Math.floor((link.points.length - 1) / 2);
+        const mid = link.points[midI];
         const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
         text.setAttribute('x', mid.x);
         text.setAttribute('y', mid.y - 12);
@@ -550,31 +578,28 @@
         svg.appendChild(text);
       }
 
-      // handles for editing: only appear if link._editing true
+      // handles for editing if link._editing
       if (link._editing) {
-        // draw small circles at each point (excluding endpoint lock style)
-        link.points.forEach((pt, idx) => {
+        link.points.forEach((pt, pidx) => {
           const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
           c.setAttribute('cx', pt.x);
           c.setAttribute('cy', pt.y);
-          c.setAttribute('r', (idx === 0 || idx === link.points.length - 1) ? (CONFIG.handleRadius - 2) : CONFIG.handleRadius);
+          c.setAttribute('r', (pidx === 0 || pidx === link.points.length - 1) ? (CONFIG.handleRadius - 2) : CONFIG.handleRadius);
           c.setAttribute('data-link-id', link.id);
-          c.setAttribute('data-pt-idx', String(idx));
-          c.style.fill = (idx === 0 || idx === link.points.length - 1) ? '#fff' : '#fff';
+          c.setAttribute('data-pt-idx', String(pidx));
+          c.style.fill = '#fff';
           c.style.stroke = isSel ? CONFIG.linkSelected : '#333';
           c.style.strokeWidth = 1.5;
-          c.style.cursor = (idx === 0 || idx === link.points.length - 1) ? 'not-allowed' : 'move';
+          c.style.cursor = (pidx === 0 || pidx === link.points.length - 1) ? 'not-allowed' : 'move';
           c.style.pointerEvents = 'auto';
           svg.appendChild(c);
 
-          // handle drag begin
           c.addEventListener('mousedown', ev => {
             ev.stopPropagation();
             ev.preventDefault();
-            // only allow dragging of non-endpoints (endpoints snap to anchors)
             state.handleDrag = {
               linkId: link.id,
-              ptIdx: idx,
+              ptIdx: pidx,
               startClientX: ev.clientX,
               startClientY: ev.clientY,
               startX: pt.x,
@@ -582,14 +607,12 @@
             };
           });
 
-          // double-click handle to remove (if not endpoints)
           c.addEventListener('dblclick', ev => {
             ev.stopPropagation();
-            const pi = idx;
-            if (pi === 0 || pi === link.points.length - 1) return;
+            if (pidx === 0 || pidx === link.points.length - 1) return;
             if (confirm('Remove this bend point?')) {
               saveSnapshot();
-              link.points.splice(pi, 1);
+              link.points.splice(pidx, 1);
               markDirty();
               renderLinks();
             }
@@ -599,9 +622,8 @@
     });
   }
 
-  // ---------- Mouse helpers ----------
+  // ---------- Utility math ----------
   function pointToSegmentDistance(p, a, b) {
-    // p,a,b have x,y
     const vx = b.x - a.x, vy = b.y - a.y;
     const wx = p.x - a.x, wy = p.y - a.y;
     const c1 = vx * wx + vy * wy;
@@ -613,7 +635,7 @@
     return Math.hypot(p.x - projx, p.y - projy);
   }
 
-  // ---------- Interaction: start link draw, finalize, node drag/pan, handle drag ----------
+  // ---------- Interaction ----------
   function startLinkDrawFromAnchor(nodeId, anchorIdx) {
     const node = model.nodes.find(n => n.id === nodeId);
     if (!node) return;
@@ -642,7 +664,6 @@
           const sNode = model.nodes.find(n => n.id === state.linkDraw.sourceId);
           const sAnch = computeAnchorsForNode(sNode)[state.linkDraw.sourceAnchorIdx];
           const tAnch = computeAnchorsForNode(targetNode)[targetIdx];
-          // create link with points: [sAnch, midpoint, tAnch]
           const cp = { x: (sAnch.x + tAnch.x) / 2, y: (sAnch.y + tAnch.y) / 2 };
           const newLink = {
             id: uid('l'),
@@ -669,15 +690,10 @@
     e.stopPropagation();
     const cm = $('contextMenu'); if (cm) cm.style.display = 'none';
     if (!state.selectedNodes.has(nodeId)) {
-      if (e.shiftKey) {
-        state.selectedNodes.add(nodeId);
-      } else {
-        state.selectedNodes.clear();
-        state.selectedNodes.add(nodeId);
-      }
+      if (e.shiftKey) state.selectedNodes.add(nodeId);
+      else { state.selectedNodes.clear(); state.selectedNodes.add(nodeId); }
     }
     state.selectedLinkId = null;
-    // prepare drag positions
     const startPositions = {};
     Array.from(state.selectedNodes).forEach(id => {
       const n = model.nodes.find(x => x.id === id);
@@ -691,8 +707,7 @@
 
   function onCanvasDown(e) {
     if (e.target && e.target.closest && e.target.closest('.node')) return;
-    const cm = $('contextMenu');
-    if (cm && e.target && e.target.closest && e.target.closest('#contextMenu')) return;
+    const cm = $('contextMenu'); if (cm && e.target && e.target.closest && e.target.closest('#contextMenu')) return;
     state.selectedNodes.clear(); state.selectedLinkId = null;
     if (toolDeleteNode) toolDeleteNode.disabled = true;
     if (toolDeleteLink) toolDeleteLink.disabled = true;
@@ -704,7 +719,7 @@
   window._lastMouse = { clientX: 0, clientY: 0 };
 
   function onMove(e) {
-    window._lastMouse.clientX = e.clientX; window._lastMouse.clientY = e.clientY;
+    if (e) { window._lastMouse.clientX = e.clientX; window._lastMouse.clientY = e.clientY; }
 
     // handle handleDrag (moving a specific point)
     if (state.handleDrag) {
@@ -715,7 +730,6 @@
       const dy = (e.clientY - hd.startClientY) / state.transform.scale;
       const newX = hd.startX + dx;
       const newY = hd.startY + dy;
-      // update the point index
       link.points[hd.ptIdx].x = newX;
       link.points[hd.ptIdx].y = newY;
       renderLinks();
@@ -741,7 +755,7 @@
         const el = document.getElementById(`node-${n.id}`);
         if (el) { el.style.left = `${n.x}px`; el.style.top = `${n.y}px`; }
       }
-      renderLinks(); // keep links updating
+      renderLinks();
     } else if (state.linkDraw) {
       const b = screenToBoard(e.clientX, e.clientY);
       state.linkDraw.currentX = b.x;
@@ -752,7 +766,6 @@
 
   function onUp(e) {
     if (state.handleDrag) {
-      // commit cp move
       saveSnapshot();
       state.handleDrag = null;
       markDirty();
@@ -816,6 +829,7 @@
       if (inspectorMulti) inspectorMulti.style.display = 'block';
     }
   }
+
   function applyInspectorToNode() {
     if (state.selectedNodes.size !== 1) return;
     const id = Array.from(state.selectedNodes)[0];
@@ -942,15 +956,14 @@
     mb.addEventListener('click', ev => { if (ev.target === mb) closeModal(); });
   }
 
-  // ---------- Grid, transform and UI ----------
+  // ---------- Grid & transform ----------
   function applyTransform() {
     board.style.transform = `translate(${state.transform.x}px, ${state.transform.y}px) scale(${state.transform.scale})`;
     if (zoomIndicator) zoomIndicator.textContent = `${Math.round(state.transform.scale * 100)}%`;
     updateGrid();
     renderLinks();
-    requestAnimationFrame(() => { /* visual smoothness hook */ });
+    requestAnimationFrame(()=>{});
   }
-
   function updateGrid() {
     if (!canvas) return;
     if (!state.grid.enabled) { canvas.style.backgroundImage = 'none'; return; }
@@ -971,15 +984,14 @@
         el.style.transform = el.style.transform || 'translateZ(0)';
         el.style.willChange = 'transform';
       });
-      setTimeout(() => uiEls.forEach(el => el.style.willChange = ''), 260);
-    } catch (e) { /* ignore */ }
+      setTimeout(()=> uiEls.forEach(el => el.style.willChange = ''), 260);
+    } catch(e){}
   }
 
-  // ---------- Save/Load/Export ----------
+  // ---------- Save/Load ----------
   async function saveModel() {
     if (!state.dirty) return;
     if (!window.AriesDB || typeof window.AriesDB.saveProjectWorkspace !== 'function') {
-      console.warn('No AriesDB.saveProjectWorkspace - saving local only');
       localStorage.setItem('wf_local_' + (window.currentProjectId || 'local'), JSON.stringify({ nodes: model.nodes, links: model.links, savedAt: now() }));
       state.dirty = false;
       if (statusMeta) statusMeta.textContent = 'Saved (local)';
@@ -1001,7 +1013,6 @@
 
   async function loadModel() {
     if (!window.AriesDB || typeof window.AriesDB.loadProjectData !== 'function') {
-      // try local storage fallback
       const saved = localStorage.getItem('wf_local_' + (window.currentProjectId || 'local'));
       if (saved) {
         try { const d = JSON.parse(saved); model.nodes.length = 0; model.links.length = 0; (d.nodes||[]).forEach(n=>model.nodes.push(n)); (d.links||[]).forEach(l=>model.links.push(l)); renderNodes(); applyTransform(); return; } catch(e){ console.warn('Local load failed', e); }
@@ -1083,7 +1094,7 @@
     applyTransform();
   }
 
-  // ---------- UI: palette, align, distribute, bring/send ----------
+  // ---------- Palette & UI ----------
   function createFloatingPalette() {
     if ($('wf-palette')) return;
     const p = document.createElement('div'); p.id = 'wf-palette';
@@ -1096,13 +1107,14 @@
 
     [['Page','page'], ['Action','action'], ['Decision','decision']].forEach(([label, type], i) => {
       const b = document.createElement('button'); b.textContent = label;
-      b.style.display = 'block'; b.style.margin = '6px 0'; b.style.width = '100%';
-      b.addEventListener('click', ()=> addNodeAt(120 + i * 160, 120 + i * 60, type));
+      b.style.display = 'block'; b.style.margin = '6px 0'; b.style.width = '120px';
+      // call addNodeAt() with no coords so it places in visible area
+      b.addEventListener('click', ()=> addNodeAt(undefined, undefined, type));
       p.appendChild(b);
     });
 
     const templatesRow = document.createElement('div'); templatesRow.style.marginTop = '8px';
-    const saveTpl = document.createElement('button'); saveTpl.textContent = 'Save Template'; saveTpl.style.display = 'block'; saveTpl.style.width = '100%';
+    const saveTpl = document.createElement('button'); saveTpl.textContent = 'Save Template'; saveTpl.style.display = 'block'; saveTpl.style.width = '120px';
     saveTpl.addEventListener('click', ()=> {
       if (state.selectedNodes.size === 0) return alert('Select at least one node to save as template.');
       const ids = Array.from(state.selectedNodes);
@@ -1119,10 +1131,9 @@
 
   // ---------- Event bindings ----------
   function setupBindings() {
-    // toolbar buttons (if exist)
-    if (toolAddPage) toolAddPage.addEventListener('click', ()=> addNodeAt(220,220,'page'));
-    if (toolAddAction) toolAddAction.addEventListener('click', ()=> addNodeAt(420,220,'action'));
-    if (toolAddDecision) toolAddDecision.addEventListener('click', ()=> addNodeAt(640,220,'decision'));
+    if (toolAddPage) toolAddPage.addEventListener('click', ()=> addNodeAt(undefined, undefined, 'page'));
+    if (toolAddAction) toolAddAction.addEventListener('click', ()=> addNodeAt(undefined, undefined, 'action'));
+    if (toolAddDecision) toolAddDecision.addEventListener('click', ()=> addNodeAt(undefined, undefined, 'decision'));
     if (toolDeleteNode) toolDeleteNode.addEventListener('click', ()=> { Array.from(state.selectedNodes).forEach(id => deleteNode(id)); state.selectedNodes.clear(); renderNodes(); });
     if (toolDeleteLink) toolDeleteLink.addEventListener('click', ()=> { if (state.selectedLinkId) deleteLink(state.selectedLinkId); });
 
@@ -1155,7 +1166,6 @@
       renderNodes(); renderLinks(); updateInspector();
     });
 
-    // import/export bindings
     const exportBtnRef = exportBtn || exportJsonBtn;
     if (exportBtnRef) exportBtnRef.addEventListener('click', downloadJSON);
     if (importJsonBtn && importFile) importJsonBtn.addEventListener('click', ()=> importFile.click());
@@ -1183,7 +1193,7 @@
     if (autosizeBtn) autosizeBtn.addEventListener('click', autoResizeBoard);
     if (clearAllBtn) clearAllBtn.addEventListener('click', ()=> { if (confirm('Clear all nodes and links?')) { saveSnapshot(); model.nodes.length = 0; model.links.length = 0; state.selectedNodes.clear(); markDirty(); renderNodes(); }});
 
-    // keyboard: Delete/Backspace to delete selected; Esc to cancel link draw; undo/redo
+    // keyboard
     document.addEventListener('keydown', (e) => {
       if (isTyping()) return;
       if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -1211,58 +1221,41 @@
     });
   }
 
-  // ---------- Helpers for escape/HTML & minimal CSS injection ----------
-  function escape(s) { if (s == null) return ''; return String(s).replace(/[&<>"']/g, (m) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
-
-  // Inject minimal CSS for anchors, palette, modals if not present
+  // ---------- Minimal CSS injection ----------
   (function injectCSS() {
     if (document.getElementById('wf-styles')) return;
     const css = `
 #wf-palette button{ cursor:pointer; padding:8px 10px; border-radius:6px; border:1px solid rgba(0,0,0,0.06); background:#fff; }
 .anchor-dot { transition: border-color 120ms ease; }
 .node.selected { outline: 2px solid rgba(59,132,255,0.12); box-shadow: 0 12px 28px rgba(29,78,216,0.06) inset; }
-#wf-modal-backdrop .modal-card{ max-width:640px; }
 .link-label { font-family: sans-serif; font-size: 13px; fill: #111827; }
 `;
     const s = document.createElement('style'); s.id = 'wf-styles'; s.innerHTML = css; document.head.appendChild(s);
   })();
 
-  // ---------- Boot sequence ----------
+  // ---------- Boot ----------
   function boot() {
-    // set grid defaults
     state.grid.enabled = (showGrid ? showGrid.checked : true);
     state.grid.size = (gridSizeInput ? parseInt(gridSizeInput.value || 25, 10) : 25);
-
     createFloatingPalette();
     setupBindings();
     loadModel();
     renderNodes();
     applyTransform();
 
-    // expose debug API
     window._wf = window._wf || {};
     Object.assign(window._wf, {
-      model,
-      renderNodes,
-      renderLinks,
-      saveModel,
-      loadModel,
-      addNodeAt,
-      addLinkObj,
-      autoResizeBoard,
-      zoomToFit,
-      computeAnchorsForNode,
-      undo, redo,
-      state
+      model, renderNodes, renderLinks, saveModel, loadModel, addNodeAt, addLinkObj, autoResizeBoard, zoomToFit, computeAnchorsForNode, undo, redo, state
     });
 
     console.log('Advanced workspace loaded. Debug API available as window._wf');
   }
 
-  // ---------- small utility to snap and track last mouse ----------
-  document.addEventListener('mousemove', (e) => { window._lastMouse = { clientX: e.clientX, clientY: e.clientY }; });
-
-  // ---------- Start ----------
   document.addEventListener('DOMContentLoaded', boot);
 
+  // Keep last mouse
+  document.addEventListener('mousemove', (e) => { window._lastMouse = { clientX: e.clientX, clientY: e.clientY }; });
+
+  // ---------- Small helpers ----------
+  function escape(s) { if (s == null) return ''; return String(s).replace(/[&<>"']/g, (m) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
 })();
