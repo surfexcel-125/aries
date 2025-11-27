@@ -1,288 +1,215 @@
-/* main.css — core + header/sidebar styles (replace existing topbar/sidebar styles) */
+/* main.css — consolidated, cleaned, ready-to-replace
+   - Supports .topbar/.sidebar legacy classes and .aries-topbar/.aries-sidebar component classes
+   - Smooth transform-based sidebar slide (no page reflow)
+   - Overlay handling
+   - Only .aries-project buttons show inside .aries-sidebar
+*/
 
-/* Basic resets and variables */
+/* -------------------- Variables -------------------- */
 :root{
   --bg: #f7f8fa;
   --panel: #ffffff;
   --accent: #0b74ff;
   --muted: #6b7280;
   --text: #0f172a;
-  --topbar-bg: #0b0f13;
-  --sidebar-bg: #0b1220;
-  --sidebar-width: 260px;
-  --transition: 280ms cubic-bezier(.2,.9,.2,1);
-}
 
-*{box-sizing:border-box}
-html,body{height:100%}
-body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;}
-
-/* Topbar / Header */
-.topbar{
-  height:60px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  background:var(--topbar-bg);
-  color:#fff;
-  position:fixed;
-  left:0;right:0;top:0;
-  z-index:60;
-  padding:0 16px;
-  box-shadow:0 2px 8px rgba(0,0,0,0.15);
-}
-.topbar .brand{font-weight:700;letter-spacing:1px}
-.hamburger{
-  position:absolute;
-  left:12px;
-  background:transparent;
-  color:#fff;
-  border:0;
-  font-size:20px;
-  padding:8px;
-  cursor:pointer;
-}
-.hamburger:focus{outline:2px solid rgba(255,255,255,0.12);border-radius:6px}
-.logo{position:absolute;right:12px;width:36px;height:36px;object-fit:contain;border-radius:6px}
-
-/* Sidebar */
-.sidebar{
-  position:fixed;
-  top:60px;
-  left:0;
-  height:calc(100% - 60px);
-  width:var(--sidebar-width);
-  transform:translateX(-110%);
-  transition:transform var(--transition);
-  background:var(--sidebar-bg);
-  color:#fff;
-  z-index:55;
-  padding:18px;
-  overflow:auto;
-  -webkit-overflow-scrolling:touch;
-  box-shadow: 2px 0 12px rgba(0,0,0,0.28);
-}
-.sidebar.open{ transform: translateX(0); }
-
-/* sidebar items */
-.sidebar-nav{margin:0;padding:0}
-.sidebar-nav ul{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:6px}
-.sidebar-nav a{
-  display:block;padding:10px 12px;border-radius:8px;color:#fff;text-decoration:none;font-weight:600;
-}
-.sidebar-nav a:hover, .sidebar-nav a:focus{ background:rgba(255,255,255,0.04); outline:none; }
-
-/* overlay for small screens */
-.sidebar ~ .sidebar-overlay { display:none; }
-@media (max-width:899px){
-  .sidebar{ width:78%; max-width:320px; }
-  .sidebar.open ~ .sidebar-overlay{ display:block; position:fixed; inset:60px 0 0 0; background:rgba(0,0,0,0.36); z-index:50; transition:opacity var(--transition); opacity:1; }
-}
-
-/* When sidebar open add body helper class so page content can shift on large screens */
-body.aries-sidebar-open .page-wrapper{ margin-left: var(--sidebar-width); transition:margin-left var(--transition) }
-
-/* Content wrapper */
-.page-wrapper{ padding:88px 20px 32px; max-width:1200px; margin:0 auto; transition:margin var(--transition) }
-
-/* Focus ring for keyboard users */
-:focus{ outline: 2px solid var(--accent); outline-offset:2px; }
-
-/* Minimal project list / topbar styles left as before */
-.container{ max-width:1024px; margin:20px auto }
-.projects-bar{ display:flex; justify-content:space-between; align-items:center; background:#000; color:#fff; padding:12px 16px; border-radius:8px }
-
-/* Useful helpers */
-.hidden{ display:none !important }
-.loader-spinner{ border:4px solid rgba(255,255,255,0.08); border-top:4px solid var(--accent); border-radius:50%; width:30px; height:30px; animation:spin 1s linear infinite; margin:auto }
-@keyframes spin{ to{ transform: rotate(360deg); } }
-
-/* Header component (scoped) */
-.aries-topbar{
-  position:fixed; top:0; left:0; right:0; height:60px;
-  background:#000; color:#fff; display:flex; align-items:center; justify-content:center;
-  z-index:120; padding:0 14px; box-shadow:0 1px 0 rgba(255,255,255,0.03);
-  font-family: 'Montserrat', Arial, sans-serif;
-}
-.aries-hamburger{
-  position:absolute; left:12px; top:50%; transform:translateY(-50%);
-  background:transparent; border:0; color:#fff; font-size:20px; padding:8px; cursor:pointer;
-}
-.aries-title{ font-weight:700; letter-spacing:2px; font-size:18px; color:#fff; }
-.aries-brand{ position:absolute; right:12px; top:50%; transform:translateY(-50%); display:block; }
-.aries-logo{ width:36px; height:36px; object-fit:contain; display:block; }
-
-/* small screen adjustments */
-@media (max-width:700px){
-  .aries-title{ font-size:16px; }
-  .aries-logo{ width:30px; height:30px; }
-}
-
-/* screen-reader only helper */
-.sr-only{ position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); border:0; }
-/* Sidebar component */
-:root{ --aries-collapsed:56px; --aries-expanded:220px; --topbar-h:60px; }
-
-.aries-sidebar{
-  position:fixed; top:var(--topbar-h); left:0; bottom:0;
-  width:var(--aries-collapsed); background:#000; color:#fff; z-index:110;
-  transition: width 260ms cubic-bezier(.2,.9,.2,1);
-  overflow:visible; display:flex; flex-direction:column; align-items:flex-start; padding:8px;
-  border-right:1px solid rgba(255,255,255,0.02);
-}
-.aries-sidebar.collapsed{ width:var(--aries-collapsed); }
-.aries-sidebar.open{ width:var(--aries-expanded); box-shadow:2px 0 20px rgba(0,0,0,0.32); }
-
-.aries-sidebar-back{ background:transparent; border:0; color:#fff; padding:8px; margin:6px; cursor:pointer; }
-.aries-sidebar-nav{ margin-top:14px; padding:8px; width:100%; display:flex; flex-direction:column; gap:12px; }
-.aries-project{
-  background:#e9e9e9; color:#111; border-radius:10px; padding:10px 14px; border:2px solid rgba(0,0,0,0.08);
-  text-align:left; font-size:16px; cursor:pointer;
-}
-
-/* when open position of title/content shifts; keep page wrapper adjustable with class on body */
-body.aries-sidebar-open .page-wrapper{ margin-left: var(--aries-expanded); transition: margin-left 260ms cubic-bezier(.2,.9,.2,1); }
-
-/* responsive: overlay on small screens */
-@media(max-width:900px){
-  .aries-sidebar.open{ position:fixed; left:0; width:78%; max-width:340px; }
-  body.aries-sidebar-open .page-wrapper{ margin-left:0; }
-}
-/* Sidebar hidden + overlay helpers (append to main.css) */
-
-/* ensure we start fully hidden */
-.aries-sidebar.hidden {
-  transform: translateX(-120%);   /* move fully off-screen */
-  transition: transform 240ms cubic-bezier(.2,.9,.2,1), opacity 200ms;
-  opacity: 0;
-  pointer-events: none;
-  width: 0 !important; /* no reserved width */
-}
-
-/* when opened */
-.aries-sidebar.open {
-  transform: translateX(0);
-  opacity: 1;
-  pointer-events: auto;
-  width: var(--aries-expanded, 220px); /* fall back */
-  z-index: 120;
-}
-
-/* overlay element (captures clicks on empty space) */
-#aries-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.38);
-  z-index: 110;
-  opacity: 0;
-  transition: opacity 200ms ease;
-  pointer-events: none;
-}
-
-/* visible overlay */
-#aries-overlay.visible {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-/* hidden overlay */
-#aries-overlay.hidden {
-  opacity: 0;
-  pointer-events: none;
-}
-
-/* ensure body doesn't reserve space for sidebar while hidden */
-body.aries-sidebar-open .page-wrapper {
-  margin-left: var(--aries-expanded, 220px);
-  transition: margin-left 240ms cubic-bezier(.2,.9,.2,1);
-}
-
-/* on small screens, overlay behavior keeps content in place */
-@media (max-width:900px) {
-  .aries-sidebar.open { position: fixed; left: 0; top: var(--topbar-h, 60px); bottom: 0; width: 78%; max-width: 340px; }
-  body.aries-sidebar-open .page-wrapper { margin-left: 0; }
-}
-/* Sidebar — smooth slide, no page reflow, content fade */
-/* Put this in main.css (replace previous sidebar rules) */
-
-:root {
   --topbar-h: 60px;
-  --aries-collapsed: 56px;        /* not used for reserved space — hamburger sits in topbar */
-  --aries-expanded: 260px;        /* width of the sliding panel */
-  --sidebar-transition: 300ms;
+  --topbar-bg: #000;           /* black header */
+  --sidebar-bg: #0b1220;       /* dark sidebar background */
+  --aries-collapsed: 56px;
+  --aries-expanded: 260px;
+  --sidebar-transition: 300ms cubic-bezier(.2,.9,.2,1);
   --overlay-color: rgba(0,0,0,0.38);
 }
 
-/* base sidebar — keep element in DOM but off-screen initially */
+/* -------------------- Resets & Base -------------------- */
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Focus ring for keyboard users */
+:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Page wrapper (content) */
+.page-wrapper {
+  padding: calc(var(--topbar-h) + 24px) 20px 40px;
+  max-width: 1200px;
+  margin: 0 auto;
+  transition: none; /* avoid layout shifts when sidebar toggles (overlay behavior) */
+}
+
+/* -------------------- Topbar / Header (legacy + component) -------------------- */
+/* Legacy topbar */
+.topbar,
+.aries-topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--topbar-h);
+  background: var(--topbar-bg);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  padding: 0 14px;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.03);
+  font-family: 'Montserrat', Arial, sans-serif;
+}
+
+/* hamburger positioning usable for both topbar classes */
+.topbar .hamburger,
+.aries-topbar .aries-hamburger,
+.topbar .aries-hamburger,
+.aries-topbar .hamburger {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: 0;
+  color: #fff;
+  font-size: 20px;
+  padding: 8px;
+  cursor: pointer;
+  z-index: 220; /* keep above overlay */
+}
+
+/* title and brand */
+.topbar .brand, .aries-topbar .aries-title {
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #fff;
+}
+.topbar .logo,
+.aries-topbar .aries-logo {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  border-radius: 6px;
+}
+
+/* small screens adjustment */
+@media (max-width: 700px) {
+  .aries-topbar .aries-title, .topbar .brand { font-size: 16px; }
+  .aries-topbar .aries-logo, .topbar .logo { width: 30px; height: 30px; }
+}
+
+/* screen-reader helper */
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0,0,0,0); border: 0;
+}
+
+/* -------------------- Sidebar (legacy .sidebar + component .aries-sidebar) -------------------- */
+/* The CSS uses transform (translateX) so opening the sidebar does not reflow page content */
+
+/* Base legacy sidebar (kept for compatibility; will be off-screen by default) */
+.sidebar {
+  position: fixed;
+  top: var(--topbar-h);
+  left: 0;
+  bottom: 0;
+  width: var(--aries-expanded);
+  transform: translateX(calc(-1 * var(--aries-expanded)));
+  transition: transform var(--sidebar-transition), opacity 180ms;
+  background: var(--sidebar-bg);
+  color: #fff;
+  z-index: 150;
+  padding: 18px;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  box-shadow: 2px 0 12px rgba(0,0,0,0.28);
+  opacity: 0.99;
+  pointer-events: none; /* blocked while hidden */
+}
+.sidebar.open { transform: translateX(0); pointer-events: auto; }
+
+/* Base component sidebar (preferred) */
 .aries-sidebar {
   position: fixed;
   top: var(--topbar-h);
-  bottom: 0;
   left: 0;
+  bottom: 0;
   width: var(--aries-expanded);
-  transform: translateX(calc(-1 * var(--aries-expanded))); /* fully off-screen */
-  transition: transform var(--sidebar-transition) cubic-bezier(.2,.9,.2,1), opacity 160ms;
-  background: #0b1220;
+  transform: translateX(calc(-1 * var(--aries-expanded)));
+  transition: transform var(--sidebar-transition), opacity 180ms;
+  background: var(--sidebar-bg);
   color: #fff;
-  z-index: 120;
-  pointer-events: none; /* blocked while hidden */
-  opacity: 0.98;
-  display: flex;
-  flex-direction: column;
+  z-index: 150;
+  padding: 12px;
   overflow: auto;
   -webkit-overflow-scrolling: touch;
+  box-shadow: 2px 0 20px rgba(0,0,0,0.32);
+  opacity: 0.99;
+  pointer-events: none; /* blocked while hidden */
+  display: flex;
+  flex-direction: column;
 }
+.aries-sidebar.open { transform: translateX(0); pointer-events: auto; }
 
-/* when open, slide into view */
-.aries-sidebar.open {
-  transform: translateX(0);
-  pointer-events: auto;
-}
+/* Animating flag (keeps behavior consistent while transitions are in progress) */
+.aries-sidebar.animating,
+.sidebar.animating { transition: transform var(--sidebar-transition), opacity 160ms; }
 
-/* animating class used to control internal timing (keeps pointer-events behaviour stable) */
-.aries-sidebar.animating { transition: transform var(--sidebar-transition) cubic-bezier(.2,.9,.2,1), opacity 160ms; }
-
-/* keep a fully-hidden state (used after closing to prevent any pointer events) */
-.aries-sidebar.hidden {
+/* Hidden utility: fully hidden state when closed */
+.aries-sidebar.hidden,
+.sidebar.hidden {
   opacity: 0;
   pointer-events: none;
+  transform: translateX(calc(-1 * var(--aries-expanded)));
 }
 
-/* overlay */
-#aries-overlay {
-  position: fixed;
-  inset: 0;
-  background: var(--overlay-color);
-  z-index: 110;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 220ms ease;
-}
-#aries-overlay.visible { opacity: 1; pointer-events: auto; }
-#aries-overlay.hidden { opacity: 0; pointer-events: none; }
-
-/* Do NOT shift the page content when sidebar opens — page-wrapper keeps its margin */
-.page-wrapper { transition: none; }
-
-/* content inside the sidebar: hide until the panel is mostly visible */
-.aries-sidebar .aries-sidebar-content {
+/* content wrapper within the sidebar that will fade in after slide */
+.aries-sidebar .aries-sidebar-content,
+.sidebar .sidebar-content {
   opacity: 0;
   transform: translateX(-6px);
   transition: opacity 160ms ease 120ms, transform 200ms ease 120ms;
   will-change: opacity, transform;
 }
-
-/* when the sidebar is open, reveal content (fade-in after sliding) */
-.aries-sidebar.open .aries-sidebar-content {
+.aries-sidebar.open .aries-sidebar-content,
+.sidebar.open .sidebar-content {
   opacity: 1;
   transform: none;
 }
 
-/* ensure only project buttons are visible — hide any element that isn't a project button */
-.aries-sidebar :not(.aries-project) {
-  display: none;
+/* Overlay used when sidebar open (captures clicks) */
+#aries-overlay,
+#legacy-sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay-color);
+  z-index: 140;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 220ms ease;
 }
-/* but allow projects themselves to display */
+#aries-overlay.visible,
+#legacy-sidebar-overlay.visible { opacity: 1; pointer-events: auto; }
+#aries-overlay.hidden,
+#legacy-sidebar-overlay.hidden { opacity: 0; pointer-events: none; }
+
+/* -------------------- Sidebar content presentation rules -------------------- */
+/* By request: inside .aries-sidebar, nothing should show except the project buttons (.aries-project).
+   Hide everything else by default. If you want to show an element, give it .aries-project class
+   or move it outside the .aries-sidebar element. */
+.aries-sidebar :not(.aries-project) { display: none; }
+
+/* style for project buttons (the only visible elements) */
 .aries-sidebar .aries-project {
   display: block;
   margin: 12px;
@@ -293,13 +220,70 @@ body.aries-sidebar-open .page-wrapper {
   border: 2px solid rgba(0,0,0,0.08);
   cursor: pointer;
   font-size: 16px;
+  text-align: left;
 }
 
-/* responsive: on small screens keep same overlay behaviour */
+/* For legacy .sidebar, allow more generic nav items to show (keeps backward compatibility) */
+.sidebar .sidebar-nav, .sidebar .sidebar-nav a {
+  display: block;
+  color: #fff;
+}
+.sidebar .sidebar-nav a {
+  padding: 10px 12px;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: 600;
+}
+.sidebar .sidebar-nav a:hover,
+.sidebar .sidebar-nav a:focus { background: rgba(255,255,255,0.04); outline: none; }
+
+/* -------------------- Responsive rules -------------------- */
+/* On small screens sidebar overlays content; on large screens we still use overlay mode (no push) */
 @media (max-width: 900px) {
-  .aries-sidebar { width: 78%; max-width: 340px; transform: translateX(calc(-1 * var(--aries-expanded))); }
-  .aries-sidebar.open { transform: translateX(0); }
+  .aries-sidebar,
+  .sidebar {
+    width: 78%;
+    max-width: 340px;
+    transform: translateX(calc(-1 * var(--aries-expanded)));
+  }
 }
 
-/* small niceties: ensure topbar hamburger remains clickable and visible */
-.aries-hamburger { z-index: 200; position: relative; }
+/* Keep page-wrapper from moving when sidebar toggles (we use overlay) */
+body.aries-sidebar-open .page-wrapper { margin-left: 0; }
+
+/* -------------------- Misc: Projects, Loader, Helpers -------------------- */
+.container { max-width: 1024px; margin: 20px auto; }
+.projects-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #000;
+  color: #fff;
+  padding: 12px 16px;
+  border-radius: 8px;
+}
+.hidden { display: none !important; }
+
+.loader-spinner {
+  border: 4px solid rgba(255,255,255,0.08);
+  border-top: 4px solid var(--accent);
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  animation: spin 1s linear infinite;
+  margin: auto;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* -------------------- Small niceties -------------------- */
+/* Ensure hamburger stays on top for clicks */
+.aries-hamburger, .topbar .hamburger, .aries-topbar .aries-hamburger {
+  z-index: 220;
+  background: transparent;
+  border: none;
+}
+
+/* Ensure focus styles on buttons/links are visible on dark background */
+button:focus, a:focus { outline: 2px solid rgba(255,255,255,0.18); outline-offset: 2px; }
+
+/* -------------------- End -------------------- */
