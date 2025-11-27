@@ -55,13 +55,11 @@
     </a>
   </header>
 
-  <!-- Sidebar -->
-  <aside id="aries-sidebar" class="aries-sidebar hidden" role="complementary" aria-label="Project list">
-    <nav class="aries-sidebar-nav aries-sidebar-content" role="navigation" aria-label="Projects">
-      <!-- Only .aries-project will show; placeholders below will be replaced by populateSidebarProjects -->
-      <button class="aries-project" data-id="demo1">Demo Project</button>
-    </nav>
-  </aside>
+<!-- Sidebar (index.html) -->
+<aside id="aries-sidebar" class="aries-sidebar hidden" role="complementary" aria-label="Project list">
+  <!-- app.js will populate nav (static + dynamic projects) -->
+  <nav class="aries-sidebar-nav aries-sidebar-content" role="navigation" aria-label="Projects"></nav>
+</aside>
 
   <main class="page-wrapper">
     <section class="hero" role="main" aria-labelledby="hero-heading">
@@ -78,3 +76,4 @@
   <script type="module" src="app.js"></script>
 </body>
 </html>
+
