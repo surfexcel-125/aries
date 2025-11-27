@@ -3,160 +3,157 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Workspace — Visual Flow</title>
-  <meta name="description" content="Visual workspace for nodes, connectors, auto-layout, export and versioning.">
+  <title>Projects — Aries</title>
+  <link rel="stylesheet" href="main.css">
   <style>
-    :root{
-      --bg:#0f1724; --panel:#0b1220; --muted:#94a3b8; --accent:#2e86ff; --accent-2:#7c3aed; --card:#0b1220;
-      --glass: rgba(255,255,255,0.03); --glass-2: rgba(255,255,255,0.02);
-      --grid-color: rgba(255,255,255,0.03);
-      --text:#e6eef8;
+    /* Status Pill Styles (copied from previous projects.html styles for completeness) */
+    .status-pill {
+        background: #f3f3f3; 
+        padding: 6px 14px; 
+        border-radius: 99px;
+        border: 2px solid #4a6468; 
+        font-weight: 700; 
+        cursor: pointer;
+        text-decoration: none; 
+        color: black; 
+        display: inline-block;
+        font-size: 12px;
     }
-    html,body{height:100%;margin:0;font-family:Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; background:linear-gradient(180deg,#071026 0%, #071828 100%); color:var(--text); -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;}
-    .topbar{height:64px; position:fixed; left:0; right:0; top:0; display:flex; align-items:center; gap:12px; padding:8px 16px; z-index:40000; background:linear-gradient(180deg, rgba(10,14,22,0.74), rgba(6,10,15,0.56)); box-shadow:0 6px 30px rgba(2,6,23,0.6); border-bottom:1px solid rgba(255,255,255,0.02);}
-    .brand{display:flex; align-items:center; gap:10px; font-weight:700; font-size:16px;}
-    .brand .logo{width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,var(--accent),var(--accent-2)); display:flex; align-items:center; justify-content:center; color:#fff; font-weight:800;}
-    .header-actions{margin-left:auto; display:flex; gap:8px; align-items:center;}
-    .btn{background:transparent;border:1px solid rgba(255,255,255,0.06); padding:8px 12px;border-radius:10px;color:var(--text);cursor:pointer;font-weight:600}
-    .btn.primary{background:var(--accent); border-color:transparent;color:white}
-    .btn.ghost{background:transparent;border:1px dashed rgba(255,255,255,0.04)}
-    .controls-row{display:flex; gap:8px; align-items:center;}
-    /* left palette & floating tools */
-    #wf-palette{min-width:140px}
-    #floatingTools button{margin-right:8px}
-    /* canvas area */
-    #canvas{position:fixed; left:0; top:64px; right:0; bottom:0; overflow:hidden; background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));}
-    #board{position:absolute; left:0; top:0; transform-origin:0 0; width:2000px; height:1500px; touch-action:none;}
-    /* nodes */
-    .node{transition:box-shadow .12s ease, transform .12s ease; user-select:none;}
-    .node .anchor-dot{width:12px;height:12px;border-radius:50%;background:#fff;border:2px solid rgba(0,0,0,0.12); position:absolute; opacity:0; pointer-events:none}
-    .node:hover{transform:translateY(-2px)}
-    .node .anchors{pointer-events:none}
-    /* inspector */
-    #inspector{position:fixed; right:14px; top:84px; width:300px; z-index:20000; background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); border:1px solid rgba(255,255,255,0.03); padding:12px; border-radius:10px; box-shadow:0 8px 30px rgba(2,6,23,0.5)}
-    #inspector h4{margin:6px 0 10px 0;color:var(--muted)}
-    .ins-row{display:flex; gap:8px; align-items:center; margin-bottom:8px}
-    .ins-row input[type="text"], .ins-row input[type="number"], textarea{width:100%; padding:8px; border-radius:8px; border:1px solid rgba(255,255,255,0.04); background:transparent; color:var(--text);}
-    /* context menu */
-    #contextMenu{position:fixed; display:none; z-index:50000; background:#081019; border:1px solid rgba(255,255,255,0.03); padding:6px; border-radius:8px; min-width:160px}
-    #contextMenu button{display:block;width:100%; text-align:left; padding:6px 8px; border-radius:6px; background:transparent; border:none; color:var(--text)}
-    /* modal backdrop created by script */
-    /* overlay & toast exist, script may create them */
-    /* responsive */
-    @media (max-width:900px){
-      #inspector{display:none}
-      #wf-palette{display:none}
+
+    /* New: Explicit initial loading screen style */
+    #initialLoader {
+        text-align: center;
+        padding: 50px;
+        font-size: 1.2rem;
+        color: #666;
     }
-    /* small helper visuals for grid - JS manages background */
   </style>
 </head>
 <body>
 
-  <div class="topbar">
-    <div class="brand">
-      <div class="logo">WF</div>
-      <div>
-        <div id="headerTitle" style="font-size:14px">Workspace</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:2px">Visual Flow — nodes · links · versions</div>
-      </div>
-    </div>
+  <header class="topbar">
+    <button class="hamburger">☰</button>
+    <div class="brand">PROJECT MANAGER</div>
+    <img src="images/goat.png" class="logo">
+  </header>
 
-    <div style="margin-left:20px; display:flex; gap:6px; align-items:center">
-      <div class="controls-row">
-        <button id="toolAddPage" class="btn">Add Page</button>
-        <button id="toolAddAction" class="btn">Add Action</button>
-        <button id="toolAddDecision" class="btn">Add Decision</button>
-        <button id="toolDeleteNode" class="btn">Delete Node</button>
-        <button id="toolDeleteLink" class="btn">Delete Link</button>
+  <div class="page-wrapper">
+    <div class="container">
+      <div class="projects-bar">
+        <h2 style="margin:0; font-family:'Sitka Small'; letter-spacing:1px;">MY PROJECTS</h2>
+        <button id="openNewProjectModal" class="new-project-btn">+ NEW PROJECT</button>
       </div>
-    </div>
 
-    <div class="header-actions">
-      <div style="display:flex;gap:8px;align-items:center">
-        <label style="display:flex;align-items:center;gap:6px;color:var(--muted)"><input id="showGrid" type="checkbox" checked /> Grid</label>
-        <label style="display:flex;align-items:center;gap:6px;color:var(--muted)"><input id="gridSize" type="number" value="25" style="width:68px;padding:6px;border-radius:6px"/></label>
-        <span id="zoomIndicator" style="min-width:46px;text-align:center;color:var(--muted)">100%</span>
-        <button id="zoomInCorner" class="btn">Zoom +</button>
-        <button id="zoomOutCorner" class="btn">Zoom -</button>
-        <button id="zoomFitBtn" class="btn">Fit</button>
-        <button id="saveBoard" class="btn">Save Board</button>
-        <div style="width:8px"></div>
-        <button id="exportBtn" class="btn">Export JSON</button>
-        <button id="importJsonBtn" class="btn">Import JSON</button>
-        <input id="importFile" type="file" accept="application/json" style="display:none"/>
+      <div id="projectsList" class="projects-list" style="display:none;">
+        </div>
+      
+      <div id="initialLoader">
+        <div class="loader-spinner"></div>
+        <p>Connecting to Aries Cloud... Please wait.</p>
+      </div>
+
+      <div id="noProjects" style="display:none; padding:40px; text-align:center; color:#666;">
+        No projects found. Start by creating one!
       </div>
     </div>
   </div>
 
-  <!-- Canvas area -->
-  <div id="canvas" aria-label="Workspace canvas">
-    <!-- board will be created by the script if missing; creating placeholder to ensure layout -->
-    <div id="board" tabindex="0" aria-label="Board"></div>
-    <!-- SVG may be created by the script; keep a fallback -->
-    <svg id="svg" xmlns="http://www.w3.org/2000/svg" style="position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none"></svg>
+  <div id="newProjectModal" class="modal-backdrop">
+      <div class="modal-box">
+          <div class="modal-title">Create New Project</div>
+          <input type="text" id="projectNameInput" class="modal-input" placeholder="e.g. Website Redesign">
+          <div class="modal-actions">
+              <button id="cancelProjectBtn" class="btn-ghost">Cancel</button>
+              <button id="confirmProjectBtn" class="btn-primary">Create</button>
+          </div>
+      </div>
   </div>
 
-  <!-- Inspector / property panel -->
-  <aside id="inspector" aria-label="Inspector">
-    <h4>Inspector</h4>
-    <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Selected: <span id="selectedCount">0</span></div>
+  <script type="module">
+    import './app.js'; 
 
-    <div id="inspectorSingle" style="display:none">
-      <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Node ID: <span id="inspectorId" style="font-family:monospace"></span></div>
-      <div class="ins-row"><select id="inspectorType" style="padding:8px;border-radius:8px;background:transparent;color:var(--text)"><option value="page">Page</option><option value="action">Action</option><option value="decision">Decision</option></select></div>
-      <div class="ins-row"><input id="inspectorTitle" type="text" placeholder="Title" /></div>
-      <div class="ins-row"><textarea id="inspectorBody" rows="3" placeholder="Body"></textarea></div>
-      <div class="ins-row"><input id="inspectorW" type="number" placeholder="Width"/><input id="inspectorH" type="number" placeholder="Height"/></div>
-      <div class="ins-row"><button id="inspectorSave" class="btn primary" style="flex:1">Apply</button><button id="inspectorDelete" class="btn" style="flex:1">Delete</button></div>
-    </div>
+    const listEl = document.getElementById('projectsList');
+    const initialLoader = document.getElementById('initialLoader');
+    const modal = document.getElementById('newProjectModal');
+    const input = document.getElementById('projectNameInput');
+    const confirmBtn = document.getElementById('confirmProjectBtn');
+    
+    // Helper to render a single project row
+    function createProjectRow(p) {
+        const row = document.createElement('div');
+        row.className = 'project-row';
+        row.innerHTML = `
+            <div class="project-inner">
+                <a href="project_detail.html?id=${p.id}" class="project-pill project-name-pill">
+                    <img src="images/goat.png" style="width:30px; border-radius:4px;">
+                    ${p.name}
+                </a>
+                <div>
+                    STATUS: 
+                    <button class="status-pill" data-project-id="${p.id}">${p.status || 'Active'}</button>
+                </div>
+            </div>
+        `;
+        return row;
+    }
 
-    <div id="inspectorMulti" style="display:none">
-      <div style="font-size:13px;color:var(--muted)">Multiple nodes selected</div>
-    </div>
-  </aside>
+    // 1. Load Projects
+    async function loadProjects() {
+        try {
+            // This is the line that will pause until app.js resolves the Firebase auth
+            const projects = await window.AriesDB.getProjects();
+            
+            initialLoader.style.display = 'none'; // Hide the loading message
+            listEl.style.display = 'flex'; // Show the project list
+            listEl.innerHTML = ''; // Clear any loading content
+            
+            if(projects.length === 0) {
+                document.getElementById('noProjects').style.display = 'block';
+                return;
+            }
+            document.getElementById('noProjects').style.display = 'none';
 
-  <!-- Floating tools (attached by script or created if missing) -->
-  <div id="floatingTools" style="position:fixed;left:18px;bottom:18px;z-index:13000"></div>
+            projects.forEach(p => listEl.appendChild(createProjectRow(p)));
+            
+        } catch (error) {
+            console.error("Failed to load projects:", error);
+            initialLoader.innerHTML = '<p style="color:red;">Error connecting to Aries Cloud. Check your console (F12) for network errors.</p>';
+            listEl.style.display = 'none';
+        }
+    }
 
-  <!-- Palette is created by script; placeholder for graceful degrade -->
-  <div id="wf-palette" style="display:none"></div>
+    // Start loading immediately after DOM is ready
+    document.addEventListener('DOMContentLoaded', loadProjects);
 
-  <!-- Context menu -->
-  <div id="contextMenu" role="menu" aria-hidden="true">
-    <button id="contextEdit">Edit</button>
-    <button id="contextDelete">Delete</button>
-  </div>
 
-  <!-- Overlay & toast placeholders will be created by script if not present -->
-  <div id="wf-toast" style="display:none"></div>
-  <div id="wf-overlay" style="display:none"></div>
+    // Modal Logic (New Project Creation)
+    document.getElementById('openNewProjectModal').onclick = () => {
+        modal.classList.add('active');
+        input.focus();
+    };
+    
+    document.getElementById('cancelProjectBtn').onclick = () => modal.classList.remove('active');
+    modal.addEventListener('click', (e) => { 
+        if (e.target === modal) modal.classList.remove('active');
+    });
 
-  <!-- Status meta -->
-  <div id="statusMeta" style="position:fixed;left:50%;transform:translateX(-50%);bottom:6px;color:var(--muted);font-size:12px;z-index:40000">Ready</div>
-
-  <!-- Optional small helpers -->
-  <div style="position:fixed;left:18px;top:72px;z-index:12000;color:var(--muted);font-size:12px">
-    Tip: drag anchors to connect · Alt+double-click on link to insert bend
-  </div>
-
-  <!-- Load your workspace.js here (place corrected workspace.js file in same folder) -->
-  <script src="./workspace.js"></script>
-
-  <script>
-    // Small runtime tweaks to ensure UI elements exist and some attributes default correctly.
-    (function(){
-      // ensure toast & overlay visible (script will re-create if necessary)
-      const t = document.getElementById('wf-toast'); if (t) t.style.display='block';
-      const ov = document.getElementById('wf-overlay'); if (ov) ov.style.display='none';
-      // style floatingTools if script didn't
-      const ft = document.getElementById('floatingTools');
-      if (ft && ft.children.length === 0) {
-        // simple default controls until script attaches its UI
-        const b1 = document.createElement('button'); b1.className='btn'; b1.textContent='Export SVG'; b1.onclick = ()=> { if (window._wf && window._wf.exportAsSVG) window._wf.exportAsSVG(); else alert('Workspace not ready'); };
-        const b2 = document.createElement('button'); b2.className='btn'; b2.textContent='Export PNG'; b2.onclick = ()=> { if (window._wf && window._wf.exportAsPNG) window._wf.exportAsPNG(); else alert('Workspace not ready'); };
-        ft.appendChild(b1); ft.appendChild(b2);
-      }
-    })();
+    confirmBtn.onclick = async () => {
+        const name = input.value.trim();
+        if(!name) return;
+        
+        confirmBtn.textContent = "Creating...";
+        confirmBtn.disabled = true;
+        
+        const newId = await window.AriesDB.createProject(name);
+        
+        if (newId) {
+            window.location.href = `project_detail.html?id=${newId}`;
+        } else {
+            alert("Error creating project. Please try again.");
+            confirmBtn.textContent = "Create";
+            confirmBtn.disabled = false;
+        }
+    };
   </script>
 </body>
 </html>
