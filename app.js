@@ -1,9 +1,4 @@
-// app.js — ready-to-replace (static-only sidebar)
-// - imports firebase-config.js (expects that file to export `auth` and `db`)
-// - exposes small AriesDB facade (safe to use elsewhere)
-// - robust header + smooth sliding overlay sidebar wiring
-// - populateSidebarContent() now creates a static nav ONLY (Dashboard + Projects)
-
+// app.js — ready-to-replace (no layout push)
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
 import {
@@ -110,7 +105,7 @@ window.AriesDB = {
   }
 };
 
-/* ===================== UI: Header + Sliding Sidebar (robust) ===================== */
+/* ===================== UI: Header + Sliding Sidebar ===================== */
 (function () {
   const SLIDE_MS = 300;
   const HAMBURGER_SELECTORS = ['#aries-hamburger', '.aries-hamburger', '.topbar .hamburger', '.hamburger'];
@@ -139,7 +134,8 @@ window.AriesDB = {
 
   function wire(hamburger, sidebar, overlay) {
     if (!hamburger || !sidebar) return;
-    // initial
+
+    // initial state
     sidebar.classList.remove('open', 'animating');
     sidebar.classList.add('hidden');
     sidebar.setAttribute('aria-hidden', 'true');
@@ -155,7 +151,7 @@ window.AriesDB = {
       void sidebar.offsetWidth;
       sidebar.classList.add('open');
       overlay.classList.remove('hidden'); overlay.classList.add('visible');
-      document.body.classList.add('aries-sidebar-open');
+      // NOTE: do NOT add or remove any class that shifts the page layout
       sidebar.setAttribute('aria-hidden', 'false');
       sidebar.dataset.open = 'true';
       hamburger.setAttribute('aria-expanded', 'true');
@@ -170,7 +166,6 @@ window.AriesDB = {
         sidebar.setAttribute('aria-hidden', 'true');
         sidebar.dataset.open = 'false';
         hamburger.setAttribute('aria-expanded', 'false');
-        document.body.classList.remove('aries-sidebar-open');
         return;
       }
       sidebar.classList.add('animating');
@@ -179,7 +174,6 @@ window.AriesDB = {
       sidebar.setAttribute('aria-hidden', 'true');
       sidebar.dataset.open = 'false';
       hamburger.setAttribute('aria-expanded', 'false');
-      document.body.classList.remove('aries-sidebar-open');
       setTimeout(() => {
         sidebar.classList.remove('animating');
         sidebar.classList.add('hidden');
@@ -206,7 +200,7 @@ window.AriesDB = {
       else if ((e.key === 'm' || e.key === 'M') && !/INPUT|TEXTAREA/.test(tag)) toggleSidebar();
     });
 
-    console.info('app.js: wired hamburger -> sidebar');
+    console.info('app.js: wired hamburger -> sidebar (no layout push)');
   }
 
   function attemptWire() {
@@ -237,25 +231,19 @@ window.AriesDB = {
     if (!ok) watchAndWire();
   }
 
-  /* ===================== Sidebar population: static nav ONLY (NO PROJECT LIST) ===================== */
-
+  /* Static sidebar population (Dashboard + Projects only) */
   async function populateSidebarContent() {
     const sidebar = document.querySelector('#aries-sidebar') || document.querySelector('.aries-sidebar') || document.querySelector('.sidebar');
     if (!sidebar) return;
-
-    // Create / get nav container
     let nav = sidebar.querySelector('.aries-sidebar-nav') || sidebar.querySelector('.aries-sidebar-content');
     if (!nav) {
       nav = document.createElement('nav');
       nav.className = 'aries-sidebar-nav aries-sidebar-content';
-      nav.setAttribute('role', 'navigation');
+      nav.setAttribute('role','navigation');
       sidebar.appendChild(nav);
     }
+    nav.innerHTML = ''; // clear placeholders / demo
 
-    // CLEAR EVERYTHING (remove demo items + dynamic projects)
-    nav.innerHTML = '';
-
-    // STATIC NAV ONLY
     const staticNav = document.createElement('div');
     staticNav.id = 'aries-static-nav';
     staticNav.style.display = 'flex';
@@ -280,15 +268,13 @@ window.AriesDB = {
     nav.appendChild(staticNav);
   }
 
-  // run populate shortly after boot (ensures nav is consistent)
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => setTimeout(populateSidebarContent, 220));
   } else {
     setTimeout(populateSidebarContent, 220);
   }
 
-  // expose helper to refresh sidebar (keeps API for debugging)
   window.aries = window.aries || {};
   window.aries.refreshSidebar = populateSidebarContent;
 
-})(); // end IIFE
+})();
