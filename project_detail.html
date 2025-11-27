@@ -5,65 +5,469 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Project — Aries</title>
   <link rel="stylesheet" href="main.css">
+
+  <!-- Page-specific styles for project detail -->
+  <style>
+    .project-shell {
+      max-width: 960px;
+      margin: 0 auto;
+      background: #ffffff;
+      border-radius: 16px;
+      border: 1px solid rgba(15,23,42,0.08);
+      box-shadow: 0 14px 40px rgba(15,23,42,0.12);
+      overflow: hidden;
+    }
+
+    .project-header-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 18px;
+      background: #020617;
+      color: #f9fafb;
+    }
+
+    .project-title-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .project-title {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: 0.03em;
+    }
+
+    .project-subline {
+      font-size: 12px;
+      color: #9ca3af;
+    }
+
+    .project-status-pill {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      border: 1px solid rgba(248,250,252,0.2);
+      background: rgba(15,23,42,0.9);
+      color: #e5e7eb;
+      gap: 6px;
+    }
+
+    .project-status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: #22c55e;
+    }
+
+    .project-header-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .project-cta-main {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 9px 18px;
+      border-radius: 999px;
+      border: 1px solid #f9fafb;
+      background: #f9fafb;
+      color: #0b1120;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      text-decoration: none;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .project-cta-main:hover {
+      filter: brightness(0.95);
+    }
+
+    .project-cta-secondary {
+      font-size: 12px;
+      color: #9ca3af;
+      text-decoration: none;
+    }
+
+    .project-cta-secondary:hover {
+      text-decoration: underline;
+    }
+
+    .project-body {
+      padding: 18px 18px 16px;
+      background: #f9fafb;
+    }
+
+    .project-sections {
+      display: grid;
+      grid-template-columns: minmax(0,2fr) minmax(0,1.6fr);
+      gap: 18px;
+    }
+
+    @media (max-width: 800px) {
+      .project-sections {
+        grid-template-columns: minmax(0,1fr);
+      }
+      .project-header-bar {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+      }
+      .project-header-actions {
+        width: 100%;
+        justify-content: flex-start;
+      }
+      .project-cta-main {
+        flex: 1;
+        justify-content: center;
+      }
+    }
+
+    .project-panel {
+      background: #ffffff;
+      border-radius: 12px;
+      padding: 14px 14px 12px;
+      border: 1px solid rgba(15,23,42,0.06);
+    }
+
+    .project-panel h3 {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #6b7280;
+      margin-bottom: 8px;
+    }
+
+    .project-description {
+      font-size: 14px;
+      color: #4b5563;
+      line-height: 1.5;
+      white-space: pre-wrap;
+    }
+
+    .project-description-empty {
+      font-size: 13px;
+      color: #9ca3af;
+      font-style: italic;
+    }
+
+    .meta-list {
+      list-style: none;
+      margin: 4px 0 0;
+      padding: 0;
+      font-size: 13px;
+      color: #4b5563;
+    }
+
+    .meta-list li {
+      margin-bottom: 4px;
+    }
+
+    .meta-label {
+      color: #9ca3af;
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+      font-size: 11px;
+      display: inline-block;
+      margin-right: 6px;
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0,1fr));
+      gap: 10px;
+      margin-top: 6px;
+    }
+
+    .stat-card {
+      background: #020617;
+      color: #f9fafb;
+      border-radius: 10px;
+      padding: 10px 10px 8px;
+      border: 1px solid rgba(148,163,184,0.35);
+    }
+
+    .stat-label {
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #9ca3af;
+      margin-bottom: 4px;
+    }
+
+    .stat-value {
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .stat-foot {
+      margin-top: 6px;
+      font-size: 11px;
+      color: #9ca3af;
+    }
+
+    .project-footer-note {
+      margin-top: 10px;
+      font-size: 11px;
+      color: #6b7280;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .pill-small {
+      border-radius: 999px;
+      border: 1px solid #d1d5db;
+      padding: 3px 8px;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #6b7280;
+    }
+  </style>
 </head>
 <body>
+  <!-- topbar -->
   <header id="aries-topbar" class="aries-topbar" role="banner">
-    <button id="aries-hamburger" class="aries-hamburger" aria-controls="aries-sidebar" aria-expanded="false">☰</button>
-    <div class="aries-title">PROJECT MANAGER</div>
-    <a href="home.html" class="aries-brand"><img src="images/goat.png" class="aries-logo" alt="Aries"></a>
+    <button id="aries-hamburger" class="aries-hamburger" aria-label="Open sidebar">☰</button>
+    <span class="aries-title">PROJECT MANAGER</span>
+    <a href="home.html" class="aries-brand"><img src="goat.png" class="aries-logo" alt="Aries"></a>
   </header>
 
-  <aside id="aries-sidebar" class="aries-sidebar hidden" role="complementary" aria-label="Project list">
-    <nav class="aries-sidebar-nav aries-sidebar-content"></nav>
+  <!-- overlay + sidebar for app.js -->
+  <div id="aries-overlay" class="hidden" aria-hidden="true"></div>
+  <aside id="aries-sidebar" class="aries-sidebar hidden" role="complementary" aria-label="Project list" aria-hidden="true">
+    <nav class="aries-sidebar-nav aries-sidebar-content" role="navigation" aria-label="Projects"></nav>
   </aside>
 
   <main class="page-wrapper">
-    <div class="container">
-      <div id="projectHeader" class="projects-bar" style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px">
-        <h2 id="projectName" style="margin:0">Loading…</h2>
-        <div>
-          <a id="openWorkspace" class="btn-primary" href="#">Open Workspace</a>
+    <div class="project-shell">
+      <!-- header strip -->
+      <div class="project-header-bar">
+        <div class="project-title-wrap">
+          <h2 id="projectName" class="project-title">Loading…</h2>
+          <div class="project-subline" id="projectSubline">Fetching project details from Aries Cloud…</div>
+        </div>
+        <div class="project-header-actions">
+          <a id="openWorkspace" class="project-cta-main" href="#">Open Workspace</a>
+          <a href="projects.html" class="project-cta-secondary">← Back to Projects</a>
         </div>
       </div>
 
-      <div id="projectBody" style="padding:18px">
-        <p id="projectMeta">Loading project details...</p>
+      <!-- main content -->
+      <div class="project-body">
+        <div class="project-sections">
+          <!-- LEFT: project meta / description -->
+          <section class="project-panel">
+            <h3>Project Overview</h3>
+            <div id="projectDescription" class="project-description project-description-empty">
+              Loading…
+            </div>
+
+            <ul class="meta-list" style="margin-top:10px">
+              <li><span class="meta-label">Status</span><span id="metaStatus">—</span></li>
+              <li><span class="meta-label">Created</span><span id="metaCreated">—</span></li>
+              <li><span class="meta-label">Owner</span><span id="metaOwner">—</span></li>
+              <li><span class="meta-label">Project ID</span><span id="metaId">—</span></li>
+            </ul>
+          </section>
+
+          <!-- RIGHT: workspace stats -->
+          <section class="project-panel">
+            <h3>Workspace snapshot</h3>
+            <div class="stat-grid">
+              <div class="stat-card">
+                <div class="stat-label">Cards</div>
+                <div class="stat-value" id="statNodes">—</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">Connections</div>
+                <div class="stat-value" id="statLinks">—</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">Sessions</div>
+                <div class="stat-value" id="statSessions">1</div>
+              </div>
+            </div>
+            <div class="stat-foot" id="statFoot">
+              Waiting for workspace data…
+            </div>
+          </section>
+        </div>
+
+        <div class="project-footer-note">
+          <span class="pill-small">Workspace data updates automatically when you edit the board.</span>
+          <span id="metaLastModified" style="font-size:11px;color:#6b7280;"></span>
+        </div>
       </div>
     </div>
   </main>
 
   <script type="module">
-    import { auth } from './firebase-config.js';
-    import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
     import './app.js';
+    import { db } from './firebase-config.js';
+    import {
+      doc,
+      getDoc,
+      collection
+    } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
 
+    // ------------- helpers -------------
     const params = new URLSearchParams(location.search);
-    const id = params.get('id');
+    const projectId = params.get('id');
+
     const elName = document.getElementById('projectName');
+    const elSubline = document.getElementById('projectSubline');
+    const elDescription = document.getElementById('projectDescription');
+    const elStatus = document.getElementById('metaStatus');
+    const elCreated = document.getElementById('metaCreated');
+    const elOwner = document.getElementById('metaOwner');
+    const elId = document.getElementById('metaId');
+    const elLastModified = document.getElementById('metaLastModified');
+
+    const elNodes = document.getElementById('statNodes');
+    const elLinks = document.getElementById('statLinks');
+    const elSessions = document.getElementById('statSessions');
+    const elStatFoot = document.getElementById('statFoot');
+
     const openWorkspace = document.getElementById('openWorkspace');
 
-    async function load() {
-      if (!id) {
-        elName.textContent = 'No project selected';
-        return;
+    function formatDate(value) {
+      if (!value) return 'N/A';
+      try {
+        let d = value;
+        if (value.toDate) d = value.toDate();
+        else if (typeof value === 'string' || typeof value === 'number') d = new Date(value);
+        if (!(d instanceof Date) || isNaN(d.getTime())) return 'N/A';
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const hh = String(d.getHours()).padStart(2, '0');
+        const mm = String(d.getMinutes()).padStart(2, '0');
+        return `${y}-${m}-${day} ${hh}:${mm}`;
+      } catch (e) {
+        return 'N/A';
       }
-      const d = await window.AriesDB.loadProjectData(id);
-      if (!d) {
-        elName.textContent = 'Project not found';
-        return;
-      }
-      elName.textContent = d.name;
-      document.getElementById('projectMeta').textContent =
-        `Status: ${d.status || 'Active'} — Last modified: ${d.lastModified || 'N/A'}`;
-      openWorkspace.href = `workspace.html?id=${id}`;
     }
 
-    onAuthStateChanged(auth, (user) => {
-      if (!user) {
-        window.location.href = 'index.html';
+    function truncateUserId(uid) {
+      if (!uid) return 'Unknown';
+      if (uid.length <= 10) return uid;
+      return uid.slice(0, 5) + '…' + uid.slice(-3);
+    }
+
+    // ------------- load project meta -------------
+    async function loadProject() {
+      if (!projectId) {
+        elName.textContent = 'Project not specified';
+        elSubline.textContent = 'Open this page from the Projects list.';
+        elDescription.textContent = 'No project id in URL.';
+        elId.textContent = '—';
         return;
       }
-      load();
+
+      elId.textContent = projectId;
+      openWorkspace.href = `workspace.html?id=${encodeURIComponent(projectId)}`;
+
+      try {
+        const data = await window.AriesDB.loadProjectData(projectId);
+        if (!data) {
+          elName.textContent = 'Project not found';
+          elSubline.textContent = 'Check if this project still exists in Firestore.';
+          elDescription.textContent = 'This project could not be loaded. It may have been deleted.';
+          elDescription.classList.remove('project-description-empty');
+          elStatus.textContent = 'Unknown';
+          elCreated.textContent = 'N/A';
+          elOwner.textContent = 'N/A';
+          elLastModified.textContent = '';
+          return;
+        }
+
+        elName.textContent = data.name || 'Untitled project';
+        elSubline.textContent = data.tagline || 'Workspace and roadmap for this Aries project.';
+
+        const status = data.status || 'Active';
+        elStatus.textContent = status;
+        elCreated.textContent = formatDate(data.createdAt);
+        elOwner.textContent = data.owner ? truncateUserId(data.owner) : 'Anonymous';
+        elLastModified.textContent = data.lastModified
+          ? 'Last modified: ' + formatDate(data.lastModified)
+          : '';
+
+        const desc = data.description && String(data.description).trim();
+        if (desc) {
+          elDescription.textContent = desc;
+          elDescription.classList.remove('project-description-empty');
+        } else {
+          elDescription.textContent = 'No description yet. You can use this project as a freeform workspace in the Aries board.';
+          elDescription.classList.add('project-description-empty');
+        }
+
+      } catch (err) {
+        console.error('Error loading project detail:', err);
+        elName.textContent = 'Error loading project';
+        elSubline.textContent = 'See console for more information.';
+        elDescription.textContent = 'An error occurred while fetching this project.';
+        elDescription.classList.remove('project-description-empty');
+      }
+    }
+
+    // ------------- load workspace snapshot -------------
+    async function loadWorkspaceSnapshot() {
+      if (!projectId || !db) {
+        elNodes.textContent = '0';
+        elLinks.textContent = '0';
+        elStatFoot.textContent = 'Workspace not initialized yet.';
+        return;
+      }
+
+      try {
+        const boardsCol = collection(db, 'workspaceBoards');
+        const ref = doc(boardsCol, projectId);
+        const snap = await getDoc(ref);
+
+        if (!snap.exists()) {
+          elNodes.textContent = '0';
+          elLinks.textContent = '0';
+          elStatFoot.textContent = 'No workspace data yet. Open the workspace to start building.';
+          return;
+        }
+
+        const data = snap.data() || {};
+        const nodes = Array.isArray(data.nodes) ? data.nodes.length : 0;
+        const links = Array.isArray(data.links) ? data.links.length : 0;
+
+        elNodes.textContent = String(nodes);
+        elLinks.textContent = String(links);
+        elSessions.textContent = '1'; // simple static value for now
+
+        const updated = data.updatedAt ? formatDate(data.updatedAt) : null;
+        elStatFoot.textContent = updated
+          ? 'Last board save: ' + updated
+          : 'Workspace has no recorded save time yet.';
+      } catch (err) {
+        console.error('Error loading workspace snapshot:', err);
+        elStatFoot.textContent = 'Could not load workspace data.';
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadProject();
+      loadWorkspaceSnapshot();
     });
   </script>
 </body>
