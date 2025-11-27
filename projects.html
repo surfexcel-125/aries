@@ -4,9 +4,112 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Projects — Aries</title>
+
+  <!-- Prevent scrollbar-jump/layout-shift -->
+  <style> html { overflow-y: scroll; } </style>
+
   <link rel="stylesheet" href="main.css">
+
+  <!-- Page-specific styles to match your screenshot -->
+  <style>
+    /* page wrapper adjustments for the centered panel */
+    .projects-panel {
+      max-width: 900px;
+      margin: 18px auto;
+      background: #fff;
+      border: 4px solid #0b1220;
+      box-shadow: 0 4px 0 rgba(0,0,0,0.06);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .projects-header {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      background:#000;
+      color:#fff;
+      padding:14px 18px;
+    }
+    .projects-header h2 {
+      margin:0;
+      font-family: 'Montserrat', Arial, sans-serif;
+      font-size:22px;
+      letter-spacing:1px;
+      font-weight:700;
+    }
+    .btn-add {
+      background: #ddd;
+      color:#111;
+      border-radius:8px;
+      padding:8px 12px;
+      border:2px solid rgba(0,0,0,0.12);
+      cursor:pointer;
+      font-weight:600;
+    }
+    .projects-body {
+      padding: 22px;
+      background: #fff;
+    }
+
+    /* single project row style (matches screenshot) */
+    .project-card {
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      padding: 18px;
+      background: #e8e8e8;
+      border-radius: 18px;
+      border: 3px solid rgba(11,18,32,0.35);
+      margin-bottom: 22px;
+    }
+
+    .project-left {
+      display:flex;
+      align-items:center;
+      gap:18px;
+    }
+
+    .project-pill {
+      background: #f6f6f6;
+      padding: 18px 28px;
+      border-radius: 999px;
+      font-size:20px;
+      color:#111;
+      border: 2px solid rgba(0,0,0,0.08);
+      min-width: 260px;
+      text-align:left;
+    }
+
+    .project-status {
+      text-align:right;
+      min-width:180px;
+    }
+    .status-label { font-weight:700; font-size:12px; color:#333; margin-bottom:8px; text-transform:uppercase; letter-spacing:0.8px; }
+    .status-bubble {
+      display:inline-block;
+      background:#fff;
+      padding:8px 18px;
+      border-radius:999px;
+      border:2px solid rgba(0,0,0,0.12);
+      font-weight:600;
+    }
+
+    /* when there are no real projects, show placeholder cards visually similar */
+    .placeholder .project-pill { color:#7a7a7a; }
+    .placeholder .status-bubble { color:#7a7a7a; background:#f4f4f4; }
+
+    /* ensure the outer page spacing looks like your screenshot */
+    .page-wrapper { padding-top: 84px; } /* keep header spacing */
+    @media (max-width:900px) {
+      .project-pill { min-width:160px; font-size:16px; padding:12px 18px; }
+      .project-status { min-width:120px; }
+      .projects-panel { margin:12px; }
+    }
+  </style>
 </head>
 <body>
+
 <!-- HEADER (projects.html) -->
 <header class="aries-topbar">
     <button id="aries-hamburger" class="aries-hamburger" aria-label="Open sidebar">☰</button>
@@ -18,96 +121,138 @@
     </a>
 </header>
 
+<!-- persistent overlay (present immediately) -->
+<div id="aries-overlay" class="hidden" aria-hidden="true"></div>
+
 <!-- Sidebar (projects.html) -->
-<aside id="aries-sidebar" class="aries-sidebar hidden" role="complementary" aria-label="Project list">
+<aside id="aries-sidebar" class="aries-sidebar hidden" role="complementary" aria-label="Project list" aria-hidden="true">
   <nav class="aries-sidebar-nav aries-sidebar-content" role="navigation" aria-label="Projects"></nav>
 </aside>
 
-  <main class="page-wrapper">
-    <div class="container">
-      <div class="projects-bar">
-        <h2 style="margin:0">MY PROJECTS</h2>
-        <button id="openNewProjectModal" class="btn-primary">+ NEW</button>
-      </div>
+<main class="page-wrapper">
+  <div class="projects-panel" role="region" aria-labelledby="projects-title">
+    <div class="projects-header">
+      <h2 id="projects-title">PROJECTS</h2>
+      <button id="openNewProjectModal" class="btn-add" aria-haspopup="dialog">Add Project  +</button>
+    </div>
 
-      <div id="projectsList" class="projects-list" style="margin-top:18px"></div>
+    <div class="projects-body" id="projects-body">
+      <!-- dynamic project list will be injected here by JS.
+           If there are no projects, we show presentational placeholders (not saved anywhere). -->
+      <div id="projectsList" class="projects-list" aria-live="polite"></div>
 
-      <div id="initialLoader" class="loader-panel" style="padding:24px;text-align:center;color:#666">
+      <div id="initialLoader" class="loader-panel" style="padding:24px;text-align:center;color:#666; display:none;">
         <div class="loader-spinner" style="display:inline-block"></div>
         <p style="margin-top:8px">Connecting to Aries Cloud...</p>
       </div>
     </div>
-  </main>
+  </div>
+</main>
 
-  <!-- New project modal (simple) -->
-  <div id="newProjectModal" class="hidden" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.36);z-index:300">
-    <div style="background:#fff;padding:18px;border-radius:8px;min-width:320px">
-      <div style="font-weight:800;margin-bottom:8px">Create New Project</div>
-      <input id="projectNameInput" style="width:100%;padding:10px;border-radius:6px;border:1px solid #ddd" placeholder="Project name">
-      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">
-        <button id="cancelProjectBtn" class="btn-ghost">Cancel</button>
-        <button id="confirmProjectBtn" class="btn-primary">Create</button>
-      </div>
+<!-- New project modal (simple) -->
+<div id="newProjectModal" class="hidden" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.36);z-index:900">
+  <div style="background:#fff;padding:18px;border-radius:8px;min-width:320px">
+    <div style="font-weight:800;margin-bottom:8px">Create New Project</div>
+    <input id="projectNameInput" style="width:100%;padding:10px;border-radius:6px;border:1px solid #ddd" placeholder="Project name">
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">
+      <button id="cancelProjectBtn" class="btn-ghost">Cancel</button>
+      <button id="confirmProjectBtn" class="btn-primary">Create</button>
     </div>
   </div>
+</div>
 
-  <script type="module">
-    import './app.js';
+<script type="module">
+  import './app.js';
 
-    const listEl = document.getElementById('projectsList');
-    const loader = document.getElementById('initialLoader');
-    const modal = document.getElementById('newProjectModal');
-    const input = document.getElementById('projectNameInput');
-    const confirmBtn = document.getElementById('confirmProjectBtn');
+  const listEl = document.getElementById('projectsList');
+  const loader = document.getElementById('initialLoader');
+  const modal = document.getElementById('newProjectModal');
+  const input = document.getElementById('projectNameInput');
+  const confirmBtn = document.getElementById('confirmProjectBtn');
 
-    function el(tag, attrs={}, html='') {
-      const e = document.createElement(tag);
-      Object.keys(attrs).forEach(k => e.setAttribute(k, attrs[k]));
-      e.innerHTML = html;
-      return e;
+  function createProjectCard(project) {
+    const card = document.createElement('div');
+    card.className = 'project-card';
+    if (!project || project.placeholder) card.classList.add('placeholder');
+
+    // Left - pill or link
+    const left = document.createElement('div');
+    left.className = 'project-left';
+    const pill = document.createElement('div');
+    pill.className = 'project-pill';
+    if (project && !project.placeholder) {
+      const a = document.createElement('a');
+      a.href = `project_detail.html?id=${project.id}`;
+      a.textContent = project.name || 'Untitled';
+      a.style.textDecoration = 'none';
+      a.style.color = '#111';
+      pill.appendChild(a);
+    } else {
+      pill.textContent = project && project.name ? project.name : 'Project Name';
     }
+    left.appendChild(pill);
 
-    function projectRow(p) {
-      const row = document.createElement('div');
-      row.className = 'project-row';
-      row.style.margin = '14px 0';
-      row.innerHTML = `
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:12px;border-radius:10px;background:#f6f6f8">
-          <a href="project_detail.html?id=${p.id}" style="padding:8px 12px;border-radius:999px;text-decoration:none;color:#111">${p.name}</a>
-          <div><span style="padding:6px 12px;border-radius:999px;background:#eee">${p.status||'Active'}</span></div>
-        </div>
-      `;
-      return row;
-    }
+    // Right - status
+    const right = document.createElement('div');
+    right.className = 'project-status';
+    const label = document.createElement('div');
+    label.className = 'status-label';
+    label.textContent = 'Status';
+    const bubble = document.createElement('div');
+    bubble.className = 'status-bubble';
+    bubble.textContent = (project && project.status) ? project.status : 'DROPDOWN';
+    right.appendChild(label);
+    right.appendChild(bubble);
 
-    async function loadProjects() {
-      try {
-        const projects = await window.AriesDB.getProjects();
-        loader.style.display = 'none';
-        listEl.innerHTML = '';
-        if (!projects.length) {
-          listEl.innerHTML = '<div style="padding:24px;text-align:center;color:#666">No projects yet</div>';
-          return;
-        }
-        projects.forEach(p => listEl.appendChild(projectRow(p)));
-      } catch (err) {
-        loader.innerHTML = '<p style="color:red">Failed to connect</p>';
-        console.error(err);
+    card.appendChild(left);
+    card.appendChild(right);
+    return card;
+  }
+
+  async function loadProjects() {
+    loader.style.display = 'block';
+    listEl.innerHTML = '';
+    try {
+      const projects = await window.AriesDB.getProjects();
+      loader.style.display = 'none';
+
+      if (!projects || projects.length === 0) {
+        // NO real projects — show presentational placeholders (these are NOT saved)
+        const placeholders = [
+          { placeholder:true, name:'Project Name 1' },
+          { placeholder:true, name:'Project Name 2' },
+          { placeholder:true, name:'Project Name 3' },
+          { placeholder:true, name:'Project Name 4' }
+        ];
+        placeholders.forEach(p => listEl.appendChild(createProjectCard(p)));
+        return;
       }
+
+      // Have real projects — render each as clickable card
+      projects.forEach(p => {
+        listEl.appendChild(createProjectCard({ id: p.id, name: p.name, status: p.status }));
+      });
+
+    } catch (err) {
+      loader.style.display = 'none';
+      listEl.innerHTML = '<div style="padding:24px;text-align:center;color:#c33">Failed to load projects</div>';
+      console.error(err);
     }
+  }
 
-    document.addEventListener('DOMContentLoaded', loadProjects);
+  document.addEventListener('DOMContentLoaded', loadProjects);
 
-    document.getElementById('openNewProjectModal').onclick = () => modal.classList.remove('hidden');
-    document.getElementById('cancelProjectBtn').onclick = () => modal.classList.add('hidden');
+  // Modal wiring
+  document.getElementById('openNewProjectModal').onclick = () => modal.classList.remove('hidden');
+  document.getElementById('cancelProjectBtn').onclick = () => modal.classList.add('hidden');
 
-    confirmBtn.onclick = async () => {
-      const name = input.value.trim(); if (!name) return;
-      confirmBtn.disabled = true; confirmBtn.textContent = 'Creating...';
-      const id = await window.AriesDB.createProject(name);
-      if (id) location.href = `project_detail.html?id=${id}`;
-      else { alert('Failed to create'); confirmBtn.disabled = false; confirmBtn.textContent = 'Create'; }
-    };
-  </script>
+  confirmBtn.onclick = async () => {
+    const name = input.value.trim(); if (!name) return;
+    confirmBtn.disabled = true; confirmBtn.textContent = 'Creating...';
+    const id = await window.AriesDB.createProject(name);
+    if (id) location.href = `project_detail.html?id=${id}`;
+    else { alert('Failed to create'); confirmBtn.disabled = false; confirmBtn.textContent = 'Create'; }
+  };
+</script>
 </body>
 </html>
