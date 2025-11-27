@@ -2,157 +2,183 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Workspace — Aries Workflow Mapper</title>
+<meta name="viewport" content="width=device-width,initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Workspace — Aries Professional</title>
 <link rel="stylesheet" href="main.css" />
 <style>
 :root{
-  --accent:#0b74ff; --muted:#6b7280; --panel:#ffffffee; --bg:#ffffff;
-  --canvas-bg: #f5f5f5;
-  --grid-color:rgba(15,23,42,0.08);
-  --node-shadow:0 5px 15px rgba(15,23,42,0.1);
-  --link-color:#4b5563;
-  --link-selected:#ff7a59;
+  --accent:#0b74ff; 
+  --muted:#6b7280; 
+  --panel:#ffffffee; 
+  --bg:#ffffff;
+  --canvas-bg: #f8f9fa;
+  --grid-color:rgba(15,23,42,0.06);
+  --node-shadow:0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+  --link-color:#64748b;
+  --link-selected:#0b74ff;
+  --selection-box-bg: rgba(11, 116, 255, 0.1);
+  --selection-box-border: rgba(11, 116, 255, 0.5);
 }
 
 /* Basic reset */
-html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial;background:var(--bg);color:#0f172a}
+html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial;background:var(--bg);color:#0f172a; overflow: hidden;}
+
+/* UI Layering */
+.topbar { z-index: 2000; }
+.inspector { z-index: 1500; }
+.controls-panel { z-index: 1400; }
+#floatingTools { z-index: 1400; }
+.modal-backdrop { z-index: 3000; }
 
 /* Header */
 .topbar {
-  display:flex;
-  align-items:center;
-  gap:12px;
-  padding:10px 14px;
-  background:#000;
-  color:#fff;
-  position:sticky;
-  top:0;
-  z-index:1200;
-  box-shadow:0 2px 8px rgba(0,0,0,0.12);
+  display:flex; align-items:center; gap:12px; padding:0 16px; height: 56px;
+  background:#1e293b; color:#fff;
+  box-shadow:0 1px 3px rgba(0,0,0,0.12);
 }
 
-/* left area (menu) */
-.header-left { display:flex; align-items:center; gap:8px; flex:0 0 auto; z-index:1210; }
-.hamburger { 
-  background:transparent; border:none; color:#fff; font-size:18px; cursor:pointer; 
-  width:36px; height:36px; display:flex; align-items:center; justify-content:center;
-  flex:0 0 36px;
+.header-left { display:flex; align-items:center; gap:12px; flex:0 0 auto; }
+.header-title { font-weight:600; font-size:15px; color:#f1f5f9; }
+
+.header-actions { margin-left:auto; display:flex; gap:8px; align-items:center; }
+
+.btn, .tool-btn {
+  appearance:none; border:1px solid rgba(255,255,255,0.1);
+  border-radius:6px; background: rgba(255,255,255,0.05);
+  color:#e2e8f0; padding:6px 12px; font-size:13px; font-weight:500;
+  cursor:pointer; transition: all 0.15s;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.btn:hover, .tool-btn:hover { background:rgba(255,255,255,0.1); border-color:rgba(255,255,255,0.2); }
+.btn:disabled, .tool-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Canvas Area */
+.app-shell{ display:flex; height: calc(100vh - 56px); overflow:hidden; position: relative; }
+.canvas-wrap{ flex:1; position:relative; overflow:hidden; background:var(--canvas-bg); cursor: grab; }
+.canvas-wrap:active { cursor: grabbing; }
+
+#canvas{ width:100%; height:100%; position:relative; touch-action:none; outline: none; }
+#board{ position:absolute; left:0; top:0; transform-origin:0 0; width:3000px; height:2000px; }
+#svg{ position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none; z-index:10; }
+
+/* Nodes */
+.node{ 
+  position:absolute; 
+  min-width:160px; min-height:70px; 
+  box-shadow:var(--node-shadow); 
+  background:#fff; 
+  cursor:grab; 
+  /* Transitions removed for instant drag response */
+  border:2px solid transparent; 
+  z-index:20; 
+  touch-action: none;
+  user-select: none;
+  display: flex; flex-direction: column;
+}
+.node-content { padding: 14px 18px; flex: 1; pointer-events: none; }
+.node.selected{ border-color:var(--accent); ring: 2px solid rgba(11,116,255,0.2); z-index: 30; }
+.node-title{ font-weight:700; margin-bottom:4px; font-size:14px; color:#1e293b; pointer-events:none;}
+.node-body{ font-size:13px; color:#64748b; word-break:break-word; line-height: 1.4; pointer-events:none;}
+
+/* Shapes */
+.shape-rect { border-radius: 4px; }
+.shape-round { border-radius: 12px; }
+.shape-capsule { border-radius: 50px; }
+.shape-diamond { border-radius: 4px; transform: rotate(45deg); } /* Diamond requires internal counter-rotate logic in JS, keeping simple for now */
+
+/* Anchors */
+.anchors { opacity: 0; transition: opacity 0.2s; pointer-events: none; }
+.node:hover .anchors, .node.selected .anchors { opacity: 1; }
+.anchor-dot {
+  transition: transform 0.1s;
+}
+.anchor-dot:hover { transform: scale(1.3); background: var(--accent) !important; border-color: white !important; }
+
+/* Selection Box (New) */
+#selectionBox {
+  position: absolute;
+  background: var(--selection-box-bg);
+  border: 1px solid var(--selection-box-border);
+  display: none;
+  pointer-events: none;
+  z-index: 1000;
 }
 
-/* center title absolutely centered so it never collides with left/right */
-.header-title {
-  font-weight:700;
-  font-size:1rem;
-  color:#fff;
-  position:absolute;
-  left:50%;
-  transform:translateX(-50%);
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  max-width:60%;
-  text-align:center;
-  pointer-events:none; /* so clicks go through to other controls */
+/* Floating Toolbar */
+#floatingTools { 
+  position:fixed; top:72px; left:16px; 
+  display:flex; flex-direction:column; gap:8px; 
+  background: white; padding:8px; 
+  border-radius:8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border: 1px solid #e2e8f0;
+}
+.tool-btn { 
+  color: #475569; background: transparent; border: 1px solid transparent; 
+  justify-content: flex-start;
+}
+.tool-btn:hover { background: #f1f5f9; color: #0f172a; }
+
+/* Bottom Controls */
+.controls-panel{ 
+  position:fixed; bottom:16px; left:16px; right: 16px;
+  padding:8px 12px; background:white; 
+  border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.1); 
+  border: 1px solid #e2e8f0;
+  display:flex; justify-content: space-between; align-items:center; 
 }
 
-/* right actions flow */
-.header-actions {
-  margin-left:auto;
-  display:flex;
-  gap:8px;
-  align-items:center;
-  flex:0 0 auto;
-  z-index:1210;
-  padding-right:12px; /* ensure back link fully inside */
-}
-
-/* header buttons */
-.topbar .btn, .topbar .tool-btn {
-  -webkit-appearance:none; appearance:none;
-  border-radius:8px;
-  border:1px solid rgba(255,255,255,0.14);
-  background: rgba(255,255,255,0.06);
-  color:#fff;
-  padding:6px 10px;
-  font-weight:600;
-  cursor:pointer;
-}
-
-/* ensure backToProjects sits inside header actions and is visible */
-#backToProjects { color:#c8a2ff; text-decoration:none; background:transparent; border:none; padding:6px 8px; }
-
-/* Inspector toggle */
-#toggleInspector { background:transparent; border:1px solid rgba(255,255,255,0.08); color:#fff; padding:6px 8px; border-radius:6px; }
-
-/* layout */
-.app-shell{ display:flex; height: calc(100vh - 52px); overflow:hidden; }
-
-/* Canvas area */
-.canvas-wrap{ flex:1; position:relative; overflow:hidden; background:var(--canvas-bg); }
-#canvas{ width:100%; height:100%; position:relative; touch-action:none; user-select:none; }
-#board{ position:absolute; left:0; top:0; transform-origin:top left; width:2200px; height:1600px; }
-
-/* Inspector (right panel) */
+/* Inspector */
 .inspector {
-  width:340px;
-  background:#fff;
-  border-left:1px solid #eee;
-  box-shadow:-6px 0 18px rgba(12,15,20,0.03);
-  padding:16px;
-  display:flex;
-  flex-direction:column;
-  gap:12px;
-  z-index:300;
-  transition:transform .18s ease, opacity .12s ease;
+  width:320px; background:#fff; border-left:1px solid #e2e8f0;
+  display:flex; flex-direction:column;
+  transition: transform 0.2s ease;
+  position: relative;
 }
-.inspector.hidden { transform: translateX(10px); opacity:0; width:0; padding:0 6px; overflow:hidden; }
+.inspector.hidden { margin-right: -320px; }
+.inspector-header { padding: 16px; border-bottom: 1px solid #f1f5f9; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
+.inspector-content { padding: 16px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 16px; }
 
-/* responsive inspector behavior */
-@media (max-width:1000px) {
-  .inspector { position:fixed; right:0; top:52px; bottom:0; width:84%; max-width:420px; transform: translateX(100%); opacity:0; }
-  .inspector.visible { transform: translateX(0); opacity:1; }
+.field-group { display: flex; flex-direction: column; gap: 6px; }
+.field-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; font-weight: 700; }
+.inp { 
+  width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #cbd5e1; 
+  font-size: 13px; outline: none; transition: border 0.1s;
 }
+.inp:focus { border-color: var(--accent); }
+textarea.inp { resize: vertical; min-height: 80px; }
 
-/* canvas grid + svg overlay */
-#svg{ position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none; z-index:10 }
+/* Color Picker Grid */
+.color-grid { display: flex; gap: 8px; flex-wrap: wrap; }
+.color-swatch { width: 24px; height: 24px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; }
+.color-swatch.active { border-color: #000; transform: scale(1.1); }
 
-/* nodes */
-.node{ position:absolute; padding:14px 18px; min-width:160px; min-height:70px; box-shadow:0 5px 15px rgba(15,23,42,0.08); border-radius:12px; background:var(--panel); cursor:grab; transition:box-shadow .08s, border-color .08s; border:2px solid transparent; z-index:15; }
-.node.selected{ border-color:var(--accent); box-shadow:0 8px 26px rgba(11,116,255,0.12) }
-.node-title{ font-weight:700; margin-bottom:6px; font-size:1.05rem; color:#0f172a }
-.node-body{ font-size:0.9rem; color:#374151; word-break:break-word }
+/* Context Menu */
+#contextMenu{ 
+  position:absolute; display:none; z-index:4000; 
+  background:#fff; border:1px solid #e2e8f0; border-radius:6px; 
+  box-shadow:0 10px 15px -3px rgba(0,0,0,0.1); 
+  min-width: 160px; overflow: hidden;
+}
+.context-item{ padding:10px 16px; cursor:pointer; font-size: 13px; color: #334155; display: flex; justify-content: space-between;}
+.context-item:hover{ background:#f8fafc; color: #0f172a; }
+.shortcut { color: #94a3b8; font-size: 11px; }
 
-/* anchor */
-.anchor{ position:absolute; width:12px; height:12px; border-radius:50%; background:var(--accent); border:2px solid #fff; opacity:0; transition:opacity .12s; pointer-events:auto; z-index:30 }
-.node:hover .anchor{ opacity:1 }
-.output-anchor{ top:50%; right:-6px; transform:translateY(-50%); cursor:crosshair }
-
-/* floating tools bottom-left */
-#floatingTools{ position:fixed; bottom:18px; left:18px; display:flex; gap:8px; background:var(--panel); padding:10px; border-radius:12px; box-shadow:0 10px 20px rgba(0,0,0,0.06); z-index:200 }
-
-/* controls bottom-right */
-.controls-panel{ position:fixed; bottom:18px; right:18px; padding:10px; background:var(--panel); border-radius:8px; box-shadow:0 5px 15px rgba(0,0,0,0.06); z-index:200; display:flex; gap:10px; align-items:center }
-
-/* context menu */
-#contextMenu{ position:absolute; display:none; z-index:400; background:#fff; border:1px solid #ddd; border-radius:6px; box-shadow:0 8px 20px rgba(0,0,0,0.12) }
-.context-menu-item{ padding:8px 14px; cursor:pointer }
-.context-menu-item:hover{ background:#f7f7f7 }
-
-/* modal for label input */
+/* Modal */
 .modal-backdrop {
-  position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.42); z-index:1400;
+  position:fixed; inset:0; display:none; align-items:center; justify-content:center; 
+  background:rgba(15, 23, 42, 0.6); backdrop-filter: blur(2px);
 }
-.modal-card { background:#fff; border-radius:10px; padding:18px; width:520px; max-width:92%; box-shadow:0 12px 30px rgba(2,6,23,0.36); }
-.modal-card h3 { margin:0 0 8px 0; }
-.modal-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:12px; }
+.modal-card { 
+  background:#fff; border-radius:12px; padding:24px; width:400px; max-width:90%; 
+  box-shadow:0 20px 25px -5px rgba(0,0,0,0.1); 
+  animation: modalPop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes modalPop { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; }}
 
-/* small screens */
-@media (max-width:700px) {
-  .header-title { max-width:52%; }
-  .header-actions { gap:6px; }
-  #floatingTools { left:8px; bottom:90px; }
-  .controls-panel { right:8px; bottom:90px; }
+@media (max-width:800px) {
+  .inspector { position: fixed; right: 0; top: 56px; bottom: 0; z-index: 2500; transform: translateX(100%); }
+  .inspector.visible { transform: translateX(0); }
+  #floatingTools { top: auto; bottom: 80px; left: 16px; flex-direction: row; }
+  .controls-panel { bottom: 16px; flex-wrap: wrap; gap: 8px; }
 }
 </style>
 </head>
@@ -160,28 +186,27 @@ html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe 
 
 <header class="topbar">
   <div class="header-left">
-    <button class="hamburger" id="menuIcon" aria-label="Open menu">☰</button>
+    <div style="font-weight: 800; letter-spacing: -0.5px; font-size: 18px;">Aries</div>
+    <div style="width:1px; height: 16px; background: rgba(255,255,255,0.2);"></div>
+    <div class="header-title" id="headerTitle">Untitled Project</div>
   </div>
 
-  <div class="header-title" id="headerTitle">Loading project…</div>
-
   <div class="header-actions" id="headerActions">
+    <button id="undoBtn" class="btn" title="Undo (Ctrl+Z)">↩</button>
+    <button id="redoBtn" class="btn" title="Redo (Ctrl+Y)">↪</button>
+    <div style="width:1px; height: 16px; background: rgba(255,255,255,0.2); margin: 0 4px;"></div>
     <button id="saveBoard" class="btn">Save Board</button>
-    <button id="exportBtn" class="btn">Export JSON</button>
-    <label class="btn" style="display:inline-flex; align-items:center; gap:8px; cursor:pointer;">
-      <input id="importFile" type="file" accept="application/json" style="display:none">
-      Import JSON
-    </label>
-    <button id="toggleInspector" title="Toggle Inspector">Inspector</button>
-    <a id="backToProjects" href="/projects">← Project</a>
+    <button id="exportBtn" class="btn">Export</button>
+    <button id="toggleInspector" class="btn">Inspector</button>
   </div>
 </header>
 
 <div class="app-shell">
   <div class="canvas-wrap">
-    <div id="canvas" tabindex="0" aria-label="Workflow Canvas">
-      <div id="board" role="application" aria-describedby="headerTitle">
-        <svg id="svg" viewBox="0 0 2200 1600" preserveAspectRatio="xMinYMin meet">
+    <div id="canvas" tabindex="0">
+      <div id="board">
+        <!-- SVG Layer for Links -->
+        <svg id="svg" width="100%" height="100%">
           <defs>
             <marker id="arrowhead" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="strokeWidth" markerWidth="6" markerHeight="6" orient="auto">
               <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--link-color)" />
@@ -191,178 +216,160 @@ html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe 
             </marker>
           </defs>
         </svg>
+        <!-- Nodes injected here via JS -->
+        
+        <!-- Selection Box for Area Dragging -->
+        <div id="selectionBox"></div>
       </div>
     </div>
 
-    <div id="floatingTools" role="toolbar" aria-label="Workflow Tools">
-      <button id="toolAddPage" class="tool-btn" title="Add Page">📄 Page</button>
-      <button id="toolAddAction" class="tool-btn" title="Add Action">🛠️ Action</button>
-      <button id="toolAddDecision" class="tool-btn" title="Add Decision">❓ Decision</button>
-      <div style="width:1px;height:30px;background:#e5e7eb;margin-inline:6px"></div>
-      <button id="toolDeleteNode" class="tool-btn" disabled>🗑️ Delete</button>
-      <button id="toolDeleteLink" class="tool-btn" disabled>✂️ Delete Link</button>
+    <!-- Floating Tools (Left) -->
+    <div id="floatingTools">
+      <button id="toolAddPage" class="tool-btn" title="Add Website Page">
+        <span style="font-size:16px">📄</span> <span>Page</span>
+      </button>
+      <button id="toolAddAction" class="tool-btn" title="Add User Action">
+        <span style="font-size:16px">⚡</span> <span>Action</span>
+      </button>
+      <button id="toolAddDecision" class="tool-btn" title="Add Logic/Decision">
+        <span style="font-size:16px">💎</span> <span>Decision</span>
+      </button>
+      <hr style="width:100%; border:0; border-top:1px solid #f1f5f9; margin: 4px 0;">
+      <button id="toolDelete" class="tool-btn" title="Delete Selected (Del)">
+        <span style="font-size:16px">🗑️</span> <span>Delete</span>
+      </button>
     </div>
 
+    <!-- Bottom Controls -->
     <div class="controls-panel">
-      <div>
-        <button id="zoomOutCorner" class="icon-btn">-</button>
-        <span id="zoomIndicator" style="width:60px; display:inline-block; text-align:center; font-weight:600">100%</span>
-        <button id="zoomInCorner" class="icon-btn">+</button>
+      <div style="display:flex; align-items:center; gap: 8px;">
+        <button id="zoomOut" class="btn" style="color:#333; border:1px solid #cbd5e1;">-</button>
+        <span id="zoomLevel" style="width:40px; text-align:center; font-size:13px; font-weight:600;">100%</span>
+        <button id="zoomIn" class="btn" style="color:#333; border:1px solid #cbd5e1;">+</button>
+        <button id="fitView" class="btn" style="color:#333; border:1px solid #cbd5e1; margin-left:8px;">Fit</button>
       </div>
-      <div>
-        <label><input id="showGrid" type="checkbox" checked> Grid</label>
-        <label style="margin-left:8px">Size <input id="gridSize" type="number" value="25" min="5" max="200" style="width:70px"></label>
-        <button id="centerBtn" style="margin-left:8px">Center</button>
-        <button id="zoomFitBtn" style="margin-left:8px">Zoom to fit</button>
+      <div style="font-size:12px; color:#64748b;">
+        <span id="statusText">Ready</span>
       </div>
     </div>
 
+    <!-- Context Menu -->
     <div id="contextMenu">
-      <div class="context-menu-item" id="contextEdit">Edit Node</div>
-      <div class="context-menu-item" id="contextDelete">Delete Node</div>
+      <div class="context-item" id="ctxEdit"><span>Edit</span></div>
+      <div class="context-item" id="ctxCopy"><span>Copy</span> <span class="shortcut">Ctrl+C</span></div>
+      <div class="context-item" id="ctxPaste"><span>Paste</span> <span class="shortcut">Ctrl+V</span></div>
+      <div style="height:1px; background:#f1f5f9; margin:4px 0;"></div>
+      <div class="context-item" id="ctxDelete" style="color:#ef4444;"><span>Delete</span> <span class="shortcut">Del</span></div>
     </div>
   </div>
 
-  <aside class="inspector hidden" id="inspector" aria-label="Node inspector">
-    <h4>Inspector</h4>
-    <div class="meta">Selected: <span id="selectedCount">0</span></div>
-
-    <div id="inspectorMulti" style="display:none">
-      <div class="field"><label>Group action</label>
-        <button id="alignLeft">Align Left</button>
-        <button id="alignTop">Align Top</button>
+  <!-- Inspector Panel (Right) -->
+  <aside class="inspector hidden" id="inspector">
+    <div class="inspector-header">
+      <span>Properties</span>
+      <button id="closeInspector" style="background:none; border:none; cursor:pointer; font-size:18px;">&times;</button>
+    </div>
+    
+    <div class="inspector-content" id="inspectorEmpty">
+      <div style="text-align:center; color:#94a3b8; margin-top:40px;">
+        Select a node to edit properties.
       </div>
     </div>
 
-    <div id="inspectorSingle" style="display:none">
-      <div class="field"><label>Node ID</label><div class="meta" id="inspectorId"></div></div>
-      <div class="field"><label>Type</label>
-        <select id="inspectorType">
-          <option value="page">Page</option><option value="action">Action</option><option value="decision">Decision</option>
+    <div class="inspector-content" id="inspectorData" style="display:none;">
+      
+      <div class="field-group">
+        <label class="field-label">Type</label>
+        <select id="inspType" class="inp" style="background:#f8fafc;">
+          <option value="page">Page</option>
+          <option value="action">Action</option>
+          <option value="decision">Decision</option>
         </select>
       </div>
-      <div class="field"><label>Title</label><input id="inspectorTitle" /></div>
-      <div class="field"><label>Body</label><textarea id="inspectorBody" rows="5"></textarea></div>
-      <div class="field" style="display:flex;gap:8px"><div style="flex:1"><label>Width</label><input id="inspectorW" type="number"></div><div style="flex:1"><label>Height</label><input id="inspectorH" type="number"></div></div>
-      <div style="display:flex; gap:8px; margin-top:6px">
-        <button id="inspectorSave" class="btn">Save</button>
-        <button id="inspectorDelete" class="btn">Delete</button>
-      </div>
-    </div>
 
-    <hr/>
-    <div class="field"><label>Board</label>
-      <button id="autosizeBtn">Auto-resize board</button>
-      <button id="clearAllBtn">Clear board</button>
-    </div>
-    <div class="field">
-      <label>Import / Export</label>
-      <div style="display:flex; gap:8px">
-        <button id="exportJson">Download JSON</button>
-        <button id="importJsonBtn">Load JSON</button>
+      <div class="field-group">
+        <label class="field-label">Label</label>
+        <input id="inspTitle" type="text" class="inp" placeholder="Node Title">
       </div>
-    </div>
 
-    <div class="field">
-      <label>Status</label>
-      <div class="meta" id="statusMeta">No changes</div>
+      <div class="field-group">
+        <label class="field-label">Description</label>
+        <textarea id="inspBody" class="inp" placeholder="Details..."></textarea>
+      </div>
+
+      <hr style="border:0; border-top:1px solid #f1f5f9; width:100%;">
+
+      <div class="field-group">
+        <label class="field-label">Appearance</label>
+        <div style="display:flex; gap:8px;">
+          <button class="btn" id="shapeRect" style="flex:1; border-radius:4px; border:1px solid #ccc; background:white; color:#333;">Rect</button>
+          <button class="btn" id="shapeRound" style="flex:1; border-radius:12px; border:1px solid #ccc; background:white; color:#333;">Round</button>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label">Color</label>
+        <div class="color-grid" id="colorGrid">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <div class="field-group" style="margin-top:auto;">
+        <label class="field-label">Layout</label>
+        <div style="display:flex; gap:8px;">
+           <div style="flex:1;"><label style="font-size:10px;">W</label> <input id="inspW" type="number" class="inp"></div>
+           <div style="flex:1;"><label style="font-size:10px;">H</label> <input id="inspH" type="number" class="inp"></div>
+        </div>
+      </div>
+
     </div>
   </aside>
 </div>
 
-<!-- Modal for entering transition label (replaces prompt) -->
+<!-- Label Modal -->
 <div id="labelModalBackdrop" class="modal-backdrop" aria-hidden="true">
-  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="labelModalTitle">
-    <h3 id="labelModalTitle">Enter transition label</h3>
-    <p class="meta">Example: Next, Success</p>
-    <input id="labelModalInput" type="text" style="width:100%; padding:8px; margin-top:8px; border-radius:6px; border:1px solid #ddd" value="Next" />
-    <div class="modal-actions">
-      <button id="labelModalCancel" class="btn">Cancel</button>
-      <button id="labelModalOk" class="btn" style="background:var(--accent); color:#fff;">OK</button>
+  <div class="modal-card">
+    <h3 style="margin-top:0;">Connection Label</h3>
+    <p style="color:#64748b; font-size:14px;">Name the action triggering this transition.</p>
+    <input id="labelModalInput" class="inp" type="text" placeholder="e.g. On Click, Success, Error">
+    <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px;">
+      <button id="labelModalCancel" class="btn" style="color:#333; background:transparent; border:1px solid #cbd5e1;">Cancel</button>
+      <button id="labelModalOk" class="btn" style="background:var(--accent); color:white; border:none;">Connect</button>
     </div>
   </div>
 </div>
 
-<script type="module" src="firebase-config.js"></script>
-<script type="module" src="app.js"></script>
+<!-- Text Input Modal (Generic) -->
+<div id="nodeEditModal" class="modal-backdrop" style="display:none;"></div> 
 
 <script type="module">
-  function getProjectIdFromUrl() {
-      const urlParams = new URLSearchParams(window.location.search);
-      return urlParams.get('id');
-  }
-  window.currentProjectId = getProjectIdFromUrl();
-  if (!window.currentProjectId) {
-    alert("No project ID found — returning to projects.");
-    window.location.href = "projects.html";
-  } else {
-    document.getElementById('headerTitle').textContent = `Project ${window.currentProjectId.substring(0,6)}`;
-  }
+    // Expose label modal logic
+    window.requestTransitionLabel = function(defaultValue = "") {
+        return new Promise((resolve) => {
+            const bd = document.getElementById('labelModalBackdrop');
+            const input = document.getElementById('labelModalInput');
+            const ok = document.getElementById('labelModalOk');
+            const cancel = document.getElementById('labelModalCancel');
+            
+            bd.style.display = 'flex';
+            input.value = defaultValue;
+            setTimeout(()=>input.focus(), 50); // slight delay for focus
 
-  // Inspector toggle + import wiring
-  document.addEventListener('DOMContentLoaded', () => {
-    const toggleBtn = document.getElementById('toggleInspector');
-    const inspector = document.getElementById('inspector');
-    const importFile = document.getElementById('importFile');
+            const cleanup = () => {
+                bd.style.display = 'none';
+                ok.onclick = null; cancel.onclick = null;
+                input.onkeydown = null;
+            };
 
-    function setInspectorVisible(v) {
-      if (window.matchMedia && window.matchMedia('(max-width:1000px)').matches) {
-        inspector.classList.toggle('visible', v);
-        inspector.classList.toggle('hidden', !v);
-      } else {
-        inspector.classList.toggle('hidden', !v);
-        inspector.classList.remove('visible');
-      }
+            const confirm = () => { const v = input.value.trim(); cleanup(); resolve(v); };
+            const dismiss = () => { cleanup(); resolve(null); };
+
+            ok.onclick = confirm;
+            cancel.onclick = dismiss;
+            input.onkeydown = (e) => { if(e.key === 'Enter') confirm(); if(e.key === 'Escape') dismiss(); };
+        });
     }
-    setInspectorVisible(false);
-
-    toggleBtn.addEventListener('click', () => {
-      const isHidden = inspector.classList.contains('hidden') && !inspector.classList.contains('visible');
-      setInspectorVisible(isHidden);
-    });
-
-    importFile.addEventListener('change', (ev) => {
-      const file = ev.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        let payload = null;
-        try { payload = JSON.parse(e.target.result); } catch(err) { alert('Invalid JSON file'); return; }
-        document.dispatchEvent(new CustomEvent('workspace:importJson', { detail: payload }));
-      };
-      reader.readAsText(file);
-      ev.target.value = '';
-    });
-  });
-
-  // Label modal helper exposed as Promise:
-  window.requestTransitionLabel = function(defaultValue = "Next") {
-    return new Promise((resolve) => {
-      const bd = document.getElementById('labelModalBackdrop');
-      const input = document.getElementById('labelModalInput');
-      const ok = document.getElementById('labelModalOk');
-      const cancel = document.getElementById('labelModalCancel');
-      bd.style.display = 'flex';
-      bd.setAttribute('aria-hidden','false');
-      input.value = defaultValue || '';
-      input.focus();
-      function cleanup() {
-        bd.style.display = 'none';
-        bd.setAttribute('aria-hidden','true');
-        ok.removeEventListener('click', onOk);
-        cancel.removeEventListener('click', onCancel);
-        bd.removeEventListener('keydown', onKey);
-      }
-      function onOk() { const v = input.value.trim(); cleanup(); resolve(v === '' ? null : v); }
-      function onCancel() { cleanup(); resolve(null); }
-      function onKey(e) { if (e.key === 'Enter') onOk(); if (e.key === 'Escape') onCancel(); }
-      ok.addEventListener('click', onOk);
-      cancel.addEventListener('click', onCancel);
-      bd.addEventListener('keydown', onKey);
-    });
-  };
 </script>
-
 <script src="workspace.js" defer></script>
 </body>
 </html>
