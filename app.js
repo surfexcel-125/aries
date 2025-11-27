@@ -235,53 +235,51 @@ window.AriesDB = {
     if (!ok) watchAndWire();
   }
 
-  /* ===================== Sidebar population: static nav + projects (CONSISTENT) ===================== */
+/* ===================== Sidebar population: static nav ONLY (NO PROJECT LIST) ===================== */
 
-  async function populateSidebarContent() {
-    const sidebar = document.querySelector('#aries-sidebar') || document.querySelector('.aries-sidebar') || document.querySelector('.sidebar');
-    if (!sidebar) return;
+async function populateSidebarContent() {
+  const sidebar = document.querySelector('#aries-sidebar') 
+                || document.querySelector('.aries-sidebar') 
+                || document.querySelector('.sidebar');
+  if (!sidebar) return;
 
-    // prefer explicit nav container if present
-    let nav = sidebar.querySelector('.aries-sidebar-nav') || sidebar.querySelector('.aries-sidebar-content') || null;
-    if (!nav) {
-      nav = document.createElement('nav');
-      nav.className = 'aries-sidebar-nav aries-sidebar-content';
-      nav.setAttribute('role','navigation');
-      sidebar.appendChild(nav);
-    }
+  // Create / get nav container
+  let nav = sidebar.querySelector('.aries-sidebar-nav') 
+         || sidebar.querySelector('.aries-sidebar-content');
+  if (!nav) {
+    nav = document.createElement('nav');
+    nav.className = 'aries-sidebar-nav aries-sidebar-content';
+    nav.setAttribute('role', 'navigation');
+    sidebar.appendChild(nav);
+  }
 
-    // Remove any demo / placeholder project buttons to ensure consistent sidebar
-    // We only want the static nav + dynamic projects
-    nav.innerHTML = ''; // clear everything — we will add only allowed items
+  // CLEAR EVERYTHING (remove demo items + dynamic projects)
+  nav.innerHTML = '';
 
-    // STATIC NAV (consistent across all pages) — only these two links
-    const staticContainer = document.createElement('div');
-    staticContainer.id = 'aries-static-nav';
-    staticContainer.style.display = 'flex';
-    staticContainer.style.flexDirection = 'column';
-    staticContainer.style.gap = '8px';
-    const staticLinks = [
-      { title: 'Dashboard', href: 'index.html' },
-      { title: 'Projects', href: 'projects.html' }
-    ];
-    staticLinks.forEach(link => {
-      const a = document.createElement('a');
-      a.className = 'aries-project';
-      a.href = link.href;
-      a.textContent = link.title;
-      a.style.display = 'block';
-      a.style.textDecoration = 'none';
-      staticContainer.appendChild(a);
-    });
-    nav.appendChild(staticContainer);
+  // STATIC NAV ONLY
+  const staticNav = document.createElement('div');
+  staticNav.id = 'aries-static-nav';
+  staticNav.style.display = 'flex';
+  staticNav.style.flexDirection = 'column';
+  staticNav.style.gap = '10px';
 
-    // DYNAMIC PROJECTS (if any)
-    try {
-      const projects = await window.AriesDB.getProjects();
-      if (!projects || projects.length === 0) {
-        // no projects — nothing else to show
-        return;
-      }
+  const staticLinks = [
+    { title: 'Dashboard', href: 'index.html' },
+    { title: 'Projects', href: 'projects.html' }
+  ];
+
+  staticLinks.forEach(link => {
+    const a = document.createElement('a');
+    a.className = 'aries-project';
+    a.href = link.href;
+    a.textContent = link.title;
+    a.style.display = 'block';
+    a.style.textDecoration = 'none';
+    staticNav.appendChild(a);
+  });
+
+  nav.appendChild(staticNav);
+}
       const dyn = document.createElement('div');
       dyn.id = 'aries-dynamic-projects';
       dyn.style.marginTop = '10px';
