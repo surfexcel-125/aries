@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Idea Visualizer — Premium Dark (Fixed + Undo/Redo + Delete + Modal Edit)</title>
+<title>Idea Visualizer — Premium Dark (Firebase Autosave per Project)</title>
 <style>
   :root{--bg:#071019; --card:#0f1720; --muted:#90a0b8; --accent:#8b5cf6; --glass: rgba(255,255,255,0.03);} *{box-sizing:border-box}
   body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;color:#e6eef8;background:linear-gradient(180deg,var(--bg),#041018)}
@@ -55,6 +55,18 @@
 </header>
 <main>
 <aside>
+  <!-- Project controls -->
+  <label>Project ID</label>
+  <div style="display:flex;gap:8px;margin-top:6px">
+    <input id="projectIdInput" placeholder="e.g. eu-session-plan" />
+    <button id="btn-load-project" class="btn" style="flex-shrink:0">Load</button>
+  </div>
+  <div class="muted" style="margin-top:6px;margin-bottom:10px">
+    Boards are auto-saved per project to Firebase.
+  </div>
+  <hr style="border:none;border-top:1px solid rgba(255,255,255,0.06);margin:10px 0 14px" />
+
+  <!-- Existing controls -->
   <label>Card</label>
   <textarea id="ideaText" rows="3" placeholder="Card titles — one per line"></textarea>
   <label style="margin-top:10px">Body (one per line)</label>
@@ -91,6 +103,9 @@
   </div>
 </div>
 
+<!-- IMPORTANT: your firebase.config.js must initialize Firebase and set window.ideaVisualizerDb = firebase.firestore() -->
+<script src="firebase.config.js"></script>
+
 <script>
 (() => {
   // ---------- state & history ----------
@@ -100,7 +115,17 @@
     connecting: null
   };
 
-  // history stack for undo/redo
+  // Firebase / autosave state
+  const SAVE_DEBOUNCE_MS = 1200;
+  let saveTimeout = null;
+  let currentProjectId = null;
+
+  // Firestore instance:
+  // firebase.config.js should do:
+  //   const app = firebase.initializeApp(firebaseConfig);
+  //   window.ideaVisualizerDb = firebase.firestore();
+  const db = (typeof window !== 'undefined' && (window.ideaVisualizerDb || (window.firebase && window.firebase.firestore ? window.firebase.firestore() : null))) || null;
+
   const history = { past: [], future: [], max: 60 };
 
   function snapshot(){
@@ -114,23 +139,35 @@
     };
     return snap;
   }
+
   function applySnapshot(snap){
     // clear board + render nodes from snapshot
-    // remove existing elements
     state.nodes.forEach(n => { if(n.el && n.el.parentNode) n.el.parentNode.removeChild(n.el); });
     state.nodes = [];
     state.links = [];
     state.nodeId = snap.nodeId || 1;
     state.view = snap.view ? { ...snap.view } : { x:0,y:0,scale:1 };
+
     // create nodes without altering history
-    snap.nodes.forEach(n => {
+    (snap.nodes || []).forEach(n => {
       createNode(n.x, n.y, n.title, n.notes, { id: n.id, addToState: true, skipHistory: true });
     });
-    state.links = snap.links.map(l => ({ from: l.from, to: l.to }));
+    state.links = (snap.links || []).map(l => ({ from: l.from, to: l.to }));
     state.selected = snap.selected || null;
     applyView();
     drawLinks();
     updateSelectionVisual();
+  }
+
+  function updateUndoRedoButtons(){
+    document.getElementById('btn-undo').disabled = history.past.length === 0;
+    document.getElementById('btn-redo').disabled = history.future.length === 0;
+  }
+
+  function scheduleSave(){
+    if(!currentProjectId || !db) return;
+    if(saveTimeout) clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(saveToFirebase, SAVE_DEBOUNCE_MS);
   }
 
   function pushHistory(){ // push current state to past, clear future
@@ -139,7 +176,9 @@
     if(history.past.length > history.max) history.past.shift();
     history.future = [];
     updateUndoRedoButtons();
+    scheduleSave();
   }
+
   function undo(){
     if(history.past.length === 0) return;
     const current = snapshot();
@@ -147,7 +186,9 @@
     const prev = history.past.pop();
     applySnapshot(prev);
     updateUndoRedoButtons();
+    scheduleSave();
   }
+
   function redo(){
     if(history.future.length === 0) return;
     const current = snapshot();
@@ -155,10 +196,74 @@
     const next = history.future.pop();
     applySnapshot(next);
     updateUndoRedoButtons();
+    scheduleSave();
   }
-  function updateUndoRedoButtons(){
-    document.getElementById('btn-undo').disabled = history.past.length === 0;
-    document.getElementById('btn-redo').disabled = history.future.length === 0;
+
+  // ---------- Firebase save/load ----------
+  async function saveToFirebase(){
+    if(!currentProjectId || !db) return;
+    const payload = snapshot();
+    payload.updatedAt = new Date().toISOString();
+    try {
+      await db.collection('ideaVisualizerProjects').doc(currentProjectId).set(payload, { merge: true });
+      console.log('Saved project to Firebase:', currentProjectId);
+    } catch(err){
+      console.error('Error saving project to Firebase:', err);
+    }
+  }
+
+  async function loadFromFirebase(projectId){
+    if(!db){
+      console.warn('Firebase DB not available; using local-only mode.');
+      initializeDefaultBoard();
+      return;
+    }
+    try{
+      const docRef = db.collection('ideaVisualizerProjects').doc(projectId);
+      const snap = await docRef.get();
+      if(snap.exists){
+        const data = snap.data() || {};
+        const restored = {
+          nodes: Array.isArray(data.nodes) ? data.nodes : [],
+          links: Array.isArray(data.links) ? data.links : [],
+          nodeId: data.nodeId || 1,
+          view: data.view || { x:0, y:0, scale:1 },
+          selected: null
+        };
+        applySnapshot(restored);
+        history.past = [];
+        history.future = [];
+        pushHistory(); // establish baseline + schedule save
+        console.log('Loaded project from Firebase:', projectId);
+      } else {
+        console.log('No existing project in Firebase, starting fresh:', projectId);
+        // Start empty board (no default sample nodes for new project)
+        state.nodes.forEach(n => { if(n.el && n.el.parentNode) n.el.parentNode.removeChild(n.el); });
+        state.nodes = [];
+        state.links = [];
+        while(svg.firstChild) svg.removeChild(svg.firstChild);
+        state.nodeId = 1;
+        state.view = { x:0, y:0, scale:1 };
+        applyView();
+        drawLinks();
+        history.past = [];
+        history.future = [];
+        pushHistory();
+      }
+    } catch(err){
+      console.error('Error loading project from Firebase:', err);
+      initializeDefaultBoard();
+    }
+  }
+
+  function setCurrentProject(projectId){
+    const trimmed = (projectId || '').trim();
+    if(!trimmed) return;
+    currentProjectId = trimmed;
+    try{
+      localStorage.setItem('ideaVisualizerCurrentProjectId', currentProjectId);
+    }catch(e){}
+    loadFromFirebase(currentProjectId);
   }
 
   // ---------- DOM references ----------
@@ -168,6 +273,8 @@
   const modal = document.getElementById('modal');
   const modalTitle = document.getElementById('modalTitle');
   const modalBody = document.getElementById('modalBody');
+  const projectInput = document.getElementById('projectIdInput');
+  const btnLoadProject = document.getElementById('btn-load-project');
   let editingNodeId = null;
 
   // ---------- view transform ----------
@@ -196,7 +303,6 @@
     const addToState = options.addToState !== false;
     let id = options.id;
     if(!id){ id = 'n' + (state.nodeId++); } else {
-      // ensure nodeId increments past provided id if it contains numeric suffix
       const m = id.match(/^n(\d+)$/);
       if(m){ state.nodeId = Math.max(state.nodeId, parseInt(m[1],10) + 1); }
     }
@@ -208,10 +314,8 @@
     board.appendChild(el);
     el.style.zIndex = String(1000 + (parseInt(id.replace('n','')) || 0));
 
-    // add draggable behavior
     makeDraggable(el);
 
-    // connector click
     const conn = el.querySelector('.connector');
     conn.addEventListener('click', (e)=>{
       e.stopPropagation(); e.preventDefault();
@@ -227,10 +331,8 @@
       startConnect(id);
     });
 
-    // click selects
     el.addEventListener('click', (e)=>{ e.stopPropagation(); selectNode(id); });
 
-    // double-click opens modal editor
     el.addEventListener('dblclick', (e)=>{ e.stopPropagation(); openEditModal(id); });
 
     const nodeObj = { id, el, x, y, title, notes };
@@ -415,27 +517,24 @@
   function deleteSelectedNode(){
     const id = state.selected;
     if(!id) return;
-    // remove element
     const idx = state.nodes.findIndex(n => n.id === id);
     if(idx === -1) return;
     pushHistory();
     const node = state.nodes[idx];
     if(node.el && node.el.parentNode) node.el.parentNode.removeChild(node.el);
     state.nodes.splice(idx,1);
-    // remove links referencing it
     state.links = state.links.filter(l => l.from !== id && l.to !== id);
     state.selected = null;
     drawLinks();
   }
   document.getElementById('btn-delete').addEventListener('click', ()=> deleteSelectedNode());
-  // Delete key
+
+  // Delete + Undo/Redo keys
   window.addEventListener('keydown', e=>{
     if(e.key === 'Delete' || e.key === 'Backspace'){
-      // avoid interfering with typing in inputs
       if(document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.isContentEditable)) return;
       deleteSelectedNode();
     }
-    // Undo / Redo keyboard
     if((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')){
       e.preventDefault(); undo();
     } else if((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && (e.key === 'Z')) )){
@@ -451,7 +550,7 @@
   // ---------- pan ----------
   let panning=false, sx=0, sy=0;
   wrap.addEventListener('pointerdown', e=>{
-    if(getNode(e.target)) return; // clicked on node
+    if(getNode(e.target)) return;
     panning=true; sx=e.clientX; sy=e.clientY;
     try{ wrap.setPointerCapture && wrap.setPointerCapture(e.pointerId); }catch(err){}
   });
@@ -503,7 +602,6 @@
       exportSvg.appendChild(p);
     });
 
-    // add node rectangles & text so exported svg is self-contained
     state.nodes.forEach(n=>{
       const g = document.createElementNS('http://www.w3.org/2000/svg','g');
       const rx = Math.round(n.x);
@@ -532,13 +630,6 @@
     const a=document.createElement('a'); a.href=url; a.download='idea-visual.svg'; document.body.appendChild(a);
     a.click(); a.remove(); URL.revokeObjectURL(url);
   });
-
-  // ---------- initial sample ----------
-  createNode(220,160,'Central idea','Double-click to edit', { skipHistory: true });
-  createNode(520,120,'Branch A','', { skipHistory: true });
-  createNode(520,320,'Branch B','', { skipHistory: true });
-  pushHistory(); // initial baseline
-  drawLinks();
 
   // ---------- modal edit ----------
   function openEditModal(id){
@@ -569,10 +660,8 @@
     closeModal();
     drawLinks();
   });
-  // close modal on backdrop click
   modal.addEventListener('click', e=>{ if(e.target === modal) closeModal(); });
 
-  // ---------- double-click editing (already wired in createNode) ----------
   // ---------- keep svg sized ----------
   function syncSvgSize(){ svg.setAttribute('width', board.offsetWidth); svg.setAttribute('height', board.offsetHeight); }
   window.addEventListener('resize', ()=>{ syncSvgSize(); applyView(); });
@@ -592,8 +681,53 @@
   // ---------- selection when clicking background clears selection ----------
   wrap.addEventListener('click', e=>{ if(getNode(e.target)) return; state.selected = null; updateSelectionVisual(); });
 
-  // ---------- helper to ensure no memory leaks on applySnapshot ----------
-  // applySnapshot handles removing DOM and recreating nodes
+  // ---------- fit button ----------
+  document.getElementById('btn-fit').addEventListener('click', ()=> fitAll());
+
+  // ---------- default board for first-time / fallback ----------
+  function initializeDefaultBoard(){
+    state.nodes.forEach(n=>{ if(n.el && n.el.parentNode) n.el.parentNode.removeChild(n.el); });
+    state.nodes = [];
+    state.links = [];
+    while(svg.firstChild) svg.removeChild(svg.firstChild);
+    state.nodeId = 1;
+    state.view = { x:0, y:0, scale:1 };
+    applyView();
+    createNode(220,160,'Central idea','Double-click to edit', { skipHistory: true });
+    createNode(520,120,'Branch A','', { skipHistory: true });
+    createNode(520,320,'Branch B','', { skipHistory: true });
+    history.past = [];
+    history.future = [];
+    pushHistory(); // initial baseline
+    drawLinks();
+  }
+
+  // ---------- Project input events ----------
+  btnLoadProject.addEventListener('click', ()=>{
+    const pid = projectInput.value || '';
+    setCurrentProject(pid);
+  });
+  projectInput.addEventListener('keydown', e=>{
+    if(e.key === 'Enter'){
+      e.preventDefault();
+      btnLoadProject.click();
+    }
+  });
+
+  // ---------- initial load ----------
+  (function initialLoad(){
+    let lastId = null;
+    try{
+      lastId = localStorage.getItem('ideaVisualizerCurrentProjectId');
+    }catch(e){}
+    if(lastId){
+      projectInput.value = lastId;
+      currentProjectId = lastId;
+      loadFromFirebase(lastId);
+    } else {
+      initializeDefaultBoard();
+    }
+  })();
 
 })();
 </script>
