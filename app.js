@@ -266,9 +266,7 @@ window.AriesDB = {
       // Insert static links (these have class .aries-project so they are visible under your CSS rule)
       const staticLinks = [
         { title: 'Dashboard', href: 'index.html' },
-        { title: 'Projects', href: 'projects.html' },
-        { title: 'Workspace', href: 'workspace.html' },
-        { title: 'Create Project', href: 'projects.html#new' } // simple anchor to open create modal (you can handle)
+        { title: 'Projects', href: 'projects.html' }
       ];
       staticLinks.forEach(link => {
         const a = document.createElement('a');
