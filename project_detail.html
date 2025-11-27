@@ -1,707 +1,185 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Visual Blocks Studio</title>
+<title>Idea Visualizer — Fully Developed Premium Dark</title>
 <style>
-  :root {
-    --bg: #0b0f14;
-    --panel: #11161d;
-    --panel2: #0f141a;
-    --border: #2a3440;
-    --accent: #36a3ff;
-    --accent2: #10b981;
-    --text: #d6e3f0;
-    --muted: #8aa0b8;
-  }
-  html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji"; }
-  .app { display: grid; grid-template-columns: 300px 1fr; grid-template-rows: auto 1fr; height: 100%; }
-  .toolbar { grid-column: 1 / -1; display: flex; gap: 8px; align-items: center; padding: 10px; border-bottom: 1px solid var(--border); background: linear-gradient(180deg,var(--panel),var(--panel2)); position: sticky; top:0; z-index:10; }
-  .toolbar button, .toolbar input, .toolbar select { background: #16202b; color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; font-size: 13px; }
-  .toolbar button:hover { border-color: var(--accent); }
-  .sidebar { grid-row: 2; border-right: 1px solid var(--border); background: var(--panel); display:flex; flex-direction:column; }
-  .section { padding: 12px; border-bottom: 1px solid var(--border); }
-  .section h3 { margin: 0 0 8px; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
-  .canvas-wrap { position: relative; overflow: hidden; }
-  .hud { position: absolute; bottom: 10px; left: 10px; background: #10151b; border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; font-size: 12px; color: var(--muted); z-index: 5; }
-  .grid { pointer-events:none; }
-  .block-rect { fill: #101721; stroke: #334458; stroke-width: 1.5; }
-  .block-rect.selected { stroke: var(--accent); }
-  .handle { fill: var(--accent); cursor: nwse-resize; }
-  .connector { stroke: #4d627a; stroke-width: 2; marker-end: url(#arrow); }
-  .connector.selected { stroke: var(--accent2); }
-  .label-fo div { font-size: 12px; color: var(--text); }
-  .tag { display:inline-block; background:#16202b; border:1px solid var(--border); border-radius:12px; padding:2px 8px; margin:2px 4px 0 0; font-size:11px; color:#b8c7d6; }
-  .btn-danger { border-color: #ef4444; color: #fca5a5; }
-  .btn-primary { border-color: var(--accent); color: #cdeaff; }
-  .btn-success { border-color: var(--accent2); color: #bdf2dc; }
-  .ghost-line { stroke: #2b3a4a; stroke-dasharray: 4 4; }
-  .snap-dot { fill: #2b3a4a; }
-  .tooltip { position:absolute; background:#0f141a; border:1px solid var(--border); color:var(--text); font-size:12px; padding:6px 8px; border-radius:6px; pointer-events:none; transform:translate(-50%,-120%); white-space:nowrap; }
+  :root{--bg:#071018;--card:#0c1216;--muted:#90a0b8;--accent:#8b5cf6;--glass: rgba(255,255,255,0.03)}
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;color:#e6eef8;background:linear-gradient(180deg,var(--bg),#041018);}
+  header{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid rgba(255,255,255,0.03)}
+  .brand{display:flex;gap:12px;align-items:center}
+  .logo{width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg,var(--accent),#06b6d4);display:flex;align-items:center;justify-content:center;color:white;font-weight:700}
+  h1{font-size:15px;margin:0}
+  main{display:flex;gap:16px;padding:16px;height:calc(100% - 72px)}
+  aside{width:360px;background:linear-gradient(180deg,var(--card),#061018);border-radius:12px;padding:16px;border:1px solid rgba(255,255,255,0.03);overflow:auto}
+  label{font-size:13px;color:var(--muted);display:block;margin-bottom:8px}
+  textarea,input,select{width:100%;padding:10px;border-radius:10px;background:transparent;border:1px solid rgba(255,255,255,0.04);color:#e6eef8}
+  .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;background:linear-gradient(90deg,var(--accent),#06b6d4);color:white;border:none;cursor:pointer}
+  .ghost{padding:8px 10px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.03);color:var(--muted)}
+  #canvasWrap{flex:1;border-radius:12px;overflow:hidden;background:linear-gradient(180deg,rgba(255,255,255,0.01),transparent);border:1px solid rgba(255,255,255,0.03);position:relative;display:flex;flex-direction:column}
+  #boardArea{flex:1;position:relative}
+  svg{position:absolute;inset:0;pointer-events:none}
+  .node{position:absolute;min-width:180px;padding:12px;border-radius:12px;background:linear-gradient(180deg,#0f1820,#071117);border:1px solid rgba(255,255,255,0.03);color:#e6eef8;box-shadow:0 12px 36px rgba(2,6,23,0.6);overflow:hidden}
+  .node .title{font-weight:700;margin-bottom:6px}
+  .node .meta{font-size:12px;color:var(--muted);line-height:1.25}
+  .node img{width:100%;height:90px;border-radius:8px;object-fit:cover;margin-bottom:8px}
+  .connector{width:12px;height:12px;border-radius:50%;background:var(--accent);position:absolute;right:-6px;top:50%;transform:translateY(-50%);box-shadow:0 6px 18px rgba(139,92,246,0.12)}
+  .toolbar{position:absolute;right:12px;top:12px;display:flex;gap:8px;z-index:20}
+  .muted{color:var(--muted)}
+  footer{padding:8px 16px;border-top:1px solid rgba(255,255,255,0.02);font-size:12px;color:var(--muted);display:flex;justify-content:space-between}
 </style>
 </head>
 <body>
-<div class="app">
-  <div class="toolbar">
-    <button id="addText">+ Text</button>
-    <button id="addNote">+ Note</button>
-    <button id="addFrame">+ Frame</button>
-    <button id="addChart">+ Chart</button>
-    <label>
-      <input type="file" id="addImage" accept="image/*" style="display:none" />
-      <button id="addImageBtn">+ Image</button>
-    </label>
-    <button id="addConnector">↗ Connector</button>
-    <button id="snapshot" class="btn-success">Snapshot</button>
-    <button id="saveLocal" class="btn-primary">Save</button>
-    <button id="loadLocal">Load</button>
-    <button id="exportPNG" class="btn-primary">Export PNG</button>
-    <button id="clear" class="btn-danger">Clear</button>
-    <span style="margin-left:auto; color:var(--muted)">Pan: Right-Drag • Zoom: Ctrl + Wheel • Snap: Shift</span>
+<header>
+  <div class="brand"><div class="logo">IV</div><div><h1>Idea Visualizer — Fully Developed</h1><div style="font-size:12px;color:var(--muted)">Mind-map · Flowchart · Drag board — Premium dark</div></div></div>
+  <div style="display:flex;gap:8px;align-items:center">
+    <select id="templateSelect" class="ghost">
+      <option value="none">Template: none</option>
+      <option value="product">Product Roadmap</option>
+      <option value="trading">Trading System</option>
+      <option value="startup">Startup Pitch</option>
+    </select>
+    <button id="saveBtn" class="ghost">Save</button>
+    <button id="loadBtn" class="ghost">Load</button>
+    <button id="exportPng" class="btn">Export PNG</button>
   </div>
+</header>
+<main>
+  <aside>
+    <div>
+      <label>Paste / type your idea</label>
+      <textarea id="ideaText" rows="6" placeholder="Describe your idea: features, goals, problems, users — Paragraphs and sentences will be parsed."></textarea>
+      <div style="display:flex;gap:8px;margin-top:10px"><button id="analyzeBtn" class="btn">Analyze & Create</button><button id="clearBtn" class="ghost">Clear Board</button></div>
+    </div>
 
-  <div class="sidebar">
-    <div class="section">
-      <h3>Inspector</h3>
-      <div id="inspector"></div>
+    <div style="margin-top:14px">
+      <label>Generation</label>
+      <select id="genMode" style="margin-bottom:8px"><option value="semantic">Semantic (best)</option><option value="split">Sentence split</option><option value="keywords">Keyword-only</option></select>
+      <label>Images</label>
+      <select id="imageMode" style="margin-bottom:8px"><option value="none">No images</option><option value="auto">Auto-suggest</option></select>
+      <label>Layout</label>
+      <select id="layoutMode"><option value="radial">Radial (mind-map)</option><option value="flow">Flow (top→down)</option><option value="board">Board (grid)</option></select>
     </div>
-    <div class="section">
-      <h3>Tags</h3>
-      <div id="tagsPanel"></div>
-      <div style="margin-top:8px;">
-        <input id="newTag" placeholder="Add tag…" />
-        <button id="addTagBtn">Add</button>
-      </div>
-    </div>
-    <div class="section">
-      <h3>Snapshots</h3>
-      <div id="snapshots"></div>
-    </div>
-    <div class="section">
-      <h3>Views</h3>
-      <div style="display:flex; gap:6px;">
-        <input id="viewName" placeholder="View name…" />
-        <button id="saveView">Save view</button>
-      </div>
-      <div id="viewsList" style="margin-top:8px;"></div>
-    </div>
-  </div>
 
-  <div class="canvas-wrap" id="canvasWrap">
-    <svg id="svg" width="100%" height="100%">
-      <defs>
-        <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
-          <path d="M0,0 L9,3 L0,6 Z" fill="#4d627a"></path>
-        </marker>
-      </defs>
-      <g id="viewport">
-        <g id="grid" class="grid"></g>
-        <g id="connectors"></g>
-        <g id="blocks"></g>
-        <g id="handles"></g>
-        <g id="overlay"></g>
-      </g>
-    </svg>
-    <div class="hud" id="hud">0 blocks • Zoom 1.00 • View default</div>
-    <div id="tooltip" class="tooltip" style="display:none;"></div>
+    <div style="margin-top:14px">
+      <label>Selected node</label>
+      <div id="selectedInfo" class="muted">No node selected</div>
+      <label style="margin-top:8px">Title</label>
+      <input id="selTitle" />
+      <label style="margin-top:8px">Notes</label>
+      <textarea id="selNotes" rows="3"></textarea>
+      <div style="display:flex;gap:8px;margin-top:10px"><button id="updateBtn" class="ghost">Update</button><button id="delBtn" class="ghost">Delete</button></div>
+    </div>
+
+    <div style="margin-top:18px">
+      <h3 style="margin:0 0 8px 0">Shortcuts & Extras</h3>
+      <div style="font-size:13px;color:var(--muted)">• Double-click canvas to add node · Drag nodes to reposition · Click connector then another node to link.<br>• Save stores JSON to localStorage; Load restores it.<br>• Export PNG downloads the current board as an image.</div>
+    </div>
+  </aside>
+
+  <div id="canvasWrap">
+    <div class="toolbar">
+      <div style="background:rgba(255,255,255,0.02);padding:8px;border-radius:8px;display:flex;gap:6px"><button id="mode-map" class="ghost">Mind-map</button><button id="mode-flow" class="ghost">Flowchart</button><button id="mode-board" class="ghost">Board</button></div>
+    </div>
+    <svg id="svgLayer"></svg>
+    <div id="boardArea"></div>
+    <footer><div>Idea Visualizer</div><div>Built for you — Premium dark</div></footer>
   </div>
-</div>
+</main>
 
 <script>
-/* ========= Utility ========= */
-const rnd = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
-const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
-const uid = () => crypto.randomUUID();
+(() => {
+  // full-featured page script
+  const state = {nodes:[],links:[],nextId:1,selected:null,mode:'map'}
+  const canvas = document.getElementById('boardArea')
+  const svg = document.getElementById('svgLayer')
+  const ideaText = document.getElementById('ideaText')
+  const analyzeBtn = document.getElementById('analyzeBtn')
+  const genMode = document.getElementById('genMode')
+  const imageMode = document.getElementById('imageMode')
+  const layoutMode = document.getElementById('layoutMode')
 
-function createGrid() {
-  const g = document.getElementById('grid');
-  g.innerHTML = '';
-  const step = 40;
-  for (let i=-2000; i<=2000; i+=step) {
-    const h = line(-2000, i, 2000, i);
-    const v = line(i, -2000, i, 2000);
-    h.setAttribute('class','ghost-line');
-    v.setAttribute('class','ghost-line');
-    g.appendChild(h); g.appendChild(v);
-  }
-}
+  // helpers
+  function escapeHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') }
 
-function line(x1,y1,x2,y2) {
-  const l = document.createElementNS('http://www.w3.org/2000/svg','line');
-  l.setAttribute('x1',x1); l.setAttribute('y1',y1);
-  l.setAttribute('x2',x2); l.setAttribute('y2',y2);
-  l.setAttribute('stroke','#1f2a36'); l.setAttribute('stroke-width','1');
-  return l;
-}
+  function extractKeywords(text){ const words = text.toLowerCase().replace(/[^a-z0-9\s]/g,' ').split(/\s+/).filter(w=>w.length>3); const freq={}; words.forEach(w=>freq[w]=(freq[w]||0)+1); return Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,6).map(x=>x[0]) }
 
-function rect(x,y,w,h, cls='') {
-  const r = document.createElementNS('http://www.w3.org/2000/svg','rect');
-  r.setAttribute('x',x); r.setAttribute('y',y);
-  r.setAttribute('width',w); r.setAttribute('height',h);
-  if (cls) r.setAttribute('class', cls);
-  return r;
-}
+  function semanticParts(text){ const paragraphs = text.split(/\n\n+/).map(p=>p.trim()).filter(Boolean); let parts=[]; paragraphs.forEach(p=>{ const sentences = p.split(/[\.\n]/).map(s=>s.trim()).filter(Boolean); if(sentences.length<=2) parts.push(p); else parts.push(...sentences.slice(0,6)) }); return parts.slice(0,24) }
 
-function group(cls='') {
-  const g = document.createElementNS('http://www.w3.org/2000/svg','g');
-  if (cls) g.setAttribute('class', cls);
-  return g;
-}
+  function unsplashFor(q){ return 'https://source.unsplash.com/collection/928423/320x180/?' + encodeURIComponent(q) }
 
-function foreignObject(x,y,w,h, html='') {
-  const fo = document.createElementNS('http://www.w3.org/2000/svg','foreignObject');
-  fo.setAttribute('x',x); fo.setAttribute('y',y);
-  fo.setAttribute('width',w); fo.setAttribute('height',h);
-  const div = document.createElement('div');
-  div.innerHTML = html;
-  div.style.color = 'var(--text)';
-  fo.appendChild(div);
-  return fo;
-}
+  // node creation
+  function createNode(x,y,title,notes,thumb){ const id = 'n'+(state.nextId++); const el = document.createElement('div'); el.className='node'; el.dataset.id=id; el.style.left=(x||80)+'px'; el.style.top=(y||80)+'px'; el.innerHTML = `${thumb?'<img src="'+thumb+'"/>':''}<div class="title">${escapeHtml(title||'New idea')}</div><div class="meta">${escapeHtml(notes||'')}</div><div class="connector"></div>`; canvas.appendChild(el); makeDraggable(el); el.querySelector('.connector').addEventListener('click', e=> startConnect(id)); el.addEventListener('click', e=> selectNode(id,el)); state.nodes.push({id,el,x:parseInt(el.style.left),y:parseInt(el.style.top),title,notes,thumb}); drawLinks(); return id }
 
-function path(d, cls='') {
-  const p = document.createElementNS('http://www.w3.org/2000/svg','path');
-  p.setAttribute('d', d);
-  if (cls) p.setAttribute('class', cls);
-  return p;
-}
+  // drag
+  function makeDraggable(el){ let ox,oy,drag=false; el.addEventListener('pointerdown', e=>{ if(e.target.classList && e.target.classList.contains('connector')) return; drag=true; ox=e.clientX - el.offsetLeft; oy=e.clientY - el.offsetTop; el.setPointerCapture(e.pointerId) }); window.addEventListener('pointermove', e=>{ if(!drag) return; el.style.left=(e.clientX-ox)+'px'; el.style.top=(e.clientY-oy)+'px'; updatePos(el.dataset.id); drawLinks(); }); window.addEventListener('pointerup', ()=>drag=false) }
+  function updatePos(id){ const n=state.nodes.find(n=>n.id===id); if(n){ n.x = n.el.offsetLeft; n.y = n.el.offsetTop } }
 
-function download(name, dataUrl) {
-  const a = document.createElement('a');
-  a.href = dataUrl; a.download = name;
-  document.body.appendChild(a); a.click(); a.remove();
-}
+  // selection
+  function selectNode(id,el){ state.selected=id; document.getElementById('selectedInfo').innerText=id; document.getElementById('selTitle').value = state.nodes.find(n=>n.id===id).title; document.getElementById('selNotes').value = state.nodes.find(n=>n.id===id).notes }
+  document.getElementById('updateBtn')?.addEventListener('click', ()=>{ const id=state.selected; if(!id) return; const n=state.nodes.find(x=>x.id===id); n.title=document.getElementById('selTitle').value; n.notes=document.getElementById('selNotes').value; n.el.querySelector('.title').innerText=n.title; n.el.querySelector('.meta').innerText=n.notes })
+  document.getElementById('delBtn')?.addEventListener('click', ()=>{ const id=state.selected; if(!id) return; const i=state.nodes.findIndex(n=>n.id===id); if(i>-1){ state.nodes[i].el.remove(); state.nodes.splice(i,1); state.links=state.links.filter(l=>l.from!==id&&l.to!==id); state.selected=null; drawLinks(); document.getElementById('selectedInfo').innerText='No node selected' } })
 
-function toDataURL(svgEl) {
-  const s = new XMLSerializer().serializeToString(svgEl);
-  const blob = new Blob([s], { type: 'image/svg+xml;charset=utf-8' });
-  return URL.createObjectURL(blob);
-}
+  // linking
+  let connecting=null
+  function startConnect(id){ connecting=id; svg.style.pointerEvents='auto'; svg.addEventListener('click', finishConnectOnce) }
+  function finishConnectOnce(e){ const target = document.elementFromPoint(e.clientX,e.clientY); const nodeEl = getNodeElFromElement(target); if(nodeEl && nodeEl.dataset.id!==connecting){ linkNodes(connecting,nodeEl.dataset.id) } connecting=null; svg.style.pointerEvents='none'; svg.removeEventListener('click', finishConnectOnce); drawLinks() }
+  function getNodeElFromElement(el){ while(el && el!==document){ if(el.classList && el.classList.contains('node')) return el; el=el.parentNode } return null }
+  function linkNodes(a,b){ if(state.links.find(l=>l.from===a&&l.to===b)) return; state.links.push({from:a,to:b}); }
 
-function svgToPNG(svgEl, scale=2) {
-  return new Promise((resolve) => {
-    const xml = new XMLSerializer().serializeToString(svgEl);
-    const svg64 = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml);
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      const b = svgEl.getBoundingClientRect();
-      canvas.width = b.width * scale; canvas.height = b.height * scale;
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = getComputedStyle(document.body).backgroundColor;
-      ctx.fillRect(0,0,canvas.width,canvas.height);
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      resolve(canvas.toDataURL('image/png'));
-    };
-    img.src = svg64;
-  });
-}
+  function drawLinks(){ svg.innerHTML=''; state.links.forEach(l=>{ const na=state.nodes.find(n=>n.id===l.from); const nb=state.nodes.find(n=>n.id===l.to); if(!na||!nb) return; const aRect=na.el.getBoundingClientRect(); const bRect=nb.el.getBoundingClientRect(); const parentRect = canvas.getBoundingClientRect(); const x1=aRect.left-parentRect.left + aRect.width; const y1=aRect.top-parentRect.top + aRect.height/2; const x2=bRect.left-parentRect.left; const y2=bRect.top-parentRect.top + bRect.height/2; const path = document.createElementNS('http://www.w3.org/2000/svg','path'); const dx = Math.max(40, Math.abs(x2-x1)/2); const d = `M ${x1} ${y1} C ${x1+dx} ${y1} ${x2-dx} ${y2} ${x2} ${y2}`; path.setAttribute('d',d); path.setAttribute('stroke','rgba(139,92,246,0.9)'); path.setAttribute('fill','none'); path.setAttribute('stroke-width','2'); svg.appendChild(path); }) }
 
-/* ========= State ========= */
-const state = {
-  blocks: [],           // {id,type,x,y,w,h,content,props,tags:[]}
-  connectors: [],       // {id,from,to,label}
-  selected: null,       // id of block or connector
-  mode: 'select',       // 'select' | 'addConnector'
-  pan: {x: 0, y: 0},
-  zoom: 1,
-  views: {},            // name -> {blocks, connectors}
-  snapshots: [],        // [{id, ts, note, viewName}]
-};
-
-const svg = document.getElementById('svg');
-const viewport = document.getElementById('viewport');
-const blocksG = document.getElementById('blocks');
-const handlesG = document.getElementById('handles');
-const connectorsG = document.getElementById('connectors');
-const hud = document.getElementById('hud');
-const tooltip = document.getElementById('tooltip');
-
-function updateHUD() {
-  hud.textContent = `${state.blocks.length} blocks • Zoom ${state.zoom.toFixed(2)} • View ${currentViewName()}`;
-}
-
-/* ========= Rendering ========= */
-function render() {
-  connectorsG.innerHTML = '';
-  for (const c of state.connectors) {
-    const from = state.blocks.find(b => b.id === c.from);
-    const to = state.blocks.find(b => b.id === c.to);
-    if (!from || !to) continue;
-    const x1 = from.x + from.w/2, y1 = from.y + from.h/2;
-    const x2 = to.x + to.w/2, y2 = to.y + to.h/2;
-    const d = `M ${x1} ${y1} L ${x2} ${y2}`;
-    const p = path(d, 'connector' + (state.selected === c.id ? ' selected' : ''));
-    p.setAttribute('data-id', c.id);
-    connectorsG.appendChild(p);
-  }
-
-  blocksG.innerHTML = '';
-  handlesG.innerHTML = '';
-  for (const b of state.blocks) {
-    const g = group();
-    const r = rect(b.x, b.y, b.w, b.h, 'block-rect' + (state.selected === b.id ? ' selected' : ''));
-    r.setAttribute('rx', 8);
-    r.setAttribute('data-id', b.id);
-    g.appendChild(r);
-
-    const padding = 10;
-    const fo = foreignObject(b.x+padding, b.y+padding, b.w-2*padding, b.h-2*padding);
-    const div = fo.firstChild;
-    div.style.fontSize = '13px';
-    div.style.lineHeight = '1.4';
-
-    if (b.type === 'text') {
-      div.contentEditable = 'true';
-      div.innerHTML = b.content || '<h3>New Idea</h3><p>Describe...</p>';
-      div.addEventListener('input', () => { b.content = div.innerHTML; saveAutosync(); });
-    } else if (b.type === 'note') {
-      div.contentEditable = 'true';
-      div.innerHTML = b.content || '<p><strong>Note:</strong> jot something down…</p>';
-      div.addEventListener('input', () => { b.content = div.innerHTML; saveAutosync(); });
-      r.style.fill = '#16212a';
-    } else if (b.type === 'frame') {
-      div.innerHTML = b.content || '<strong>Frame</strong><br/><span style="color:var(--muted)">Group related blocks conceptually.</span>';
-      r.style.fill = '#0c1218';
-      r.style.strokeDasharray = '6 4';
-    } else if (b.type === 'chart') {
-      div.innerHTML = `<div style="color:var(--muted)">Chart placeholder</div>
-        <div>Series: <strong>${(b.props && b.props.seriesId) || 'DGS10'}</strong></div>
-        <div style="margin-top:6px;font-size:12px;color:#97b0c8">Bind real data in a full app; here it’s a visual stub.</div>`;
-      r.style.fill = '#121a22';
-    } else if (b.type === 'image') {
-      div.innerHTML = `<img src="${b.props.url}" style="max-width:100%;max-height:${b.h-20}px;border-radius:6px;" />` +
-                      (b.content ? `<div style="margin-top:6px;color:var(--muted)">${b.content}</div>` : '');
-      r.style.fill = '#0f151c';
+  // analyze & generate
+  analyzeBtn.addEventListener('click', ()=>{
+    const text = ideaText.value.trim(); if(!text) return; let parts=[]; if(genMode.value==='semantic') parts = semanticParts(text); else if(genMode.value==='keywords') parts = extractKeywords(text).map(k=>k); else parts = text.split(/\n|\.|\|/).map(s=>s.trim()).filter(Boolean);
+    const layout = layoutMode.value; const cx = canvas.clientWidth/2; const cy = canvas.clientHeight/2;
+    if(layout==='radial'){
+      const rootId = createNode(cx-160,cy-80,parts[0]||'Idea','root', imageMode.value==='auto'?unsplashFor(parts[0]||'idea'):null)
+      const step = (Math.PI*2)/(Math.max(1,parts.length-1)); let r=180; for(let i=1;i<parts.length;i++){ const a=(i-1)*step; const x=cx + Math.cos(a)*r; const y=cy + Math.sin(a)*r; const thumb = imageMode.value==='auto'?unsplashFor(parts[i]):null; const nid = createNode(x,y,parts[i],'',thumb); linkNodes(rootId,nid) }
+    } else if(layout==='flow'){
+      let y=40; for(let i=0;i<parts.length;i++){ const x=40 + (i%3)*320; const nid=createNode(x,y,parts[i],'', imageMode.value==='auto'?unsplashFor(parts[i]):null); if(i>0) linkNodes(state.nodes[state.nodes.length-2].id, nid); y += 140 }
+    } else {
+      let x=20,y=20; for(let i=0;i<parts.length;i++){ const nid=createNode(x,y,parts[i],'', imageMode.value==='auto'?unsplashFor(parts[i]):null); x+=260; if(x>canvas.clientWidth-220){ x=20; y+=180 } }
     }
+    drawLinks()
+  })
 
-    // Tags line
-    if (b.tags && b.tags.length) {
-      const tagsHTML = b.tags.map(t => `<span class="tag">${t}</span>`).join('');
-      const tagsFO = foreignObject(b.x+padding, b.y+b.h-24, b.w-2*padding, 20, `<div>${tagsHTML}</div>`);
-      g.appendChild(tagsFO);
-    }
+  // save/load
+  document.getElementById('saveBtn').addEventListener('click', ()=>{ const payload = {nodes: state.nodes.map(n=>({id:n.id,x:n.x,y:n.y,title:n.title,notes:n.notes,thumb:n.thumb})), links:state.links}; localStorage.setItem('ideaBoard_v2', JSON.stringify(payload)); alert('Saved locally') })
+  document.getElementById('loadBtn').addEventListener('click', ()=>{ const raw = localStorage.getItem('ideaBoard_v2'); if(!raw) return alert('No saved board'); const data = JSON.parse(raw); state.nodes.forEach(n=>n.el.remove()); state.nodes=[]; state.links=[]; data.nodes.forEach(n=>{ createNode(n.x,n.y,n.title,n.notes,n.thumb) }); data.links.forEach(l=>state.links.push(l)); drawLinks() })
 
-    // Resizer handle
-    const h = rect(b.x + b.w - 8, b.y + b.h - 8, 8, 8, 'handle');
-    h.setAttribute('data-id', b.id);
-    handlesG.appendChild(h);
+  // clear
+  document.getElementById('clearBtn').addEventListener('click', ()=>{ state.nodes.forEach(n=>n.el.remove()); state.nodes=[]; state.links=[]; svg.innerHTML=''; state.nextId=1 })
 
-    blocksG.appendChild(g);
-  }
-  updateInspector();
-  updateTagsPanel();
-  updateSnapshots();
-  updateViewsList();
-  updateHUD();
-}
-createGrid();
+  // export PNG
+  document.getElementById('exportPng').addEventListener('click', ()=>{
+    const w = canvas.clientWidth, h = canvas.clientHeight; const tempSvg = document.createElementNS('http://www.w3.org/2000/svg','svg'); tempSvg.setAttribute('xmlns','http://www.w3.org/2000/svg'); tempSvg.setAttribute('width', w); tempSvg.setAttribute('height', h);
+    const bg = document.createElementNS('http://www.w3.org/2000/svg','rect'); bg.setAttribute('width','100%'); bg.setAttribute('height','100%'); bg.setAttribute('fill','#071018'); tempSvg.appendChild(bg);
+    state.links.forEach(l=>{ const na=state.nodes.find(n=>n.id===l.from); const nb=state.nodes.find(n=>n.id===l.to); if(!na||!nb) return; const aRect = na.el.getBoundingClientRect(); const bRect = nb.el.getBoundingClientRect(); const parentRect = canvas.getBoundingClientRect(); const x1 = aRect.left - parentRect.left + aRect.width; const y1 = aRect.top - parentRect.top + aRect.height/2; const x2 = bRect.left - parentRect.left; const y2 = bRect.top - parentRect.top + bRect.height/2; const path = document.createElementNS('http://www.w3.org/2000/svg','path'); const dx = Math.max(40, Math.abs(x2-x1)/2); const d = `M ${x1} ${y1} C ${x1+dx} ${y1} ${x2-dx} ${y2} ${x2} ${y2}`; path.setAttribute('d',d); path.setAttribute('stroke','#8b5cf6'); path.setAttribute('fill','none'); path.setAttribute('stroke-width','2'); tempSvg.appendChild(path); })
+    state.nodes.forEach(n=>{ const fo = document.createElementNS('http://www.w3.org/2000/svg','foreignObject'); fo.setAttribute('x', n.x); fo.setAttribute('y', n.y); fo.setAttribute('width',220); fo.setAttribute('height',140); const div = document.createElement('div'); div.setAttribute('xmlns','http://www.w3.org/1999/xhtml'); div.style.cssText='font-family:Inter,Arial;color:#e6eef8;background:transparent;padding:8px;border-radius:8px;'; div.innerHTML = `<div style="font-weight:700;font-size:15px">${escapeHtml(n.title)}</div><div style="font-size:13px;color:#90a0b8">${escapeHtml(n.notes||'')}</div>`; if(n.thumb){ const img = document.createElement('img'); img.src=n.thumb; img.style.cssText='width:100%;height:80px;object-fit:cover;border-radius:6px;margin-bottom:8px'; div.insertBefore(img,div.firstChild) } fo.appendChild(div); tempSvg.appendChild(fo); })
+    const str = new XMLSerializer().serializeToString(tempSvg); const img = new Image(); const blob = new Blob([str],{type:'image/svg+xml;charset=utf-8'}); const url = URL.createObjectURL(blob); img.onload = ()=>{ const c = document.createElement('canvas'); c.width = w; c.height = h; const ctx = c.getContext('2d'); ctx.fillStyle='#071018'; ctx.fillRect(0,0,w,h); ctx.drawImage(img,0,0); URL.revokeObjectURL(url); const a = document.createElement('a'); a.href = c.toDataURL('image/png'); a.download = 'idea-board.png'; a.click(); }; img.src = url;
+  })
 
-/* ========= Selection & interactions ========= */
-let dragging = null; // { id, dx, dy }
-let resizing = null; // { id, ox, oy, ow, oh }
-let panning = null;  // { sx, sy, ox, oy }
+  // canvas dblclick to add
+  canvas.addEventListener('dblclick', (e)=>{ const r = canvas.getBoundingClientRect(); const x = e.clientX - r.left; const y = e.clientY - r.top; createNode(x,y,'New idea',''); drawLinks(); })
 
-function screenToWorld(x,y) {
-  const vb = viewport.getAttribute('transform');
-  let tx=state.pan.x, ty=state.pan.y, s=state.zoom;
-  return { x: (x/s)-tx, y: (y/s)-ty };
-}
+  // initial sample
+  createNode(220,160,'Central idea','Double-click nodes to edit (use selection panel)', null)
+  createNode(520,120,'Branch A','', null)
+  createNode(520,320,'Branch B','', null)
+  linkNodes('n1','n2'); linkNodes('n1','n3'); drawLinks();
 
-function worldToScreen(x,y) {
-  return { x: (x + state.pan.x) * state.zoom, y: (y + state.pan.y) * state.zoom };
-}
+  // mode buttons
+  document.getElementById('mode-map').addEventListener('click', ()=> setMode('map'))
+  document.getElementById('mode-flow').addEventListener('click', ()=> setMode('flow'))
+  document.getElementById('mode-board').addEventListener('click', ()=> setMode('board'))
+  function setMode(m){ state.mode=m; document.querySelectorAll('.toolbar button').forEach(b=>b.classList.remove('active')); document.querySelector('#mode-'+(m==='map'?'map':m)).classList.add('active'); if(m==='flow') layoutFlow(); }
+  function layoutFlow(){ state.nodes.forEach((n,i)=>{ const col = i%3; const row = Math.floor(i/3); n.x = 40 + col*320; n.y = 40 + row*140; n.el.style.left = n.x+'px'; n.el.style.top = n.y+'px' }); drawLinks(); }
 
-function applyViewport() {
-  viewport.setAttribute('transform', `translate(${state.pan.x*state.zoom},${state.pan.y*state.zoom}) scale(${state.zoom})`);
-}
-applyViewport();
-
-function findBlockByEl(target) {
-  const id = target.getAttribute('data-id');
-  return state.blocks.find(b => b.id === id);
-}
-
-svg.addEventListener('mousedown', (e) => {
-  const pt = screenToWorld(e.clientX, e.clientY);
-  const target = e.target;
-
-  if (e.button === 2) { // right-click drag for pan
-    panning = { sx: e.clientX, sy: e.clientY, ox: state.pan.x, oy: state.pan.y };
-    return;
-  }
-
-  if (target.classList.contains('handle')) {
-    const b = findBlockByEl(target);
-    state.selected = b.id;
-    const bb = { ox: b.x, oy: b.y, ow: b.w, oh: b.h };
-    resizing = { id: b.id, ...bb };
-    render();
-    return;
-  }
-
-  if (target.classList.contains('block-rect')) {
-    const b = findBlockByEl(target);
-    state.selected = b.id;
-    dragging = { id: b.id, dx: pt.x - b.x, dy: pt.y - b.y };
-    render();
-    return;
-  }
-
-  // connector selection
-  if (target.tagName === 'path' && target.classList.contains('connector')) {
-    const id = target.getAttribute('data-id');
-    state.selected = id;
-    render();
-    return;
-  }
-
-  // blank click clears selection
-  state.selected = null;
-  render();
-});
-
-svg.addEventListener('mousemove', (e) => {
-  const pt = screenToWorld(e.clientX, e.clientY);
-  if (dragging) {
-    const b = state.blocks.find(x => x.id === dragging.id);
-    let nx = pt.x - dragging.dx, ny = pt.y - dragging.dy;
-    if (e.shiftKey) { // snap-to-grid
-      const step = 20;
-      nx = Math.round(nx/step)*step; ny = Math.round(ny/step)*step;
-    }
-    b.x = nx; b.y = ny;
-    render();
-    return;
-  }
-  if (resizing) {
-    const b = state.blocks.find(x => x.id === resizing.id);
-    const w = clamp(pt.x - b.x, 120, 1200);
-    const h = clamp(pt.y - b.y, 80, 800);
-    b.w = e.shiftKey ? Math.round(w/20)*20 : w;
-    b.h = e.shiftKey ? Math.round(h/20)*20 : h;
-    render();
-    return;
-  }
-  if (panning) {
-    const dx = (e.clientX - panning.sx) / state.zoom;
-    const dy = (e.clientY - panning.sy) / state.zoom;
-    state.pan.x = panning.ox + dx;
-    state.pan.y = panning.oy + dy;
-    applyViewport();
-    return;
-  }
-});
-
-window.addEventListener('mouseup', () => {
-  if (dragging || resizing) saveAutosync();
-  dragging = null; resizing = null; panning = null;
-});
-
-svg.addEventListener('contextmenu', (e) => e.preventDefault());
-
-svg.addEventListener('wheel', (e) => {
-  if (e.ctrlKey) {
-    e.preventDefault();
-    const delta = e.deltaY < 0 ? 0.1 : -0.1;
-    const newZ = clamp(state.zoom + delta, 0.3, 3);
-    // zoom at cursor
-    const before = screenToWorld(e.clientX, e.clientY);
-    state.zoom = newZ;
-    applyViewport();
-    const after = screenToWorld(e.clientX, e.clientY);
-    state.pan.x += (after.x - before.x);
-    state.pan.y += (after.y - before.y);
-    applyViewport();
-    updateHUD();
-  }
-});
-
-/* ========= CRUD ========= */
-function addBlock(type, props={}) {
-  const id = uid();
-  const b = {
-    id, type,
-    x: rnd(-200, 200), y: rnd(-100, 200),
-    w: type==='note' ? 240 : 320,
-    h: type==='image' ? 240 : (type==='note' ? 140 : 200),
-    content: '',
-    props,
-    tags: []
-  };
-  if (type === 'text') b.content = '<h3>New Idea</h3><p>Describe...</p>';
-  state.blocks.push(b);
-  state.selected = id;
-  render(); saveAutosync();
-}
-
-function removeSelected() {
-  if (!state.selected) return;
-  const isConnector = state.connectors.some(c => c.id === state.selected);
-  if (isConnector) {
-    state.connectors = state.connectors.filter(c => c.id !== state.selected);
-  } else {
-    state.blocks = state.blocks.filter(b => b.id !== state.selected);
-    state.connectors = state.connectors.filter(c => c.from !== state.selected && c.to !== state.selected);
-  }
-  state.selected = null;
-  render(); saveAutosync();
-}
-
-function addConnectorMode() {
-  state.mode = 'addConnector';
-  showTip('Click source block, then target block to connect.');
-}
-
-let connectorDraft = null;
-svg.addEventListener('click', (e) => {
-  if (state.mode !== 'addConnector') return;
-  const t = e.target;
-  if (!t.classList.contains('block-rect')) return;
-  const b = findBlockByEl(t);
-  if (!connectorDraft) {
-    connectorDraft = { from: b.id };
-    showTip('Now click target block.');
-  } else {
-    const id = uid();
-    state.connectors.push({ id, from: connectorDraft.from, to: b.id, label: '' });
-    connectorDraft = null;
-    state.mode = 'select';
-    hideTip();
-    render(); saveAutosync();
-  }
-});
-
-/* ========= Inspector ========= */
-const inspector = document.getElementById('inspector');
-
-function updateInspector() {
-  inspector.innerHTML = '';
-  if (!state.selected) {
-    inspector.innerHTML = '<div style="color:var(--muted)">No selection</div>';
-    return;
-  }
-  const conn = state.connectors.find(c => c.id === state.selected);
-  if (conn) {
-    inspector.innerHTML = `
-      <div><strong>Connector</strong></div>
-      <div style="margin-top:8px;">
-        <label>Label</label>
-        <input id="connLabel" value="${conn.label}" />
-      </div>
-      <div style="margin-top:8px;">
-        <button id="deleteSel" class="btn-danger">Delete</button>
-      </div>
-    `;
-    document.getElementById('connLabel').addEventListener('input', (e)=>{ conn.label = e.target.value; render(); saveAutosync(); });
-    document.getElementById('deleteSel').addEventListener('click', removeSelected);
-    return;
-  }
-
-  const b = state.blocks.find(x => x.id === state.selected);
-  if (!b) return;
-  inspector.innerHTML = `
-    <div><strong>Block</strong> · <span style="color:var(--muted)">${b.type}</span></div>
-    <div style="margin-top:8px; display:grid; grid-template-columns: 1fr 1fr; gap:6px;">
-      <label>X <input id="ix" type="number" value="${b.x}"></label>
-      <label>Y <input id="iy" type="number" value="${b.y}"></label>
-      <label>W <input id="iw" type="number" value="${b.w}"></label>
-      <label>H <input id="ih" type="number" value="${b.h}"></label>
-    </div>
-    <div style="margin-top:8px;">
-      <label>Content</label>
-      <textarea id="icontent" rows="4" style="width:100%">${b.content || ''}</textarea>
-    </div>
-    ${b.type==='chart' ? `
-      <div style="margin-top:8px;">
-        <label>Series ID</label>
-        <input id="iseries" value="${(b.props && b.props.seriesId) || ''}">
-      </div>` : ''}
-    ${b.type==='image' ? `
-      <div style="margin-top:8px;">
-        <label>Caption</label>
-        <input id="icap" value="${b.content || ''}">
-      </div>` : ''}
-    <div style="margin-top:8px;">
-      <label>Tags</label>
-      <input id="itags" placeholder="comma,separated" value="${(b.tags||[]).join(',')}">
-    </div>
-    <div style="margin-top:8px; display:flex; gap:6px;">
-      <button id="deleteSel" class="btn-danger">Delete</button>
-    </div>
-  `;
-  document.getElementById('ix').addEventListener('input',(e)=>{ b.x = parseFloat(e.target.value||0); render(); saveAutosync(); });
-  document.getElementById('iy').addEventListener('input',(e)=>{ b.y = parseFloat(e.target.value||0); render(); saveAutosync(); });
-  document.getElementById('iw').addEventListener('input',(e)=>{ b.w = clamp(parseFloat(e.target.value||0),120,1200); render(); saveAutosync(); });
-  document.getElementById('ih').addEventListener('input',(e)=>{ b.h = clamp(parseFloat(e.target.value||0),80,800); render(); saveAutosync(); });
-  const ic = document.getElementById('icontent');
-  ic.addEventListener('input', (e)=>{ b.content = e.target.value; render(); saveAutosync(); });
-  const del = document.getElementById('deleteSel'); del.addEventListener('click', removeSelected);
-  const it = document.getElementById('itags'); it.addEventListener('input', (e)=>{ b.tags = e.target.value.split(',').map(s=>s.trim()).filter(Boolean); render(); saveAutosync(); });
-  const is = document.getElementById('iseries'); if (is) is.addEventListener('input',(e)=>{ b.props = {...(b.props||{}), seriesId: e.target.value }; render(); saveAutosync(); });
-  const icap = document.getElementById('icap'); if (icap) icap.addEventListener('input',(e)=>{ b.content = e.target.value; render(); saveAutosync(); });
-}
-
-/* ========= Tags ========= */
-const tagsPanel = document.getElementById('tagsPanel');
-function allTags() {
-  const set = new Set();
-  state.blocks.forEach(b => (b.tags||[]).forEach(t => set.add(t)));
-  return Array.from(set);
-}
-function updateTagsPanel() {
-  const tags = allTags();
-  tagsPanel.innerHTML = tags.length ? tags.map(t => `<span class="tag" data-tag="${t}">${t}</span>`).join('') : '<div style="color:var(--muted)">No tags yet</div>';
-  tagsPanel.querySelectorAll('.tag').forEach(el => {
-    el.addEventListener('click', () => filterByTag(el.getAttribute('data-tag')));
-  });
-}
-function filterByTag(tag) {
-  state.selected = null;
-  blocksG.querySelectorAll('.block-rect').forEach(r => {
-    const b = state.blocks.find(x => x.id === r.getAttribute('data-id'));
-    const has = (b.tags||[]).includes(tag);
-    r.style.opacity = has ? 1 : 0.2;
-  });
-}
-document.getElementById('addTagBtn').addEventListener('click', () => {
-  const input = document.getElementById('newTag');
-  const t = input.value.trim();
-  if (!t || !state.selected) return;
-  const b = state.blocks.find(x => x.id === state.selected);
-  b.tags = Array.from(new Set([...(b.tags||[]), t]));
-  input.value = '';
-  render(); saveAutosync();
-});
-
-/* ========= Snapshots & Views ========= */
-function currentViewName() {
-  return Object.keys(state.views).find(v => JSON.stringify(state.views[v].blocks.map(b=>b.id)) === JSON.stringify(state.blocks.map(b=>b.id))) || 'default';
-}
-function snapshot(note='') {
-  const id = uid();
-  state.snapshots.unshift({ id, ts: Date.now(), note, viewName: currentViewName() });
-  render(); saveAutosync();
-}
-function updateSnapshots() {
-  const el = document.getElementById('snapshots');
-  if (!state.snapshots.length) { el.innerHTML = '<div style="color:var(--muted)">No snapshots yet</div>'; return; }
-  el.innerHTML = state.snapshots.map(s => {
-    const d = new Date(s.ts); const time = d.toLocaleString();
-    return `<div style="margin-bottom:8px;"><strong>${time}</strong><br/><span style="color:var(--muted)">${s.note||'Snapshot'}</span></div>`;
-  }).join('');
-}
-function saveView(name) {
-  state.views[name] = {
-    blocks: JSON.parse(JSON.stringify(state.blocks)),
-    connectors: JSON.parse(JSON.stringify(state.connectors)),
-    pan: {...state.pan},
-    zoom: state.zoom,
-  };
-  render(); saveAutosync();
-}
-function loadView(name) {
-  const v = state.views[name];
-  if (!v) return;
-  state.blocks = JSON.parse(JSON.stringify(v.blocks));
-  state.connectors = JSON.parse(JSON.stringify(v.connectors));
-  state.pan = {...v.pan}; state.zoom = v.zoom;
-  applyViewport(); render(); saveAutosync();
-}
-function updateViewsList() {
-  const el = document.getElementById('viewsList');
-  const names = Object.keys(state.views);
-  if (!names.length) { el.innerHTML = '<div style="color:var(--muted)">No views saved</div>'; return; }
-  el.innerHTML = names.map(n => `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-    <span>${n}</span><button data-view="${n}">Load</button>
-  </div>`).join('');
-  el.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => loadView(btn.getAttribute('data-view'))));
-}
-
-/* ========= Tooltip ========= */
-function showTip(txt, x=null, y=null) {
-  tooltip.textContent = txt;
-  tooltip.style.display = 'block';
-  if (x!=null && y!=null) { tooltip.style.left = x+'px'; tooltip.style.top = y+'px'; }
-}
-function hideTip() { tooltip.style.display = 'none'; }
-
-/* ========= Persistence ========= */
-function saveAutosync() {
-  localStorage.setItem('visual_blocks_state', JSON.stringify(state));
-  updateHUD();
-}
-function loadAutosync() {
-  const raw = localStorage.getItem('visual_blocks_state');
-  if (!raw) return;
-  try {
-    const s = JSON.parse(raw);
-    Object.assign(state, s);
-    applyViewport();
-    render();
-  } catch(e) { console.warn('Failed to load state', e); }
-}
-
-/* ========= Controls ========= */
-document.getElementById('addText').addEventListener('click', () => addBlock('text'));
-document.getElementById('addNote').addEventListener('click', () => addBlock('note'));
-document.getElementById('addFrame').addEventListener('click', () => addBlock('frame'));
-document.getElementById('addChart').addEventListener('click', () => addBlock('chart'));
-document.getElementById('addImageBtn').addEventListener('click', () => document.getElementById('addImage').click());
-document.getElementById('addImage').addEventListener('change', (e) => {
-  const file = e.target.files[0]; if (!file) return;
-  const url = URL.createObjectURL(file);
-  addBlock('image', { url });
-  e.target.value = '';
-});
-document.getElementById('addConnector').addEventListener('click', addConnectorMode);
-
-document.getElementById('snapshot').addEventListener('click', () => {
-  const note = prompt('Snapshot note (optional):', '');
-  snapshot(note||'');
-});
-
-document.getElementById('saveLocal').addEventListener('click', () => {
-  saveAutosync();
-  showTip('Saved to local storage');
-  setTimeout(hideTip, 1000);
-});
-document.getElementById('loadLocal').addEventListener('click', () => {
-  loadAutosync();
-  showTip('Loaded from local storage');
-  setTimeout(hideTip, 1000);
-});
-
-document.getElementById('exportPNG').addEventListener('click', async () => {
-  const dataUrl = await svgToPNG(svg, 2);
-  download('visual_blocks.png', dataUrl);
-});
-
-document.getElementById('clear').addEventListener('click', () => {
-  if (!confirm('Clear all blocks and connectors?')) return;
-  state.blocks = []; state.connectors = []; state.selected = null; state.snapshots = []; state.views = {};
-  render(); saveAutosync();
-});
-
-document.getElementById('saveView').addEventListener('click', () => {
-  const name = document.getElementById('viewName').value.trim();
-  if (!name) return alert('Provide a view name');
-  saveView(name);
-});
-
-/* ========= Keyboard shortcuts ========= */
-window.addEventListener('keydown', (e) => {
-  if (e.key === 'Delete') removeSelected();
-  if (e.metaKey || e.ctrlKey) {
-    if (e.key.toLowerCase() === 's') { e.preventDefault(); saveAutosync(); showTip('Saved'); setTimeout(hideTip, 800); }
-    if (e.key.toLowerCase() === 'e') { e.preventDefault(); document.getElementById('exportPNG').click(); }
-  }
-});
-
-/* ========= Init ========= */
-render();
-loadAutosync();
+})();
 </script>
 </body>
 </html>
