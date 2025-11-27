@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Login — Aries</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      height: 100%;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #000;
+      color: #fff;
+    }
+
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    .shell {
+      width: 100%;
+      max-width: 420px;
+      border: 1px solid #333;
+      border-radius: 14px;
+      padding: 24px 22px 20px;
+      background: #050505;
+      box-shadow: 0 18px 40px rgba(0,0,0,0.85);
+    }
+
+    .brand-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 18px;
+    }
+
+    .brand {
+      font-weight: 800;
+      letter-spacing: 0.16em;
+      font-size: 11px;
+      text-transform: uppercase;
+      color: #aaa;
+    }
+
+    .brand-dot {
+      width: 20px;
+      height: 20px;
+      border-radius: 999px;
+      border: 1px solid #555;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      color: #999;
+    }
+
+    .title {
+      font-size: 22px;
+      font-weight: 800;
+      margin-bottom: 4px;
+      letter-spacing: 0.03em;
+    }
+
+    .subtitle {
+      font-size: 13px;
+      color: #9ca3af;
+      margin-bottom: 18px;
+    }
+
+    .mode-toggle {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      border: 1px solid #333;
+      padding: 2px;
+      margin-bottom: 18px;
+      background: #020202;
+    }
+
+    .mode-btn {
+      border: none;
+      background: transparent;
+      color: #aaa;
+      font-size: 12px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .mode-btn.active {
+      background: #fff;
+      color: #000;
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: #9ca3af;
+      margin-bottom: 4px;
+      margin-top: 12px;
+    }
+
+    input {
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid #333;
+      background: #050505;
+      color: #f9fafb;
+      padding: 10px 11px;
+      font-size: 14px;
+      outline: none;
+    }
+
+    input:focus {
+      border-color: #f5f5f5;
+      box-shadow: 0 0 0 1px #f5f5f5;
+    }
+
+    .hint {
+      font-size: 11px;
+      color: #6b7280;
+      margin-top: 4px;
+    }
+
+    .error {
+      margin-top: 10px;
+      font-size: 12px;
+      color: #f97373;
+      min-height: 16px;
+      white-space: pre-line;
+    }
+
+    .info {
+      margin-top: 10px;
+      font-size: 11px;
+      color: #9ca3af;
+    }
+
+    .submit-row {
+      margin-top: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .btn-primary {
+      flex: 1;
+      border-radius: 999px;
+      border: 1px solid #f9fafb;
+      background: #f9fafb;
+      color: #000;
+      font-size: 14px;
+      font-weight: 700;
+      padding: 9px 14px;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
+
+    .loader {
+      width: 14px;
+      height: 14px;
+      border-radius: 999px;
+      border: 2px solid #fff;
+      border-top-color: transparent;
+      animation: spin 0.9s linear infinite;
+      margin-left: 8px;
+    }
+
+    .footer {
+      margin-top: 16px;
+      font-size: 11px;
+      color: #6b7280;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .pill {
+      border-radius: 999px;
+      border: 1px solid #333;
+      padding: 3px 9px;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    @media (max-width: 480px) {
+      .shell {
+        padding: 20px 18px 18px;
+      }
+      .title {
+        font-size: 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+<div class="shell">
+  <div class="brand-row">
+    <div class="brand">ARIES / ACCESS</div>
+    <div class="brand-dot">A</div>
+  </div>
+
+  <div class="title">Sign in to Aries</div>
+  <div class="subtitle" id="modeSubtitle">Use your email and password.</div>
+
+  <div class="mode-toggle">
+    <button type="button" id="modeLogin" class="mode-btn active">Sign In</button>
+    <button type="button" id="modeSignup" class="mode-btn">Create</button>
+  </div>
+
+  <form id="authForm" novalidate>
+    <label for="email">Email</label>
+    <input id="email" type="email" autocomplete="email" required placeholder="you@example.com">
+    <div class="hint">Use the same email every time to access your account.</div>
+
+    <label for="password">Password</label>
+    <input id="password" type="password" autocomplete="current-password" required placeholder="••••••••">
+    <div class="hint">Minimum 6 characters. Avoid reusing critical passwords.</div>
+
+    <div class="error" id="errorBox"></div>
+
+    <div class="submit-row">
+      <button type="submit" id="submitBtn" class="btn-primary">
+        <span id="submitText">Sign In</span>
+        <span id="submitSpinner" class="loader" style="display:none;"></span>
+      </button>
+    </div>
+
+    <div class="info">
+      Access requires an Aries account. Creating an account is instant and free.
+    </div>
+  </form>
+
+  <div class="footer">
+    <div class="pill">Black & White Mode</div>
+    <div>Aries © <span id="year"></span></div>
+  </div>
+</div>
+
+<script type="module">
+  import { auth } from './firebase-config.js';
+  import {
+    signInWithEmailAndPassword,
+    createUserWithEmailAndPassword,
+    onAuthStateChanged
+  } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
+
+  // Change this if your home page has a different name
+  const REDIRECT_URL = 'home.html';
+
+  const yearEl = document.getElementById('year');
+  yearEl.textContent = new Date().getFullYear().toString();
+
+  const modeLoginBtn = document.getElementById('modeLogin');
+  const modeSignupBtn = document.getElementById('modeSignup');
+  const modeSubtitle = document.getElementById('modeSubtitle');
+  const form = document.getElementById('authForm');
+  const emailInput = document.getElementById('email');
+  const passwordInput = document.getElementById('password');
+  const errorBox = document.getElementById('errorBox');
+  const submitBtn = document.getElementById('submitBtn');
+  const submitText = document.getElementById('submitText');
+  const submitSpinner = document.getElementById('submitSpinner');
+
+  let mode = 'login'; // 'login' or 'signup'
+
+  function setMode(newMode) {
+    mode = newMode;
+    if (mode === 'login') {
+      modeLoginBtn.classList.add('active');
+      modeSignupBtn.classList.remove('active');
+      submitText.textContent = 'Sign In';
+      modeSubtitle.textContent = 'Use your email and password.';
+    } else {
+      modeLoginBtn.classList.remove('active');
+      modeSignupBtn.classList.add('active');
+      submitText.textContent = 'Create Account';
+      modeSubtitle.textContent = 'Create a new Aries account in a few seconds.';
+    }
+    errorBox.textContent = '';
+  }
+
+  modeLoginBtn.addEventListener('click', () => setMode('login'));
+  modeSignupBtn.addEventListener('click', () => setMode('signup'));
+
+  function setLoading(isLoading) {
+    submitBtn.disabled = isLoading;
+    submitSpinner.style.display = isLoading ? 'inline-block' : 'none';
+  }
+
+  function mapErrorMessage(err) {
+    if (!err || !err.code) return 'Something went wrong. Please try again.';
+    switch (err.code) {
+      case 'auth/invalid-email':
+        return 'That email address is not valid.';
+      case 'auth/user-not-found':
+      case 'auth/wrong-password':
+        return 'Incorrect email or password.';
+      case 'auth/email-already-in-use':
+        return 'This email is already in use. Try signing in instead.';
+      case 'auth/weak-password':
+        return 'Password is too weak. Use at least 6 characters.';
+      case 'auth/network-request-failed':
+        return 'Network error. Check your connection and try again.';
+      default:
+        return err.message || 'Authentication failed. Please try again.';
+    }
+  }
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    errorBox.textContent = '';
+
+    const email = emailInput.value.trim();
+    const password = passwordInput.value;
+
+    if (!email || !password) {
+      errorBox.textContent = 'Email and password are required.';
+      return;
+    }
+
+    setLoading(true);
+    try {
+      if (mode === 'login') {
+        await signInWithEmailAndPassword(auth, email, password);
+      } else {
+        await createUserWithEmailAndPassword(auth, email, password);
+      }
+      // onAuthStateChanged will handle redirect
+    } catch (err) {
+      console.error(err);
+      errorBox.textContent = mapErrorMessage(err);
+    } finally {
+      setLoading(false);
+    }
+  });
+
+  // If already logged in, go straight to home
+  onAuthStateChanged(auth, (user) => {
+    if (user) {
+      window.location.href = REDIRECT_URL;
+    }
+  });
+</script>
+</body>
+</html>
