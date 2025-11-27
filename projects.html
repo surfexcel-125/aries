@@ -5,105 +5,36 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Projects — Aries</title>
 
-  <!-- avoid layout jump when overlay opens -->
+  <!-- Prevent scrollbar jump -->
   <style> html { overflow-y: scroll; } </style>
 
   <link rel="stylesheet" href="main.css">
 
-  <!-- Page-specific styles for the compact project card -->
+  <!-- Page-specific styles: project card UI -->
   <style>
     .page-wrapper { padding-top:84px; }
+    .projects-container { max-width: 900px; margin: 18px auto; padding: 0 18px 48px; }
 
-    .projects-container {
-      max-width: 900px;
-      margin: 18px auto;
-      padding: 0 18px 48px;
-    }
-
-    /* Card */
     .proj-card {
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:16px;
-      padding:14px;
-      background: #fff;
-      border-radius:10px;
-      border: 1px solid rgba(0,0,0,0.08);
-      box-shadow: 0 2px 0 rgba(0,0,0,0.04);
-      margin-bottom:12px;
-      min-height:86px;
+      display:flex; align-items:center; justify-content:space-between; gap:16px;
+      padding:14px; background:#fff; border-radius:10px; border:1px solid rgba(0,0,0,0.08);
+      box-shadow:0 2px 0 rgba(0,0,0,0.04); margin-bottom:12px; min-height:86px;
     }
-
-    .proj-left {
-      display:flex;
-      align-items:center;
-      gap:12px;
-    }
-
-    .proj-icon {
-      width:56px;
-      height:56px;
-      border-radius:8px;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      background:#fff;
-      border:1px solid rgba(0,0,0,0.06);
-      box-shadow: 0 1px 0 rgba(0,0,0,0.04);
-      flex-shrink:0;
-    }
+    .proj-left { display:flex; align-items:center; gap:12px; }
+    .proj-icon { width:56px; height:56px; border-radius:8px; display:flex; align-items:center; justify-content:center; background:#fff; border:1px solid rgba(0,0,0,0.06); box-shadow:0 1px 0 rgba(0,0,0,0.04); flex-shrink:0; }
     .proj-icon img { width:46px; height:46px; object-fit:contain; display:block; }
 
-    .proj-meta {
-      display:flex;
-      flex-direction:column;
-      gap:4px;
-    }
-    .proj-title {
-      font-weight:800;
-      font-size:16px;
-      color:#0b1220;
-      white-space:nowrap;
-      overflow:hidden;
-      text-overflow:ellipsis;
-    }
-    .proj-sub {
-      font-size:13px;
-      color:#6b7280;
-    }
+    .proj-meta { display:flex; flex-direction:column; gap:4px; }
+    .proj-title { font-weight:800; font-size:16px; color:#0b1220; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .proj-sub { font-size:13px; color:#6b7280; }
 
-    /* Buttons group */
-    .proj-actions {
-      display:flex;
-      gap:10px;
-      align-items:center;
-      justify-content:flex-end;
-    }
+    .proj-actions { display:flex; gap:10px; align-items:center; justify-content:flex-end; }
 
-    .btn {
-      display:inline-flex;
-      align-items:center;
-      justify-content:center;
-      padding:8px 14px;
-      border-radius:8px;
-      border:1px solid rgba(0,0,0,0.08);
-      font-weight:700;
-      font-size:14px;
-      cursor:pointer;
-      text-decoration:none;
-      color:#111;
-      background:#fff;
-    }
-
-    .btn-open {
-      background:#1f2a37; color:#fff; border-color:rgba(0,0,0,0.12);
-      box-shadow: 0 1px 0 rgba(255,255,255,0.03) inset;
-    }
+    .btn { display:inline-flex; align-items:center; justify-content:center; padding:8px 14px; border-radius:8px; border:1px solid rgba(0,0,0,0.08); font-weight:700; font-size:14px; cursor:pointer; text-decoration:none; color:#111; background:#fff; }
+    .btn-open { background:#1f2a37; color:#fff; border-color:rgba(0,0,0,0.12); box-shadow: 0 1px 0 rgba(255,255,255,0.03) inset; }
     .btn-edit { background:#fff; color:#111; }
     .btn-delete { background:#fff; color:#111; border:2px solid rgba(0,0,0,0.08); }
 
-    /* smaller screens */
     @media (max-width:640px) {
       .proj-card { flex-direction:column; align-items:flex-start; gap:12px; padding:12px; }
       .proj-actions { width:100%; justify-content:flex-start; gap:8px; }
@@ -112,16 +43,13 @@
 </head>
 <body>
 
-<!-- HEADER (projects.html) -->
 <header class="aries-topbar">
   <button id="aries-hamburger" class="aries-hamburger" aria-label="Open sidebar">☰</button>
   <span class="aries-title">PROJECT MANAGER</span>
-  <a href="index.html" class="aries-brand">
-    <img src="goat.png" alt="Aries Logo" class="aries-logo">
-  </a>
+  <a href="index.html" class="aries-brand"><img src="goat.png" alt="Aries Logo" class="aries-logo"></a>
 </header>
 
-<!-- overlay & sidebar -->
+<!-- overlay + sidebar -->
 <div id="aries-overlay" class="hidden" aria-hidden="true"></div>
 <aside id="aries-sidebar" class="aries-sidebar hidden" role="complementary" aria-label="Project list" aria-hidden="true">
   <nav class="aries-sidebar-nav aries-sidebar-content" role="navigation" aria-label="Projects"></nav>
@@ -135,7 +63,6 @@
     </div>
 
     <div id="projectsList" aria-live="polite"></div>
-
     <div id="initialLoader" class="loader-panel" style="padding:24px;text-align:center;color:#666; display:none;">
       <div class="loader-spinner" style="display:inline-block"></div>
       <p style="margin-top:8px">Connecting to Aries Cloud...</p>
@@ -143,7 +70,7 @@
   </div>
 </main>
 
-<!-- simple new-project modal (reused) -->
+<!-- new project modal -->
 <div id="newProjectModal" class="hidden" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.36);z-index:900">
   <div style="background:#fff;padding:18px;border-radius:8px;min-width:320px">
     <div style="font-weight:800;margin-bottom:8px">Create New Project</div>
@@ -168,62 +95,37 @@
     const card = document.createElement('div');
     card.className = 'proj-card';
 
-    // left
-    const left = document.createElement('div');
-    left.className = 'proj-left';
-    const icon = document.createElement('div');
-    icon.className = 'proj-icon';
-    const img = document.createElement('img');
-    img.src = project?.icon || 'goat.png';
-    img.alt = project?.name ? `${project.name} icon` : 'Aries';
+    const left = document.createElement('div'); left.className = 'proj-left';
+    const icon = document.createElement('div'); icon.className = 'proj-icon';
+    const img = document.createElement('img'); img.src = project?.icon || 'goat.png'; img.alt = project?.name ? `${project.name} icon` : 'Aries';
     icon.appendChild(img);
 
-    const meta = document.createElement('div');
-    meta.className = 'proj-meta';
-    const title = document.createElement('div');
-    title.className = 'proj-title';
-    // Format: Title — Subtitle (use em dash)
-    const subtitle = project?.subtitle || (project?.description || 'Project & roadmap board');
+    const meta = document.createElement('div'); meta.className = 'proj-meta';
+    const title = document.createElement('div'); title.className = 'proj-title';
     title.textContent = `${project?.name || 'Untitled'} — ${project?.short || 'Product Plan'}`;
-    const sub = document.createElement('div');
-    sub.className = 'proj-sub';
-    sub.textContent = subtitle;
+    const sub = document.createElement('div'); sub.className = 'proj-sub'; sub.textContent = project?.subtitle || 'Product & roadmap board';
+    meta.appendChild(title); meta.appendChild(sub);
+    left.appendChild(icon); left.appendChild(meta);
 
-    meta.appendChild(title);
-    meta.appendChild(sub);
-    left.appendChild(icon);
-    left.appendChild(meta);
+    const actions = document.createElement('div'); actions.className = 'proj-actions';
 
-    // actions
-    const actions = document.createElement('div');
-    actions.className = 'proj-actions';
+    const openBtn = document.createElement('a'); openBtn.className = 'btn btn-open'; openBtn.href = `project_detail.html?id=${project?.id || ''}`; openBtn.textContent = 'Open';
+    const editBtn = document.createElement('a'); editBtn.className = 'btn btn-edit'; editBtn.href = `workspace.html?id=${project?.id || ''}`; editBtn.textContent = 'Edit';
+    const delBtn = document.createElement('button'); delBtn.className = 'btn btn-delete'; delBtn.type = 'button'; delBtn.textContent = 'Delete';
 
-    const openBtn = document.createElement('a');
-    openBtn.className = 'btn btn-open';
-    openBtn.href = `project_detail.html?id=${project?.id || ''}`;
-    openBtn.textContent = 'Open';
-    actions.appendChild(openBtn);
-
-    const editBtn = document.createElement('a');
-    editBtn.className = 'btn btn-edit';
-    editBtn.href = `project_detail.html?id=${project?.id || ''}`;
-    editBtn.textContent = 'Edit';
-    actions.appendChild(editBtn);
-
-    const delBtn = document.createElement('button');
-    delBtn.className = 'btn btn-delete';
-    delBtn.type = 'button';
-    delBtn.textContent = 'Delete';
     delBtn.addEventListener('click', async () => {
       if (!project?.id) { alert('Nothing to delete'); return; }
       const ok = confirm(`Delete project “${project.name}”? This cannot be undone.`);
       if (!ok) return;
-      // attempt to call AriesDB.deleteProject if user added it to app.js
+
       if (window.AriesDB && typeof window.AriesDB.deleteProject === 'function') {
         try {
-          await window.AriesDB.deleteProject(project.id);
-          // remove the card from DOM
-          card.remove();
+          const success = await window.AriesDB.deleteProject(project.id);
+          if (success) {
+            card.remove();
+          } else {
+            alert('Delete failed. Check console for details or your Firestore rules.');
+          }
         } catch (err) {
           console.error(err);
           alert('Delete failed. Check console for details.');
@@ -232,9 +134,11 @@
         alert('Delete is not enabled in this build. To enable, add deleteProject(id) to app.js AriesDB facade.');
       }
     });
+
+    actions.appendChild(openBtn);
+    actions.appendChild(editBtn);
     actions.appendChild(delBtn);
 
-    // assemble
     card.appendChild(left);
     card.appendChild(actions);
     return card;
@@ -248,23 +152,14 @@
       loader.style.display = 'none';
 
       if (!projects || projects.length === 0) {
-        // placeholder single example to show look (NOT saved)
+        // If no DB projects, show a single presentational placeholder (NOT saved)
         const example = { name: 'Alpha', short: 'Product Plan', subtitle: 'Product & roadmap board', icon: 'goat.png' };
         listEl.appendChild(makeCard(example));
-        // You can show more placeholders if desired
         return;
       }
 
       projects.forEach(p => {
-        // map DB shape to our UI fields
-        const ui = {
-          id: p.id,
-          name: p.name || 'Untitled',
-          short: p.type || 'Product Plan',
-          subtitle: p.description || 'Product & roadmap board',
-          icon: p.icon || 'goat.png',
-          status: p.status
-        };
+        const ui = { id: p.id, name: p.name || 'Untitled', short: p.type || 'Product Plan', subtitle: p.description || 'Product & roadmap board', icon: p.icon || 'goat.png' };
         listEl.appendChild(makeCard(ui));
       });
 
@@ -275,13 +170,10 @@
     }
   }
 
-  document.addEventListener('DOMContentLoaded', () => {
-    loadProjects();
-  });
+  document.addEventListener('DOMContentLoaded', () => loadProjects());
 
-  // new project modal wiring
   document.getElementById('openNewProjectModal').onclick = () => modal.classList.remove('hidden');
-  document.getElementById('cancelProjectBtn')?.addEventListener('click', () => modal.classList.add('hidden'));
+  document.getElementById('cancelProjectBtn').onclick = () => modal.classList.add('hidden');
 
   confirmBtn.addEventListener('click', async () => {
     const name = input.value.trim(); if (!name) return;
