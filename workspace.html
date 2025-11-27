@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Idea Visualizer — Premium Dark (Fixed + Undo/Redo + Delete + Modal Edit)</title>
+<title>Workspace — Aries</title>
 <style>
   :root{--bg:#071019; --card:#0f1720; --muted:#90a0b8; --accent:#8b5cf6; --glass: rgba(255,255,255,0.03);} *{box-sizing:border-box}
   body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;color:#e6eef8;background:linear-gradient(180deg,var(--bg),#041018)}
@@ -19,33 +19,29 @@
 
   /* Canvas area */
   #canvasWrap{flex:1;height:600px;border:1px solid rgba(255,255,255,0.03);border-radius:12px;position:relative;background:linear-gradient(180deg,#071019,#041018);overflow:hidden;touch-action:none}
-  /* boardArea is transformed; set large virtual size */
   #boardArea{width:4000px;height:2500px;position:absolute;left:0;top:0;transform-origin:0 0}
   .node{position:absolute;min-width:160px;padding:12px;border-radius:10px;color:#e6eef8;background:linear-gradient(180deg,#0f1820,#071117);border:1px solid rgba(255,255,255,0.04);box-shadow:0 18px 40px rgba(2,6,23,0.6);user-select:none}
   .node .title{font-weight:700;margin-bottom:4px}
   .node .meta{font-size:12px;color:var(--muted);white-space:pre-wrap}
   .connector{width:14px;height:14px;border-radius:50%;background:var(--accent);position:absolute;right:8px;top:50%;transform:translateY(-50%);cursor:pointer;box-shadow:0 6px 14px rgba(139,92,246,0.25);border:2px solid rgba(255,255,255,0.06);pointer-events:auto;z-index:20}
-  /* SVG matches board coordinates */
   #svgLayer{position:absolute;left:0;top:0;width:4000px;height:2500px;pointer-events:none}
 
-  /* hide native scrollbars if any */
   #canvasWrap::-webkit-scrollbar{display:none}
   #canvasWrap{ -ms-overflow-style: none; scrollbar-width: none; }
 
   .node.connecting{box-shadow:0 24px 60px rgba(139,92,246,0.35);border-color:rgba(139,92,246,0.6)}
   .node.selected{outline:2px solid rgba(139,92,246,0.45);box-shadow:0 24px 60px rgba(139,92,246,0.12)}
 
-  /* Modal */
   .modal-backdrop{position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(0,0,0,0.6);display:none;align-items:center;justify-content:center;z-index:1000}
   .modal{background:#08121a;padding:18px;border-radius:12px;min-width:320px;border:1px solid rgba(255,255,255,0.04)}
-  .modal input,.modal textarea{width:100%;margin-top:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);padding:8px;border-radius:8px;color:#e6eef8}
+  .modal input, .modal textarea{width:100%;margin-top:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);padding:8px;border-radius:8px;color:#e6eef8}
   .row{display:flex;gap:8px}
   .small{padding:6px 8px;font-size:13px}
 </style>
 </head>
 <body>
 <header>
-  <h1>Idea Visualizer — Premium Dark</h1>
+  <h1 id="workspaceTitle">Workspace — Aries</h1>
   <div style="display:flex;gap:8px;align-items:center">
     <button id="btn-undo" class="btn small" title="Undo (Ctrl+Z)">Undo</button>
     <button id="btn-redo" class="btn small" title="Redo (Ctrl+Y)">Redo</button>
@@ -55,6 +51,10 @@
 </header>
 <main>
 <aside>
+  <div class="muted" style="margin-bottom:10px">
+    This workspace is linked to your Aries project. Changes are autosaved to the cloud.
+  </div>
+
   <label>Card</label>
   <textarea id="ideaText" rows="3" placeholder="Card titles — one per line"></textarea>
   <label style="margin-top:10px">Body (one per line)</label>
@@ -67,7 +67,11 @@
     <button id="btn-delete" class="btn" style="background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted)">Delete Selected</button>
     <button id="btn-clear" class="btn" style="background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted)">Clear</button>
   </div>
-  <div style="margin-top:12px" class="muted">Tips: Drag empty background to pan. Use mouse wheel to zoom. Click connector dot then click target node to link. Double-click a node to edit. Use Undo/Redo or Delete key to remove selected node.</div>
+  <div style="margin-top:12px" class="muted">
+    Tips: Drag empty background to pan. Use mouse wheel to zoom.
+    Click connector dot then click target node to link. Double-click a node to edit.
+    Use Undo/Redo or Delete key to remove selected node.
+  </div>
 </aside>
 <div id="canvasWrap">
   <div id="boardArea">
@@ -76,7 +80,6 @@
 </div>
 </main>
 
-<!-- Modal for editing node (in-canvas) -->
 <div id="modal" class="modal-backdrop" role="dialog" aria-hidden="true">
   <div class="modal" role="document">
     <div style="font-weight:700">Edit Node</div>
@@ -91,8 +94,20 @@
   </div>
 </div>
 
-<script>
+<script type="module">
+  import { db } from './firebase-config.js';
+  import { collection, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
+  // If you ever need user/project name from AriesDB, you can also import './app.js';
+
 (() => {
+  // ---------- project id from URL ----------
+  function getProjectIdFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('id') || null;
+  }
+
+  const workspaceTitleEl = document.getElementById('workspaceTitle');
+
   // ---------- state & history ----------
   const state = {
     nodes: [], links: [], selected: null, nodeId: 1,
@@ -100,46 +115,59 @@
     connecting: null
   };
 
-  // history stack for undo/redo
+  const SAVE_DEBOUNCE_MS = 1200;
+  let saveTimeout = null;
+  let currentProjectId = null;
+
   const history = { past: [], future: [], max: 60 };
 
   function snapshot(){
-    // create deep copy snapshot of minimal state needed
-    const snap = {
+    return {
       nodes: state.nodes.map(n => ({ id: n.id, x: n.x, y: n.y, title: n.title, notes: n.notes })),
       links: state.links.map(l => ({ from: l.from, to: l.to })),
       nodeId: state.nodeId,
       view: { x: state.view.x, y: state.view.y, scale: state.view.scale },
       selected: state.selected
     };
-    return snap;
   }
+
   function applySnapshot(snap){
-    // clear board + render nodes from snapshot
-    // remove existing elements
     state.nodes.forEach(n => { if(n.el && n.el.parentNode) n.el.parentNode.removeChild(n.el); });
     state.nodes = [];
     state.links = [];
     state.nodeId = snap.nodeId || 1;
     state.view = snap.view ? { ...snap.view } : { x:0,y:0,scale:1 };
-    // create nodes without altering history
-    snap.nodes.forEach(n => {
+
+    (snap.nodes || []).forEach(n => {
       createNode(n.x, n.y, n.title, n.notes, { id: n.id, addToState: true, skipHistory: true });
     });
-    state.links = snap.links.map(l => ({ from: l.from, to: l.to }));
+    state.links = (snap.links || []).map(l => ({ from: l.from, to: l.to }));
     state.selected = snap.selected || null;
     applyView();
     drawLinks();
     updateSelectionVisual();
   }
 
-  function pushHistory(){ // push current state to past, clear future
+  function updateUndoRedoButtons(){
+    document.getElementById('btn-undo').disabled = history.past.length === 0;
+    document.getElementById('btn-redo').disabled = history.future.length === 0;
+  }
+
+  function scheduleSave(){
+    if(!currentProjectId || !db) return;
+    if(saveTimeout) clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(saveToFirebase, SAVE_DEBOUNCE_MS);
+  }
+
+  function pushHistory(){
     const s = snapshot();
     history.past.push(s);
     if(history.past.length > history.max) history.past.shift();
     history.future = [];
     updateUndoRedoButtons();
+    scheduleSave();
   }
+
   function undo(){
     if(history.past.length === 0) return;
     const current = snapshot();
@@ -147,7 +175,9 @@
     const prev = history.past.pop();
     applySnapshot(prev);
     updateUndoRedoButtons();
+    scheduleSave();
   }
+
   function redo(){
     if(history.future.length === 0) return;
     const current = snapshot();
@@ -155,13 +185,77 @@
     const next = history.future.pop();
     applySnapshot(next);
     updateUndoRedoButtons();
-  }
-  function updateUndoRedoButtons(){
-    document.getElementById('btn-undo').disabled = history.past.length === 0;
-    document.getElementById('btn-redo').disabled = history.future.length === 0;
+    scheduleSave();
   }
 
-  // ---------- DOM references ----------
+  // ---------- Firebase save/load (doc id = project id) ----------
+  async function saveToFirebase(){
+    if(!currentProjectId || !db) return;
+    const payload = snapshot();
+    payload.updatedAt = new Date().toISOString();
+    try {
+      const boardsCol = collection(db, 'workspaceBoards');   // collection name for boards
+      const ref = doc(boardsCol, currentProjectId);
+      await setDoc(ref, payload, { merge: true });
+      console.log('Saved board for project:', currentProjectId);
+    } catch(err){
+      console.error('Error saving board:', err);
+    }
+  }
+
+  async function loadFromFirebase(projectId){
+    if(!db){
+      console.warn('Firebase DB not available; using local-only mode.');
+      initializeDefaultBoard();
+      return;
+    }
+    try{
+      const boardsCol = collection(db, 'workspaceBoards');
+      const ref = doc(boardsCol, projectId);
+      const snapDoc = await getDoc(ref);
+      if(snapDoc.exists()){
+        const data = snapDoc.data() || {};
+        const restored = {
+          nodes: Array.isArray(data.nodes) ? data.nodes : [],
+          links: Array.isArray(data.links) ? data.links : [],
+          nodeId: data.nodeId || 1,
+          view: data.view || { x:0, y:0, scale:1 },
+          selected: null
+        };
+        applySnapshot(restored);
+        history.past = [];
+        history.future = [];
+        pushHistory(); // baseline + schedule save
+        console.log('Loaded board for project:', projectId);
+      } else {
+        console.log('No board yet for this project, starting fresh:', projectId);
+        clearBoardOnly();
+        history.past = [];
+        history.future = [];
+        pushHistory();
+      }
+    } catch(err){
+      console.error('Error loading board:', err);
+      initializeDefaultBoard();
+    }
+  }
+
+  function setCurrentProject(projectId){
+    const trimmed = (projectId || '').trim();
+    if(!trimmed) {
+      alert('No project ID in URL. Open this page via the Projects screen (Edit button).');
+      initializeDefaultBoard();
+      return;
+    }
+    currentProjectId = trimmed;
+    workspaceTitleEl.textContent = `Workspace — Project ${currentProjectId}`;
+    try {
+      localStorage.setItem('ariesLastProjectId', currentProjectId);
+    } catch(e){}
+    loadFromFirebase(currentProjectId);
+  }
+
+  // ---------- DOM refs ----------
   const wrap = document.getElementById('canvasWrap');
   const board = document.getElementById('boardArea');
   const svg = document.getElementById('svgLayer');
@@ -190,13 +284,11 @@
     state.nodes.forEach(n => n.el.classList.toggle('selected', state.selected === n.id));
   }
 
-  // ---------- create node (supports creating from snapshot) ----------
-  // options: { id, addToState=true, skipHistory=false }
+  // ---------- create node ----------
   function createNode(x, y, title = 'New', notes = '', options = {}){
     const addToState = options.addToState !== false;
     let id = options.id;
     if(!id){ id = 'n' + (state.nodeId++); } else {
-      // ensure nodeId increments past provided id if it contains numeric suffix
       const m = id.match(/^n(\d+)$/);
       if(m){ state.nodeId = Math.max(state.nodeId, parseInt(m[1],10) + 1); }
     }
@@ -208,17 +300,15 @@
     board.appendChild(el);
     el.style.zIndex = String(1000 + (parseInt(id.replace('n','')) || 0));
 
-    // add draggable behavior
     makeDraggable(el);
 
-    // connector click
     const conn = el.querySelector('.connector');
     conn.addEventListener('click', (e)=>{
       e.stopPropagation(); e.preventDefault();
       if(state.connecting){
         if(state.connecting !== id){
           state.links.push({ from: state.connecting, to: id });
-          pushHistory(); // connection created
+          pushHistory();
         }
         cancelConnect();
         drawLinks();
@@ -227,10 +317,8 @@
       startConnect(id);
     });
 
-    // click selects
     el.addEventListener('click', (e)=>{ e.stopPropagation(); selectNode(id); });
 
-    // double-click opens modal editor
     el.addEventListener('dblclick', (e)=>{ e.stopPropagation(); openEditModal(id); });
 
     const nodeObj = { id, el, x, y, title, notes };
@@ -272,7 +360,7 @@
         document.removeEventListener('pointermove', moveHandler);
         document.removeEventListener('pointerup', upHandler);
         if(moved){
-          pushHistory(); // record move as action
+          pushHistory();
         }
       };
       document.addEventListener('pointermove', moveHandler);
@@ -372,6 +460,29 @@
     applyView();
   }
 
+  // ---------- clear helpers ----------
+  function clearBoardOnly(){
+    state.nodes.forEach(n=>{ if(n.el && n.el.parentNode) n.el.parentNode.removeChild(n.el); });
+    state.nodes = [];
+    state.links = [];
+    while(svg.firstChild) svg.removeChild(svg.firstChild);
+    state.nodeId = 1;
+    state.view = { x:0, y:0, scale:1 };
+    applyView();
+    drawLinks();
+  }
+
+  function initializeDefaultBoard(){
+    clearBoardOnly();
+    createNode(220,160,'Central idea','Double-click to edit', { skipHistory: true });
+    createNode(520,120,'Branch A','', { skipHistory: true });
+    createNode(520,320,'Branch B','', { skipHistory: true });
+    history.past = [];
+    history.future = [];
+    pushHistory();
+    drawLinks();
+  }
+
   // ---------- create nodes from inputs ----------
   document.getElementById('btn-create').addEventListener('click', ()=>{
     const rawTitles = document.getElementById('ideaText').value || '';
@@ -405,37 +516,34 @@
 
   // ---------- clear ----------
   document.getElementById('btn-clear').addEventListener('click', ()=>{
+    clearBoardOnly();
+    history.past = [];
+    history.future = [];
     pushHistory();
-    state.nodes.forEach(n=>{ if(n.el && n.el.parentNode) n.el.parentNode.removeChild(n.el); });
-    state.nodes = []; state.links = []; while(svg.firstChild) svg.removeChild(svg.firstChild);
-    state.nodeId=1; state.view={x:0,y:0,scale:1}; applyView();
   });
 
   // ---------- delete node ----------
   function deleteSelectedNode(){
     const id = state.selected;
     if(!id) return;
-    // remove element
     const idx = state.nodes.findIndex(n => n.id === id);
     if(idx === -1) return;
-    pushHistory();
     const node = state.nodes[idx];
     if(node.el && node.el.parentNode) node.el.parentNode.removeChild(node.el);
     state.nodes.splice(idx,1);
-    // remove links referencing it
     state.links = state.links.filter(l => l.from !== id && l.to !== id);
     state.selected = null;
     drawLinks();
+    pushHistory();
   }
   document.getElementById('btn-delete').addEventListener('click', ()=> deleteSelectedNode());
-  // Delete key
+
+  // Delete + Undo/Redo keys
   window.addEventListener('keydown', e=>{
     if(e.key === 'Delete' || e.key === 'Backspace'){
-      // avoid interfering with typing in inputs
       if(document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.isContentEditable)) return;
       deleteSelectedNode();
     }
-    // Undo / Redo keyboard
     if((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')){
       e.preventDefault(); undo();
     } else if((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && (e.key === 'Z')) )){
@@ -443,15 +551,14 @@
     }
   });
 
-  // ---------- undo/redo buttons ----------
   document.getElementById('btn-undo').addEventListener('click', ()=> undo());
   document.getElementById('btn-redo').addEventListener('click', ()=> redo());
-  updateUndoRedoButtons();
+  document.getElementById('btn-fit').addEventListener('click', ()=> fitAll());
 
   // ---------- pan ----------
   let panning=false, sx=0, sy=0;
   wrap.addEventListener('pointerdown', e=>{
-    if(getNode(e.target)) return; // clicked on node
+    if(getNode(e.target)) return;
     panning=true; sx=e.clientX; sy=e.clientY;
     try{ wrap.setPointerCapture && wrap.setPointerCapture(e.pointerId); }catch(err){}
   });
@@ -503,7 +610,6 @@
       exportSvg.appendChild(p);
     });
 
-    // add node rectangles & text so exported svg is self-contained
     state.nodes.forEach(n=>{
       const g = document.createElementNS('http://www.w3.org/2000/svg','g');
       const rx = Math.round(n.x);
@@ -532,13 +638,6 @@
     const a=document.createElement('a'); a.href=url; a.download='idea-visual.svg'; document.body.appendChild(a);
     a.click(); a.remove(); URL.revokeObjectURL(url);
   });
-
-  // ---------- initial sample ----------
-  createNode(220,160,'Central idea','Double-click to edit', { skipHistory: true });
-  createNode(520,120,'Branch A','', { skipHistory: true });
-  createNode(520,320,'Branch B','', { skipHistory: true });
-  pushHistory(); // initial baseline
-  drawLinks();
 
   // ---------- modal edit ----------
   function openEditModal(id){
@@ -569,7 +668,6 @@
     closeModal();
     drawLinks();
   });
-  // close modal on backdrop click
   modal.addEventListener('click', e=>{ if(e.target === modal) closeModal(); });
 
   // ---------- keep svg sized ----------
@@ -577,22 +675,24 @@
   window.addEventListener('resize', ()=>{ syncSvgSize(); applyView(); });
   syncSvgSize();
 
-  // ---------- utility: delete node by id (exposed) ----------
-  function deleteNodeById(id){
-    const idx = state.nodes.findIndex(n => n.id === id);
-    if(idx === -1) return;
-    const node = state.nodes[idx];
-    if(node.el && node.el.parentNode) node.el.parentNode.removeChild(node.el);
-    state.nodes.splice(idx, 1);
-    state.links = state.links.filter(l => l.from !== id && l.to !== id);
-    if(state.selected === id) state.selected = null;
-  }
-
-  // ---------- selection when clicking background clears selection ----------
+  // selection clear
   wrap.addEventListener('click', e=>{ if(getNode(e.target)) return; state.selected = null; updateSelectionVisual(); });
 
-  // ---------- helper to ensure no memory leaks on applySnapshot ----------
-  // applySnapshot handles removing DOM and recreating nodes
+  // ---------- initial load ----------
+  (function initialLoad(){
+    const urlId = getProjectIdFromUrl();
+    if(urlId){
+      setCurrentProject(urlId);
+    } else {
+      let lastId = null;
+      try{ lastId = localStorage.getItem('ariesLastProjectId'); } catch(e){}
+      if(lastId){
+        setCurrentProject(lastId);
+      } else {
+        initializeDefaultBoard();
+      }
+    }
+  })();
 
 })();
 </script>
