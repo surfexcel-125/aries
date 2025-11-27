@@ -1,5 +1,6 @@
-/* main.css — corrected: shows sidebar nav + .aries-project buttons */
-/* Replace your existing main.css with this file (backup first) */
+/* main.css — ensure no layout shift when sidebar opens
+   Replace your existing main.css with this file (backup first).
+   Key: sidebar slides via transform; page content never shifts. */
 
 /* -------------------- Variables -------------------- */
 :root{
@@ -10,258 +11,177 @@
   --text: #0f172a;
 
   --topbar-h: 60px;
-  --topbar-bg: #000;           /* black header */
-  --sidebar-bg: #0b1220;       /* dark sidebar background */
-  --aries-collapsed: 56px;
+  --topbar-bg: #000;
+  --sidebar-bg: #0b1220;
   --aries-expanded: 260px;
   --sidebar-transition: 300ms cubic-bezier(.2,.9,.2,1);
   --overlay-color: rgba(0,0,0,0.38);
 }
 
 /* -------------------- Resets & Base -------------------- */
-* { box-sizing: border-box; }
-html, body { height: 100%; }
-body {
-  margin: 0;
-  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
-  background: var(--bg);
-  color: var(--text);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial;
+  background:var(--bg);
+  color:var(--text);
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
 }
 
-/* Focus ring for keyboard users */
-:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
-
-/* Page wrapper (content) */
-.page-wrapper {
+/* -------------------- Focus & wrapper -------------------- */
+:focus{ outline:2px solid var(--accent); outline-offset:2px; }
+.page-wrapper{
   padding: calc(var(--topbar-h) + 24px) 20px 40px;
-  max-width: 1200px;
-  margin: 0 auto;
-  transition: none; /* avoid layout shifts when sidebar toggles (overlay behavior) */
+  max-width:1200px;
+  margin:0 auto;
+  /* IMPORTANT: do not animate or change margin-left here — keeps page stable */
+  transition: none;
 }
 
-/* -------------------- Topbar / Header (legacy + component) -------------------- */
-.topbar,
-.aries-topbar {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: var(--topbar-h);
-  background: var(--topbar-bg);
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 200;
-  padding: 0 14px;
-  box-shadow: 0 1px 0 rgba(255,255,255,0.03);
-  font-family: 'Montserrat', Arial, sans-serif;
+/* -------------------- Topbar / Header -------------------- */
+.topbar, .aries-topbar{
+  position:fixed; top:0; left:0; right:0; height:var(--topbar-h);
+  background:var(--topbar-bg); color:#fff;
+  display:flex; align-items:center; justify-content:center;
+  z-index:220; padding:0 14px; box-shadow:0 1px 0 rgba(255,255,255,0.03);
 }
-
-.topbar .hamburger,
-.aries-topbar .aries-hamburger,
-.topbar .aries-hamburger,
-.aries-topbar .hamburger {
-  position: absolute;
-  left: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  background: transparent;
-  border: 0;
-  color: #fff;
-  font-size: 20px;
-  padding: 8px;
-  cursor: pointer;
-  z-index: 220;
+.aries-hamburger, .topbar .hamburger, .topbar .aries-hamburger {
+  position:absolute; left:12px; top:50%; transform:translateY(-50%);
+  background:transparent; border:0; color:#fff; font-size:20px; padding:8px; cursor:pointer;
+  z-index:260;
 }
+.aries-title, .topbar .brand{ font-weight:700; letter-spacing:1px; color:#fff; }
+.aries-logo, .topbar .logo{ position:absolute; right:12px; top:50%; transform:translateY(-50%); width:36px; height:36px; object-fit:contain; border-radius:6px; }
 
-.topbar .brand, .aries-topbar .aries-title {
-  font-weight: 700;
-  letter-spacing: 1px;
-  color: #fff;
-}
-.topbar .logo,
-.aries-topbar .aries-logo {
-  position: absolute;
-  right: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 36px;
-  height: 36px;
-  object-fit: contain;
-  border-radius: 6px;
-}
-
-@media (max-width: 700px) {
-  .aries-topbar .aries-title, .topbar .brand { font-size: 16px; }
-  .aries-topbar .aries-logo, .topbar .logo { width: 30px; height: 30px; }
-}
-
-.sr-only {
-  position: absolute;
-  width: 1px; height: 1px; padding: 0; margin: -1px;
-  overflow: hidden; clip: rect(0,0,0,0); border: 0;
-}
-
-/* -------------------- Sidebar (overlay sliding, no reflow) -------------------- */
-/* Legacy .sidebar + component .aries-sidebar both supported */
-
-.sidebar,
-.aries-sidebar {
+/* -------------------- Sidebar (overlay + transform, no reflow) -------------------- */
+/* Base sidebar (off-screen using transform) */
+.aries-sidebar, .sidebar {
   position: fixed;
   top: var(--topbar-h);
   left: 0;
   bottom: 0;
   width: var(--aries-expanded);
-  transform: translateX(calc(-1 * var(--aries-expanded)));
+  transform: translateX(calc(-1 * var(--aries-expanded))); /* start fully off-screen */
   transition: transform var(--sidebar-transition), opacity 180ms;
   background: var(--sidebar-bg);
   color: #fff;
-  z-index: 150;
+  z-index: 250;
   padding: 12px;
   overflow: auto;
   -webkit-overflow-scrolling: touch;
-  box-shadow: 2px 0 20px rgba(0,0,0,0.28);
-  opacity: 0.99;
+  box-shadow: 2px 0 20px rgba(0,0,0,0.32);
   pointer-events: none; /* blocked while hidden */
-  display: flex;
-  flex-direction: column;
+  display:flex; flex-direction:column;
+  opacity: 0.99;
 }
-.sidebar.open,
-.aries-sidebar.open { transform: translateX(0); pointer-events: auto; }
 
-.sidebar.animating,
-.aries-sidebar.animating { transition: transform var(--sidebar-transition), opacity 160ms; }
+/* Open state (slides in) */
+.aries-sidebar.open, .sidebar.open {
+  transform: translateX(0);
+  pointer-events: auto;
+}
 
-.sidebar.hidden,
-.aries-sidebar.hidden {
+/* Animating flag (keeps behavior consistent while transitioning) */
+.aries-sidebar.animating, .sidebar.animating {
+  transition: transform var(--sidebar-transition), opacity 160ms;
+}
+
+/* Fully hidden helper */
+.aries-sidebar.hidden, .sidebar.hidden {
   opacity: 0;
   pointer-events: none;
   transform: translateX(calc(-1 * var(--aries-expanded)));
 }
 
-/* content inside fades in after slide */
-.sidebar .sidebar-content,
-.aries-sidebar .aries-sidebar-content {
+/* Sidebar content fades in after slide */
+.aries-sidebar .aries-sidebar-content, .sidebar .sidebar-content {
   opacity: 0;
   transform: translateX(-6px);
   transition: opacity 160ms ease 120ms, transform 200ms ease 120ms;
   will-change: opacity, transform;
 }
-.sidebar.open .sidebar-content,
-.aries-sidebar.open .aries-sidebar-content {
+.aries-sidebar.open .aries-sidebar-content, .sidebar.open .sidebar-content {
   opacity: 1;
   transform: none;
 }
 
-/* Overlay used when sidebar open (captures clicks) */
-#aries-overlay,
-#legacy-sidebar-overlay {
+/* -------------------- Overlay (blocks clicks; no layout change) -------------------- */
+#aries-overlay, #legacy-sidebar-overlay {
   position: fixed;
   inset: 0;
   background: var(--overlay-color);
-  z-index: 140;
+  z-index: 240;
   opacity: 0;
   pointer-events: none;
   transition: opacity 220ms ease;
 }
-#aries-overlay.visible,
-#legacy-sidebar-overlay.visible { opacity: 1; pointer-events: auto; }
-#aries-overlay.hidden,
-#legacy-sidebar-overlay.hidden { opacity: 0; pointer-events: none; }
+#aries-overlay.visible, #legacy-sidebar-overlay.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+#aries-overlay.hidden, #legacy-sidebar-overlay.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
 
-/* -------------------- Sidebar content presentation rules (fixed) -------------------- */
-/* Instead of hiding everything (which broke the nav), explicitly allow nav containers and project buttons.
-   This keeps the "only project buttons visible" intent while still showing the static nav container. */
-
-/* Allow sidebar nav containers to display */
+/* -------------------- Sidebar link / project styles (static only) -------------------- */
 .aries-sidebar .aries-sidebar-nav,
 .aries-sidebar .aries-sidebar-content,
 .sidebar .sidebar-nav,
 .sidebar .sidebar-content {
-  display: block;
+  display:block;
 }
 
-/* Allow project buttons / links to display */
+/* visible nav items (static links) */
 .aries-sidebar .aries-project,
 .sidebar .project-item,
 .sidebar .aries-project {
-  display: block;
+  display:block;
   margin: 12px 8px;
   padding: 10px 14px;
   border-radius: 10px;
   background: #e9e9e9;
   color: #111;
   border: 2px solid rgba(0,0,0,0.08);
-  cursor: pointer;
-  font-size: 16px;
-  text-align: left;
-  text-decoration: none;
+  cursor:pointer;
+  font-size:16px;
+  text-decoration:none;
+  text-align:left;
 }
 
-/* If you still want to hide other arbitrary elements inside the sidebar,
-   give those elements a specific class (e.g., .allow-show) — otherwise they will be visible. */
+/* legacy sidebar nav anchors (kept minimal) */
+.sidebar .sidebar-nav a { display:block; color:#fff; padding:10px 12px; border-radius:8px; text-decoration:none; font-weight:600; }
+.sidebar .sidebar-nav a:hover, .sidebar .sidebar-nav a:focus { background: rgba(255,255,255,0.04); outline:none; }
 
-/* Legacy .sidebar nav styling (keeps old behavior working) */
-.sidebar .sidebar-nav, .sidebar .sidebar-nav a {
-  display: block;
-  color: #fff;
-}
-.sidebar .sidebar-nav a {
-  padding: 10px 12px;
-  border-radius: 8px;
-  text-decoration: none;
-  font-weight: 600;
-}
-.sidebar .sidebar-nav a:hover,
-.sidebar .sidebar-nav a:focus { background: rgba(255,255,255,0.04); outline: none; }
-
-/* -------------------- Responsive rules -------------------- */
+/* -------------------- Responsive adjustments -------------------- */
 @media (max-width: 900px) {
-  .aries-sidebar,
-  .sidebar {
+  .aries-sidebar, .sidebar {
     width: 78%;
     max-width: 340px;
     transform: translateX(calc(-1 * var(--aries-expanded)));
   }
 }
 
-/* Keep overlay behavior and do not shift page layout */
-body.aries-sidebar-open .page-wrapper { margin-left: 0; }
+/* -------------------- Ensure page never moves when sidebar toggles -------------------- */
+/* IMPORTANT: There MUST be NO rules that modify .page-wrapper margin-left or body.aries-sidebar-open margin-left.
+   The following explicit rule prevents accidental pushes (keeps layout stable). */
+body.aries-sidebar-open .page-wrapper {
+  margin-left: 0 !important;
+  transition: none !important;
+}
 
-/* -------------------- Misc: Projects, Loader, Helpers -------------------- */
+/* -------------------- Helpers -------------------- */
 .container { max-width: 1024px; margin: 20px auto; }
-.projects-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: #000;
-  color: #fff;
-  padding: 12px 16px;
-  border-radius: 8px;
-}
-.hidden { display: none !important; }
+.projects-bar { display:flex; justify-content:space-between; align-items:center; background:#000; color:#fff; padding:12px 16px; border-radius:8px; }
+.hidden { display:none !important; }
 
-.loader-spinner {
-  border: 4px solid rgba(255,255,255,0.08);
-  border-top: 4px solid var(--accent);
-  border-radius: 50%;
-  width: 30px;
-  height: 30px;
-  animation: spin 1s linear infinite;
-  margin: auto;
-}
+.loader-spinner { border:4px solid rgba(255,255,255,0.08); border-top:4px solid var(--accent); border-radius:50%; width:30px; height:30px; animation:spin 1s linear infinite; margin:auto; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* -------------------- Small niceties -------------------- */
-.aries-hamburger, .topbar .hamburger, .aries-topbar .aries-hamburger {
-  z-index: 220;
-  background: transparent;
-  border: none;
-}
+/* keep hamburger clickable above everything */
+.aries-hamburger, .topbar .hamburger { z-index: 260; background:transparent; border:none; }
 
-button:focus, a:focus { outline: 2px solid rgba(255,255,255,0.18); outline-offset: 2px; }
-
-/* -------------------- End -------------------- */
+/* focus niceties */
+button:focus, a:focus { outline:2px solid rgba(255,255,255,0.18); outline-offset:2px; }
