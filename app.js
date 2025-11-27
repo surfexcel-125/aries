@@ -308,7 +308,7 @@ window.AriesDB = {
     staticNav.style.gap = '10px';
 
     const staticLinks = [
-      { title: 'Dashboard', href: 'index.html' },
+      { title: 'Dashboard', href: 'home.html' },
       { title: 'Projects', href: 'projects.html' }
     ];
 
