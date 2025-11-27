@@ -45,27 +45,6 @@
       color: #9ca3af;
     }
 
-    .project-status-pill {
-      display: inline-flex;
-      align-items: center;
-      border-radius: 999px;
-      padding: 4px 10px;
-      font-size: 11px;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      border: 1px solid rgba(248,250,252,0.2);
-      background: rgba(15,23,42,0.9);
-      color: #e5e7eb;
-      gap: 6px;
-    }
-
-    .project-status-dot {
-      width: 7px;
-      height: 7px;
-      border-radius: 999px;
-      background: #22c55e;
-    }
-
     .project-header-actions {
       display: flex;
       align-items: center;
@@ -148,7 +127,35 @@
       letter-spacing: 0.08em;
       text-transform: uppercase;
       color: #6b7280;
+    }
+
+    .panel-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
       margin-bottom: 8px;
+    }
+
+    .overview-edit-btn {
+      border-radius: 999px;
+      border: 1px solid #e5e7eb;
+      padding: 4px 10px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      background: #f9fafb;
+      color: #4b5563;
+      cursor: pointer;
+    }
+
+    .overview-edit-btn:hover:enabled {
+      background: #e5e7eb;
+    }
+
+    .overview-edit-btn:disabled {
+      opacity: 0.6;
+      cursor: default;
     }
 
     .project-description {
@@ -164,9 +171,60 @@
       font-style: italic;
     }
 
+    .description-edit-wrap {
+      margin-top: 4px;
+    }
+
+    .description-textarea {
+      width: 100%;
+      min-height: 90px;
+      resize: vertical;
+      font-size: 14px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid #d1d5db;
+      font-family: inherit;
+      box-sizing: border-box;
+    }
+
+    .description-edit-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 6px;
+    }
+
+    .btn-small-outline,
+    .btn-small-solid {
+      border-radius: 999px;
+      padding: 5px 12px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+    }
+
+    .btn-small-outline {
+      border: 1px solid #d1d5db;
+      background: #ffffff;
+      color: #4b5563;
+    }
+
+    .btn-small-solid {
+      border: 1px solid #111827;
+      background: #111827;
+      color: #f9fafb;
+    }
+
+    .btn-small-outline:disabled,
+    .btn-small-solid:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
+
     .meta-list {
       list-style: none;
-      margin: 4px 0 0;
+      margin: 10px 0 0;
       padding: 0;
       font-size: 13px;
       color: #4b5563;
@@ -273,12 +331,26 @@
         <div class="project-sections">
           <!-- LEFT: project meta / description -->
           <section class="project-panel">
-            <h3>Project Overview</h3>
-            <div id="projectDescription" class="project-description project-description-empty">
+            <div class="panel-header-row">
+              <h3>Project Overview</h3>
+              <button id="editOverviewBtn" class="overview-edit-btn">Edit</button>
+            </div>
+
+            <!-- view mode -->
+            <div id="projectDescriptionView" class="project-description project-description-empty">
               Loading…
             </div>
 
-            <ul class="meta-list" style="margin-top:10px">
+            <!-- edit mode -->
+            <div id="projectDescriptionEditWrap" class="description-edit-wrap" style="display:none">
+              <textarea id="projectDescriptionInput" class="description-textarea" placeholder="Write a short summary of this project — goals, scope, or any notes you want to remember."></textarea>
+              <div class="description-edit-actions">
+                <button id="cancelOverviewBtn" class="btn-small-outline" type="button">Cancel</button>
+                <button id="saveOverviewBtn" class="btn-small-solid" type="button">Save</button>
+              </div>
+            </div>
+
+            <ul class="meta-list">
               <li><span class="meta-label">Status</span><span id="metaStatus">—</span></li>
               <li><span class="meta-label">Created</span><span id="metaCreated">—</span></li>
               <li><span class="meta-label">Owner</span><span id="metaOwner">—</span></li>
@@ -323,16 +395,19 @@
     import {
       doc,
       getDoc,
-      collection
+      collection,
+      updateDoc,
+      serverTimestamp
     } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
 
-    // ------------- helpers -------------
     const params = new URLSearchParams(location.search);
     const projectId = params.get('id');
 
     const elName = document.getElementById('projectName');
     const elSubline = document.getElementById('projectSubline');
-    const elDescription = document.getElementById('projectDescription');
+    const elDescView = document.getElementById('projectDescriptionView');
+    const elDescWrap = document.getElementById('projectDescriptionEditWrap');
+    const elDescInput = document.getElementById('projectDescriptionInput');
     const elStatus = document.getElementById('metaStatus');
     const elCreated = document.getElementById('metaCreated');
     const elOwner = document.getElementById('metaOwner');
@@ -345,6 +420,12 @@
     const elStatFoot = document.getElementById('statFoot');
 
     const openWorkspace = document.getElementById('openWorkspace');
+    const editBtn = document.getElementById('editOverviewBtn');
+    const saveBtn = document.getElementById('saveOverviewBtn');
+    const cancelBtn = document.getElementById('cancelOverviewBtn');
+
+    let currentProjectData = null;
+    let savingOverview = false;
 
     function formatDate(value) {
       if (!value) return 'N/A';
@@ -370,12 +451,67 @@
       return uid.slice(0, 5) + '…' + uid.slice(-3);
     }
 
-    // ------------- load project meta -------------
+    function setDescriptionView(text) {
+      const trimmed = (text || '').trim();
+      if (trimmed) {
+        elDescView.textContent = trimmed;
+        elDescView.classList.remove('project-description-empty');
+      } else {
+        elDescView.textContent = 'No description yet. You can use this project as a freeform workspace in the Aries board.';
+        elDescView.classList.add('project-description-empty');
+      }
+    }
+
+    function enterEditMode() {
+      if (!currentProjectData) return;
+      elDescInput.value = currentProjectData.description || '';
+      elDescWrap.style.display = 'block';
+      elDescView.style.display = 'none';
+    }
+
+    function exitEditMode() {
+      elDescWrap.style.display = 'none';
+      elDescView.style.display = 'block';
+      editBtn.disabled = false;
+      saveBtn.disabled = false;
+      cancelBtn.disabled = false;
+      savingOverview = false;
+    }
+
+    async function saveDescription() {
+      if (!projectId || !db || savingOverview) return;
+      savingOverview = true;
+      editBtn.disabled = true;
+      saveBtn.disabled = true;
+      cancelBtn.disabled = true;
+
+      const newDesc = elDescInput.value || '';
+
+      try {
+        const ref = doc(collection(db, 'projects'), projectId);
+        await updateDoc(ref, {
+          description: newDesc,
+          lastModified: serverTimestamp()
+        });
+
+        if (!currentProjectData) currentProjectData = {};
+        currentProjectData.description = newDesc;
+
+        setDescriptionView(newDesc);
+        elLastModified.textContent = 'Last modified: just now';
+      } catch (err) {
+        console.error('Error saving description:', err);
+        alert('Could not save description. Check console for details.');
+      } finally {
+        exitEditMode();
+      }
+    }
+
     async function loadProject() {
       if (!projectId) {
         elName.textContent = 'Project not specified';
         elSubline.textContent = 'Open this page from the Projects list.';
-        elDescription.textContent = 'No project id in URL.';
+        setDescriptionView('This page was opened without a project id.');
         elId.textContent = '—';
         return;
       }
@@ -385,11 +521,12 @@
 
       try {
         const data = await window.AriesDB.loadProjectData(projectId);
+        currentProjectData = data || null;
+
         if (!data) {
           elName.textContent = 'Project not found';
           elSubline.textContent = 'Check if this project still exists in Firestore.';
-          elDescription.textContent = 'This project could not be loaded. It may have been deleted.';
-          elDescription.classList.remove('project-description-empty');
+          setDescriptionView('This project could not be loaded. It may have been deleted.');
           elStatus.textContent = 'Unknown';
           elCreated.textContent = 'N/A';
           elOwner.textContent = 'N/A';
@@ -408,25 +545,16 @@
           ? 'Last modified: ' + formatDate(data.lastModified)
           : '';
 
-        const desc = data.description && String(data.description).trim();
-        if (desc) {
-          elDescription.textContent = desc;
-          elDescription.classList.remove('project-description-empty');
-        } else {
-          elDescription.textContent = 'No description yet. You can use this project as a freeform workspace in the Aries board.';
-          elDescription.classList.add('project-description-empty');
-        }
+        setDescriptionView(data.description || '');
 
       } catch (err) {
         console.error('Error loading project detail:', err);
         elName.textContent = 'Error loading project';
         elSubline.textContent = 'See console for more information.';
-        elDescription.textContent = 'An error occurred while fetching this project.';
-        elDescription.classList.remove('project-description-empty');
+        setDescriptionView('An error occurred while fetching this project.');
       }
     }
 
-    // ------------- load workspace snapshot -------------
     async function loadWorkspaceSnapshot() {
       if (!projectId || !db) {
         elNodes.textContent = '0';
@@ -453,7 +581,7 @@
 
         elNodes.textContent = String(nodes);
         elLinks.textContent = String(links);
-        elSessions.textContent = '1'; // simple static value for now
+        elSessions.textContent = '1';
 
         const updated = data.updatedAt ? formatDate(data.updatedAt) : null;
         elStatFoot.textContent = updated
@@ -464,6 +592,19 @@
         elStatFoot.textContent = 'Could not load workspace data.';
       }
     }
+
+    editBtn.addEventListener('click', () => {
+      if (!currentProjectData) return;
+      enterEditMode();
+    });
+
+    cancelBtn.addEventListener('click', () => {
+      exitEditMode();
+    });
+
+    saveBtn.addEventListener('click', () => {
+      saveDescription();
+    });
 
     document.addEventListener('DOMContentLoaded', () => {
       loadProject();
