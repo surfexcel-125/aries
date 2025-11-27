@@ -1,19 +1,17 @@
-// app.js
-// Merged header + sidebar wiring, Firebase auth bootstrap, AriesDB facade,
-// plus light project population. Assumes header.html and sidebar.html are present in pages
-// and all styles live in main.css.
+// app.js — header + sidebar wiring (sidebar fully hidden until hamburger click)
+// Also includes Firebase auth bootstrap + AriesDB facade (unchanged behavior).
 // Load with: <script type="module" src="app.js"></script>
 
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
 import { collection, getDocs, addDoc, doc, getDoc, updateDoc, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
 
-/* ------------------------- Firebase auth bootstrap ------------------------- */
+/* -------------------- Firebase auth bootstrap -------------------- */
 export const authPromise = new Promise((resolve, reject) => {
   let settled = false;
-  const timer = setTimeout(() => {
+  const timeout = setTimeout(() => {
     if (!settled) {
-      console.warn('Firebase auth timed out after 10s — continuing without user.');
+      console.warn('Firebase auth timed out after 10s — continuing without no user.');
       reject(new Error('Firebase auth timeout'));
     }
   }, 10000);
@@ -22,25 +20,25 @@ export const authPromise = new Promise((resolve, reject) => {
     onAuthStateChanged(auth, (user) => {
       if (user) {
         settled = true;
-        clearTimeout(timer);
+        clearTimeout(timeout);
         window.currentUser = user;
         resolve(user);
       } else {
         signInAnonymously(auth).catch(err => {
           settled = true;
-          clearTimeout(timer);
+          clearTimeout(timeout);
           console.warn('Anonymous sign-in failed', err);
           reject(err);
         });
       }
     });
   } catch (err) {
-    clearTimeout(timer);
+    clearTimeout(timeout);
     reject(err);
   }
 });
 
-/* ------------------------- AriesDB facade ------------------------- */
+/* -------------------- AriesDB facade -------------------- */
 window.AriesDB = {
   async getProjects() {
     await authPromise.catch(()=>{});
@@ -93,97 +91,129 @@ window.AriesDB = {
   }
 };
 
-/* ------------------------- Header init ------------------------- */
-function initHeader() {
-  const hamburger = document.getElementById('aries-hamburger');
-  if (!hamburger) return;
+/* -------------------- UI: Header & Sidebar (hidden-by-default behavior) -------------------- */
 
-  function syncAria() {
-    const sidebar = document.getElementById('aries-sidebar');
-    const expanded = sidebar && sidebar.classList.contains('open');
-    hamburger.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+/*
+Expected HTML already in your pages:
+
+<header id="aries-topbar" class="aries-topbar" role="banner">
+  <button id="aries-hamburger" class="aries-hamburger" aria-controls="aries-sidebar" aria-expanded="false">☰</button>
+  <div class="aries-title">PROJECT MANAGER</div>
+  <a href="index.html" class="aries-brand"><img src="images/goat.png" class="aries-logo"></a>
+</header>
+
+<aside id="aries-sidebar" class="aries-sidebar hidden" role="complementary" aria-label="Project list">
+  <nav class="aries-sidebar-nav"> ... </nav>
+</aside>
+*/
+
+function createOverlayIfMissing() {
+  let overlay = document.getElementById('aries-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'aries-overlay';
+    overlay.className = 'aries-overlay hidden';
+    overlay.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(overlay);
   }
-
-  hamburger.addEventListener('click', (ev) => {
-    ev.preventDefault();
-    window.dispatchEvent(new CustomEvent('aries:toggleSidebar'));
-  });
-
-  window.addEventListener('aries:sidebarState', syncAria);
-  setTimeout(syncAria, 30);
+  return overlay;
 }
 
-/* ------------------------- Sidebar init ------------------------- */
-function initSidebar({ breakpoint = 900 } = {}) {
+function initHeaderSidebar() {
+  const hamburger = document.getElementById('aries-hamburger');
   const sidebar = document.getElementById('aries-sidebar');
-  if (!sidebar) return;
+  if (!hamburger || !sidebar) {
+    console.warn('Header or sidebar element missing — header/sidebar wiring skipped.');
+    return;
+  }
 
-  const back = document.getElementById('aries-sidebar-back');
-  const STORAGE_KEY = 'aries:sidebarOpen_v3';
+  const overlay = createOverlayIfMissing();
 
-  const isDesktop = () => window.matchMedia(`(min-width:${breakpoint}px)`).matches;
+  // Utility to update aria
+  function syncAria(open) {
+    hamburger.setAttribute('aria-expanded', open ? 'true' : 'false');
+    sidebar.setAttribute('aria-hidden', open ? 'false' : 'true');
+    overlay.setAttribute('aria-hidden', open ? 'false' : 'true');
+  }
 
-  const persist = (v) => { try { localStorage.setItem(STORAGE_KEY, v ? '1' : '0'); } catch(_){} };
-  const readPref = () => { try { return localStorage.getItem(STORAGE_KEY) === '1'; } catch(_) { return false; } };
-
-  function setOpen(open, opts = { focusFirst: true }) {
-    if (open) {
-      sidebar.classList.remove('collapsed'); sidebar.classList.add('open');
-      document.body.classList.add('aries-sidebar-open');
-      persist(true);
-    } else {
-      sidebar.classList.remove('open'); sidebar.classList.add('collapsed');
-      document.body.classList.remove('aries-sidebar-open');
-      persist(false);
-    }
-    window.dispatchEvent(new CustomEvent('aries:sidebarState'));
-    if (opts.focusFirst) {
+  function openSidebar() {
+    sidebar.classList.remove('hidden');
+    sidebar.classList.add('open');
+    overlay.classList.remove('hidden');
+    overlay.classList.add('visible');
+    document.body.classList.add('aries-sidebar-open');
+    syncAria(true);
+    // focus first focusable element inside sidebar for accessibility
+    setTimeout(() => {
       const first = sidebar.querySelector('button, a, [tabindex]:not([tabindex="-1"])');
       if (first) first.focus();
-    }
+    }, 120);
   }
 
-  function toggle() { setOpen(!sidebar.classList.contains('open')); }
+  function closeSidebar() {
+    sidebar.classList.remove('open');
+    sidebar.classList.add('hidden');
+    overlay.classList.remove('visible');
+    overlay.classList.add('hidden');
+    document.body.classList.remove('aries-sidebar-open');
+    syncAria(false);
+    // return focus to hamburger for usability
+    setTimeout(() => hamburger.focus(), 60);
+  }
 
-  back?.addEventListener('click', () => setOpen(false));
-  window.addEventListener('aries:toggleSidebar', toggle);
+  function toggleSidebar() {
+    const open = sidebar.classList.contains('open');
+    if (open) closeSidebar();
+    else openSidebar();
+  }
 
+  // Click hamburger toggles sidebar
+  hamburger.addEventListener('click', (e) => {
+    e.preventDefault();
+    toggleSidebar();
+  });
+
+  // Clicking overlay (empty space) hides the sidebar
+  overlay.addEventListener('click', (e) => {
+    e.preventDefault();
+    closeSidebar();
+  });
+
+  // Also hide when clicking outside the sidebar (anywhere on body except sidebar)
   document.addEventListener('click', (e) => {
-    if (!sidebar.classList.contains('open')) return;
-    const topbar = document.getElementById('aries-topbar');
-    if (!sidebar.contains(e.target) && !topbar.contains(e.target)) {
-      if (!isDesktop()) setOpen(false);
+    const target = e.target;
+    if (sidebar.classList.contains('open')) {
+      if (!sidebar.contains(target) && target !== hamburger && !hamburger.contains(target) && target !== overlay) {
+        closeSidebar();
+      }
     }
-  });
+  }, true); // capture to detect early
 
+  // Escape key closes
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') setOpen(false);
-    if ((e.key === 'm' || e.key === 'M') && !/INPUT|TEXTAREA/.test(document.activeElement.tagName)) toggle();
+    if (e.key === 'Escape') {
+      if (sidebar.classList.contains('open')) closeSidebar();
+    }
+    // 'm' toggles but don't when typing
+    const tag = document.activeElement && document.activeElement.tagName;
+    if ((e.key === 'm' || e.key === 'M') && !/INPUT|TEXTAREA/.test(tag)) toggleSidebar();
   });
 
-  // wire project buttons (if any)
-  sidebar.querySelectorAll('.aries-project, .project-item, .aries-project-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const id = btn.dataset.id;
-      if (id) location.href = `project_detail.html?id=${id}`;
-    });
-  });
+  // Keep header aria in sync if some external code toggles sidebar state
+  // Provide custom events if other modules want to open/close
+  window.addEventListener('aries:sidebarOpen', () => openSidebar());
+  window.addEventListener('aries:sidebarClose', () => closeSidebar());
 
-  if (isDesktop() && readPref()) setOpen(true, { focusFirst: false });
-  else setOpen(false, { focusFirst: false });
-
-  window.aries = window.aries || {};
-  window.aries.sidebar = { setOpen, toggle };
+  // Initial state: ensure hidden
+  closeSidebar();
 }
 
-/* ------------------------- Populate sidebar projects (if sidebar nav empty) ------------------------- */
+/* -------------------- populate sidebar projects if empty -------------------- */
 async function populateSidebarProjects() {
   const sidebar = document.getElementById('aries-sidebar');
   if (!sidebar) return;
-  const nav = sidebar.querySelector('.aries-sidebar-nav') || sidebar.querySelector('.project-list-placeholder');
+  const nav = sidebar.querySelector('.aries-sidebar-nav') || sidebar;
   if (!nav) return;
-
-  // If there are already project items, don't overwrite
   const existing = nav.querySelectorAll('.aries-project, .project-item');
   if (existing && existing.length > 0) return;
 
@@ -204,10 +234,10 @@ async function populateSidebarProjects() {
   }
 }
 
-/* ------------------------- Boot sequence ------------------------- */
+/* -------------------- boot -------------------- */
 function boot() {
-  try { initHeader(); } catch(e) { console.warn('initHeader', e); }
-  try { initSidebar({ breakpoint: 900 }); } catch(e) { console.warn('initSidebar', e); }
+  document.documentElement.style.setProperty('--aries-sidebar-width', '0px'); // no reserved width
+  try { initHeaderSidebar(); } catch (e) { console.warn('initHeaderSidebar failed', e); }
   setTimeout(populateSidebarProjects, 100);
 }
 
