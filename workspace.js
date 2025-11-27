@@ -1,58 +1,102 @@
-/* workspace.js — full replacement
-   - Orthogonal (right-angle) routing for links (orderly paths)
-   - Parallel-link separation so multiple links fan out neatly
-   - Small rounded corners for aesthetics
-   - Anchors computed from DOM offsets (robust)
-   - Preview follows cursor exactly (client->board mapping)
-   - Label prompt AFTER link creation (cancel removes link)
-   - Inspector clicking / typing protections preserved
+/* workspace.js — robust full replacement
+   - Orthogonal routing, parallel separation
+   - Defensive checks for missing DOM elements (won't throw)
+   - Preview follows cursor; prompt after creating link (cancel removes)
+   - Node drag, board pan, zoom/fit, import/export (defensive)
 */
 (function(){
   function ready() {
     const projectId = window.currentProjectId;
-    if (!projectId) { console.error("Missing projectId"); return; }
+    if (!projectId) { console.warn("Missing projectId (workspace will still run locally)"); }
 
-    // DOM refs
-    const canvas = document.getElementById('canvas');
-    const board = document.getElementById('board');
-    const svg = document.getElementById('svg');
-    const headerTitle = document.getElementById('headerTitle');
+    // Safe DOM getters
+    const $ = (id) => document.getElementById(id) || null;
 
-    const toolAddPage = document.getElementById('toolAddPage');
-    const toolAddAction = document.getElementById('toolAddAction');
-    const toolAddDecision = document.getElementById('toolAddDecision');
-    const toolDeleteNode = document.getElementById('toolDeleteNode');
-    const toolDeleteLink = document.getElementById('toolDeleteLink');
-    const saveBoardBtn = document.getElementById('saveBoard');
+    const canvas = $('canvas') || $('board-container') || document.querySelector('.canvas') || (function(){
+      // try to find a likely canvas area; otherwise create a minimal one
+      let c = document.querySelector('#canvas');
+      if (!c) {
+        c = document.createElement('div');
+        c.id = 'canvas';
+        c.style.position = 'absolute';
+        c.style.left = '0';
+        c.style.top = '80px';
+        c.style.right = '0';
+        c.style.bottom = '0';
+        c.style.overflow = 'hidden';
+        document.body.appendChild(c);
+      }
+      return c;
+    })();
 
-    const showGrid = document.getElementById('showGrid');
-    const gridSizeInput = document.getElementById('gridSize');
-    const zoomIndicator = document.getElementById('zoomIndicator');
-    const zoomInCorner = document.getElementById('zoomInCorner');
-    const zoomOutCorner = document.getElementById('zoomOutCorner');
-    const centerBtn = document.getElementById('centerBtn');
-    const zoomFitBtn = document.getElementById('zoomFitBtn');
+    const board = $('board') || (function createBoard(){
+      const b = document.createElement('div');
+      b.id = 'board';
+      b.style.position = 'absolute';
+      b.style.left = '0';
+      b.style.top = '0';
+      b.style.width = '2000px';
+      b.style.height = '1500px';
+      b.style.transformOrigin = '0 0';
+      canvas.appendChild(b);
+      return b;
+    })();
 
-    const inspector = document.getElementById('inspector');
-    const selectedCount = document.getElementById('selectedCount');
-    const inspectorSingle = document.getElementById('inspectorSingle');
-    const inspectorMulti = document.getElementById('inspectorMulti');
-    const inspectorId = document.getElementById('inspectorId');
-    const inspectorType = document.getElementById('inspectorType');
-    const inspectorTitle = document.getElementById('inspectorTitle');
-    const inspectorBody = document.getElementById('inspectorBody');
-    const inspectorW = document.getElementById('inspectorW');
-    const inspectorH = document.getElementById('inspectorH');
-    const inspectorSave = document.getElementById('inspectorSave');
-    const inspectorDelete = document.getElementById('inspectorDelete');
-    const statusMeta = document.getElementById('statusMeta');
+    // SVG overlay - create if missing
+    let svg = $('svg');
+    if (!svg) {
+      svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+      svg.setAttribute('id','svg');
+      svg.style.position = 'absolute';
+      svg.style.left = '0';
+      svg.style.top = '0';
+      svg.style.width = '100%';
+      svg.style.height = '100%';
+      svg.style.pointerEvents = 'none'; // only enable when previewing if needed
+      board.appendChild(svg);
+    }
 
-    const exportBtn = document.getElementById('exportBtn');
-    const importFile = document.getElementById('importFile');
-    const exportJsonBtn = document.getElementById('exportJson');
-    const importJsonBtn = document.getElementById('importJsonBtn');
-    const autosizeBtn = document.getElementById('autosizeBtn');
-    const clearAllBtn = document.getElementById('clearAllBtn');
+    const headerTitle = $('headerTitle');
+
+    // Toolbar buttons (may be missing on some pages)
+    const toolAddPage = $('toolAddPage');
+    const toolAddAction = $('toolAddAction');
+    const toolAddDecision = $('toolAddDecision');
+    const toolDeleteNode = $('toolDeleteNode');
+    const toolDeleteLink = $('toolDeleteLink');
+    const saveBoardBtn = $('saveBoard');
+
+    // Controls that may be missing - we will guard uses
+    const showGrid = $('showGrid');
+    const gridSizeInput = $('gridSize');
+    const zoomIndicator = $('zoomIndicator');
+    const zoomInCorner = $('zoomInCorner');
+    const zoomOutCorner = $('zoomOutCorner');
+    const centerBtn = $('centerBtn');
+    const zoomFitBtn = $('zoomFitBtn');
+
+    // Inspector elements (may be missing)
+    const inspector = $('inspector');
+    const selectedCount = $('selectedCount');
+    const inspectorSingle = $('inspectorSingle');
+    const inspectorMulti = $('inspectorMulti');
+    const inspectorId = $('inspectorId');
+    const inspectorType = $('inspectorType');
+    const inspectorTitle = $('inspectorTitle');
+    const inspectorBody = $('inspectorBody');
+    const inspectorW = $('inspectorW');
+    const inspectorH = $('inspectorH');
+    const inspectorSave = $('inspectorSave');
+    const inspectorDelete = $('inspectorDelete');
+    const statusMeta = $('statusMeta');
+
+    // Import/Export
+    const exportBtn = $('exportBtn');
+    const importFile = $('importFile');
+    const exportJsonBtn = $('exportJson');
+    const importJsonBtn = $('importJsonBtn');
+    const autosizeBtn = $('autosizeBtn');
+    const clearAllBtn = $('clearAllBtn');
 
     // app state
     let model = { nodes: [], links: [] };
@@ -60,7 +104,7 @@
     let selectedNodes = new Set();
     let selectedLinkId = null;
     let dragInfo = null;
-    let linkDraw = null; // { sourceId, x, y, currentX, currentY }
+    let linkDraw = null; // preview object while dragging a connection
     let highestZ = 15;
     let dirty = false;
     const DEBOUNCE = 800;
@@ -69,9 +113,15 @@
     // helpers
     const uid = (p='n') => p + Math.random().toString(36).slice(2,9);
     const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
-    const gridSize = () => parseInt(gridSizeInput.value || 25);
+    const gridSize = () => {
+      try {
+        const val = gridSizeInput && gridSizeInput.value;
+        const n = parseInt(val, 10);
+        return isNaN(n) ? 25 : n;
+      } catch(e) { return 25; }
+    };
 
-    // screen <-> board coordinate mapping (board.getBoundingClientRect)
+    // screen <-> board mapping
     function screenToBoard(sx, sy) {
       const rect = board.getBoundingClientRect();
       return { x: (sx - rect.left) / transform.scale, y: (sy - rect.top) / transform.scale };
@@ -81,7 +131,7 @@
       return { x: rect.left + bx * transform.scale, y: rect.top + by * transform.scale };
     }
 
-    // typing detection (to avoid accidental delete when editing)
+    // detect typing to avoid accidental delete
     function isTyping() {
       try {
         const ae = document.activeElement;
@@ -91,10 +141,10 @@
         if (ae.isContentEditable) return true;
         if (ae.closest && ae.closest('#inspector')) return true;
         return false;
-      } catch (e) { return false; }
+      } catch(e) { return false; }
     }
 
-    // anchor calculation — prefer DOM offsets, fallback to model coords
+    // anchor calculation - prefer DOM offsets
     function getAnchor(node, isTarget=false) {
       const el = document.getElementById(`node-${node.id}`);
       if (el) {
@@ -109,13 +159,12 @@
       return isTarget ? { x: node.x, y: node.y + h/2 } : { x: node.x + w, y: node.y + h/2 };
     }
 
-    // small escape helper
     function escapeHtml(str) {
       if (str == null) return '';
       return String(str).replace(/[&<>"']/g, function(m){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])});
     }
 
-    // clear nodes and render nodes
+    // rendering nodes
     function clearNodes() { document.querySelectorAll('.node').forEach(n=>n.remove()); }
 
     function renderNodes() {
@@ -126,14 +175,31 @@
         el.id = `node-${node.id}`;
         el.style.left = `${node.x}px`;
         el.style.top = `${node.y}px`;
+        el.style.position = 'absolute';
         el.style.zIndex = node.zIndex || 15;
         if (node.type !== 'decision') {
           el.style.width = `${node.w}px`;
           el.style.height = `${node.h}px`;
         }
-        el.innerHTML = `<div class="node-title">${escapeHtml(node.title)}</div><div class="node-body">${escapeHtml(node.body)}</div>`;
+        el.style.background = '#fff';
+        el.style.borderRadius = '10px';
+        el.style.boxShadow = '0 8px 20px rgba(12,18,30,0.06)';
+        el.style.padding = '14px';
+        el.innerHTML = `<div class="node-title" style="font-weight:700;margin-bottom:8px;">${escapeHtml(node.title)}</div><div class="node-body" style="color:#3b4b54;">${escapeHtml(node.body)}</div>`;
+
         const out = document.createElement('div');
         out.className = 'anchor output-anchor';
+        out.style.position = 'absolute';
+        out.style.right = '-8px';
+        out.style.top = '50%';
+        out.style.transform = 'translateY(-50%)';
+        out.style.width = '14px';
+        out.style.height = '14px';
+        out.style.borderRadius = '50%';
+        out.style.background = 'transparent';
+        out.style.border = '2px solid rgba(0,0,0,0.12)';
+        out.style.cursor = 'crosshair';
+        out.title = 'Drag to connect';
         out.addEventListener('mousedown', e => startLinkDraw(e, node.id));
         el.appendChild(out);
 
@@ -147,38 +213,8 @@
     }
 
     // ---------------------------
-    // ORTHOGONAL ROUTING
+    // ORTHOGONAL ROUTING & PATH HELPERS
     // ---------------------------
-    // Compute an orthogonal path between start and end (board coords).
-    // We produce a polyline: start -> midX,start -> midX,end -> end
-    // Then apply a small offset perpendicular to the main direction for parallel links.
-    function orthogonalPath(start, end, offsetX=0, offsetY=0, cornerRadius=10) {
-      // apply offset first
-      const s = { x: start.x + offsetX, y: start.y + offsetY };
-      const e = { x: end.x + offsetX, y: end.y + offsetY };
-
-      // if horizontal distance is small, route vertically first
-      const dx = Math.abs(e.x - s.x);
-      const dy = Math.abs(e.y - s.y);
-      let midX, midY;
-      if (dx > dy) {
-        // horizontal major: center split on X
-        midX = s.x + (e.x - s.x)/2;
-        // path points: s -> (midX, s.y) -> (midX, e.y) -> e
-        const p1 = { x: midX, y: s.y };
-        const p2 = { x: midX, y: e.y };
-        return polyToPath([s, p1, p2, e], cornerRadius);
-      } else {
-        // vertical major: center split on Y
-        midY = s.y + (e.y - s.y)/2;
-        const p1 = { x: s.x, y: midY };
-        const p2 = { x: e.x, y: midY };
-        return polyToPath([s, p1, p2, e], cornerRadius);
-      }
-    }
-
-    // Convert polyline points to SVG path with small rounded corners using cubic bezier.
-    // points = array of {x,y}. cornerRadius in px (board coords).
     function polyToPath(points, cornerRadius) {
       if (!points || points.length < 2) return '';
       const r = Math.max(0, cornerRadius || 0);
@@ -187,51 +223,60 @@
         const prev = points[i-1];
         const cur = points[i];
         const next = points[i+1];
-        // If next exists and corner radius > 0, we create a rounded corner between prev->cur->next
         if (next && r > 0) {
-          // direction vectors
           const vx = cur.x - prev.x;
           const vy = cur.y - prev.y;
           const nx = next.x - cur.x;
           const ny = next.y - cur.y;
-          // compute incoming length and outgoing length
           const inLen = Math.sqrt(vx*vx + vy*vy) || 1;
           const outLen = Math.sqrt(nx*nx + ny*ny) || 1;
-          // clamp radius by half min segment length
           const rad = Math.min(r, inLen/2, outLen/2);
-          // unit vectors
           const ux = vx / inLen, uy = vy / inLen;
           const ox = nx / outLen, oy = ny / outLen;
-          // corner start and end
           const csx = cur.x - ux * rad;
           const csy = cur.y - uy * rad;
           const cex = cur.x + ox * rad;
           const cey = cur.y + oy * rad;
-          // line to corner start, then quadratic/cubic to corner end
           d += ` L ${csx} ${csy}`;
-          // use quadratic bezier Q control-point = cur
           d += ` Q ${cur.x} ${cur.y}, ${cex} ${cey}`;
         } else {
-          // no rounding (last segment)
           d += ` L ${cur.x} ${cur.y}`;
         }
       }
       return d;
     }
 
-    // renderLinks: builds orthogonal path for each link and separates parallels
+    function orthogonalPath(start, end, offsetX=0, offsetY=0, cornerRadius=10) {
+      const s = { x: start.x + offsetX, y: start.y + offsetY };
+      const e = { x: end.x + offsetX, y: end.y + offsetY };
+      const dx = Math.abs(e.x - s.x);
+      const dy = Math.abs(e.y - s.y);
+      if (dx > dy) {
+        const midX = s.x + (e.x - s.x)/2;
+        const p1 = { x: midX, y: s.y };
+        const p2 = { x: midX, y: e.y };
+        return polyToPath([s, p1, p2, e], cornerRadius);
+      } else {
+        const midY = s.y + (e.y - s.y)/2;
+        const p1 = { x: s.x, y: midY };
+        const p2 = { x: e.x, y: midY };
+        return polyToPath([s, p1, p2, e], cornerRadius);
+      }
+    }
+
+    // render links
     function renderLinks() {
+      if (!svg) return;
       while (svg.firstChild) svg.removeChild(svg.firstChild);
 
-      // preview while drawing (dashed)
+      // preview while drawing
       if (linkDraw) {
         const p = document.createElementNS('http://www.w3.org/2000/svg','path');
         const a = { x: linkDraw.x, y: linkDraw.y };
         const b = { x: linkDraw.currentX, y: linkDraw.currentY };
-        // simple orthogonal preview between a and b (no parallel offset)
         const d = orthogonalPath(a, b, 0, 0, 6);
         p.setAttribute('d', d);
-        p.setAttribute('stroke', 'var(--accent)');
+        p.setAttribute('stroke', getComputedStyle(document.documentElement).getPropertyValue('--accent') || '#2e86ff');
         p.setAttribute('stroke-width', 3);
         p.setAttribute('fill', 'none');
         p.setAttribute('stroke-dasharray','6,6');
@@ -240,7 +285,7 @@
         svg.appendChild(p);
       }
 
-      // bucket links by directional pair so parallels share bucket
+      // bucket for parallels
       const pairs = {};
       model.links.forEach(link => {
         const key = `${link.source}::${link.target}`;
@@ -257,19 +302,16 @@
         const t = model.nodes.find(n => n.id === link.target);
         if (!s || !t) return;
 
-        // base anchors (board coords)
         const p1 = getAnchor(s, false);
         const p2 = getAnchor(t, true);
 
-        // compute perpendicular normal (for offset) based on main direction between anchors
         const dx = p2.x - p1.x;
         const dy = p2.y - p1.y;
         const len = Math.sqrt(dx*dx + dy*dy) || 1;
         const nx = -dy / len;
         const ny = dx / len;
 
-        // parallel spacing: spread around center
-        const baseGap = 18; // adjust to taste
+        const baseGap = 18;
         const idx = (link._parallelIndex !== undefined) ? link._parallelIndex : 0;
         const count = (link._parallelCount !== undefined) ? link._parallelCount : 1;
         const middle = (count - 1) / 2;
@@ -277,36 +319,32 @@
         const offsetX = nx * offset;
         const offsetY = ny * offset;
 
-        // generate an orthogonal path with the calculated offset and slight corner rounding
         const d = orthogonalPath(p1, p2, offsetX, offsetY, 10);
 
         const path = document.createElementNS('http://www.w3.org/2000/svg','path');
         const isSel = selectedLinkId === link.id;
+        const strokeColor = isSel ? (getComputedStyle(document.documentElement).getPropertyValue('--link-selected') || '#1b74ff') : (getComputedStyle(document.documentElement).getPropertyValue('--link-color') || '#334155');
         path.setAttribute('d', d);
-        path.setAttribute('stroke', isSel ? 'var(--link-selected)' : 'var(--link-color)');
+        path.setAttribute('stroke', strokeColor);
         path.setAttribute('stroke-width', 3);
         path.setAttribute('fill', 'none');
         path.setAttribute('stroke-linecap','round');
         path.setAttribute('stroke-linejoin','round');
-        path.setAttribute('marker-end', `url(#${isSel ? 'arrowhead-selected' : 'arrowhead'})`);
         path.classList.add('link-path');
         path.id = `link-${link.id}`;
         path.style.cursor = 'pointer';
-
         path.addEventListener('click', e => {
           e.stopPropagation();
           selectedLinkId = link.id;
           selectedNodes.clear();
-          toolDeleteLink.disabled = false;
-          toolDeleteNode.disabled = true;
+          if (toolDeleteLink) toolDeleteLink.disabled = false;
+          if (toolDeleteNode) toolDeleteNode.disabled = true;
           renderNodes(); renderLinks();
         });
-
         svg.appendChild(path);
 
-        // label: place at midpoint of polyline visually — naive approach: midpoint of start/end
+        // label
         if (link.label) {
-          // compute screen position of a point halfway along board coords and convert to svg coords
           const midBoard = { x: (p1.x + p2.x)/2 + offsetX, y: (p1.y + p2.y)/2 + offsetY };
           const text = document.createElementNS('http://www.w3.org/2000/svg','text');
           text.setAttribute('x', midBoard.x);
@@ -319,16 +357,17 @@
       });
     }
 
-    // transform + grid
+    // transform & grid
     function applyTransform() {
-      board.style.transform = `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`;
-      zoomIndicator && (zoomIndicator.textContent = `${Math.round(transform.scale*100)}%`);
+      if (board) board.style.transform = `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`;
+      if (zoomIndicator) zoomIndicator.textContent = `${Math.round(transform.scale*100)}%`;
       updateGrid();
       renderLinks();
-      requestAnimationFrame(() => { repaintUI(); });
+      requestAnimationFrame(()=> { repaintUI(); });
     }
     function updateGrid() {
-      if (!showGrid.checked) { canvas.style.backgroundImage = 'none'; return; }
+      if (!canvas) return;
+      if (!showGrid || !showGrid.checked) { canvas.style.backgroundImage = 'none'; return; }
       const size = gridSize();
       const scaled = size * transform.scale;
       const bg = `linear-gradient(to right, var(--grid-color) 1px, transparent 1px), linear-gradient(to bottom, var(--grid-color) 1px, transparent 1px)`;
@@ -341,23 +380,20 @@
     function repaintUI() {
       try {
         const uiEls = document.querySelectorAll('.topbar, .header-actions, #floatingTools, .controls-panel, .header-title');
-        uiEls.forEach(el => {
-          el.style.transform = el.style.transform || 'translateZ(0)';
-          el.style.willChange = 'transform';
-        });
+        uiEls.forEach(el => { el.style.transform = el.style.transform || 'translateZ(0)'; el.style.willChange = 'transform'; });
         setTimeout(()=> uiEls.forEach(el => el.style.willChange = ''), 260);
-      } catch(e){ /* ignore */ }
+      } catch(e) {}
     }
 
-    // model ops — add/save/load
+    // model ops: add/save/load
     function addNodeAt(x,y,type,opts={}) {
       const s = gridSize();
       const nx = Math.round(x / s) * s;
       const ny = Math.round(y / s) * s;
       highestZ++;
       const base = { id: uid('n'), x: nx, y: ny, w:220, h:100, type, zIndex: highestZ, title:'New', body:'' };
-      if (type === 'page') base.title = 'New Page', base.body='Website Page';
-      else if (type === 'action') base.title='Action', base.body='User event';
+      if (type === 'page') { base.title = 'New Page'; base.body='Website Page'; }
+      else if (type === 'action') { base.title='Action'; base.body='User event'; }
       else if (type === 'decision') { base.title='Decision'; base.body='Condition'; base.w=150; base.h=150; }
       Object.assign(base, opts);
       model.nodes.push(base);
@@ -365,22 +401,32 @@
       return base;
     }
 
-    function markDirty() { dirty = true; statusMeta.textContent = 'Unsaved changes'; clearTimeout(autoSaveTimer); autoSaveTimer = setTimeout(saveModel, DEBOUNCE); saveBoardBtn.textContent = 'Saving...'; }
+    function markDirty() {
+      dirty = true;
+      if (statusMeta) statusMeta.textContent = 'Unsaved changes';
+      clearTimeout(autoSaveTimer);
+      autoSaveTimer = setTimeout(saveModel, DEBOUNCE);
+      if (saveBoardBtn) saveBoardBtn.textContent = 'Saving...';
+    }
+
     async function saveModel() {
       if (!dirty) return;
       if (!window.AriesDB || !window.AriesDB.saveProjectWorkspace) {
         console.warn('No AriesDB.saveProjectWorkspace found');
-        dirty = false; statusMeta.textContent = 'Local only'; saveBoardBtn.textContent = 'Save Board';
+        dirty = false;
+        if (statusMeta) statusMeta.textContent = 'Local only';
+        if (saveBoardBtn) saveBoardBtn.textContent = 'Save Board';
         return;
       }
       try {
         await window.AriesDB.saveProjectWorkspace(projectId, model.nodes, model.links);
-        dirty = false; statusMeta.textContent = 'Saved';
-        saveBoardBtn.textContent = 'Saved!'; setTimeout(()=> saveBoardBtn.textContent = 'Save Board', 1200);
+        dirty = false;
+        if (statusMeta) statusMeta.textContent = 'Saved';
+        if (saveBoardBtn) { saveBoardBtn.textContent = 'Saved!'; setTimeout(()=> saveBoardBtn.textContent = 'Save Board', 1200); }
       } catch (err) {
         console.error('Save failed', err);
-        statusMeta.textContent = 'Save failed'; saveBoardBtn.textContent = 'Save Failed';
-        setTimeout(()=> saveBoardBtn.textContent = 'Save Board', 1400);
+        if (statusMeta) statusMeta.textContent = 'Save failed';
+        if (saveBoardBtn) { saveBoardBtn.textContent = 'Save Failed'; setTimeout(()=> saveBoardBtn.textContent = 'Save Board', 1400); }
       }
     }
 
@@ -389,7 +435,7 @@
       try {
         const d = await window.AriesDB.loadProjectData(projectId);
         if (d) {
-          headerTitle && (headerTitle.textContent = d.name || headerTitle.textContent);
+          if (headerTitle && d.name) headerTitle.textContent = d.name;
           model.nodes = (d.nodes || []).map(n => ({ ...n }));
           model.links = (d.links || []).map(l => ({ ...l }));
           highestZ = model.nodes.reduce((m,n)=> Math.max(m,n.zIndex||15), 15);
@@ -408,28 +454,30 @@
 
     // selection & inspector
     function setSelectedNodesFromClick(nodeId, ev) {
-      if (ev.shiftKey) {
+      if (ev && ev.shiftKey) {
         if (selectedNodes.has(nodeId)) selectedNodes.delete(nodeId); else selectedNodes.add(nodeId);
       } else {
         selectedNodes.clear();
         selectedNodes.add(nodeId);
       }
       selectedLinkId = null;
-      toolDeleteNode.disabled = false;
-      toolDeleteLink.disabled = true;
+      if (toolDeleteNode) toolDeleteNode.disabled = false;
+      if (toolDeleteLink) toolDeleteLink.disabled = true;
       renderNodes(); renderLinks(); updateInspector();
     }
 
     function updateInspector() {
-      selectedCount.textContent = selectedNodes.size;
+      if (selectedCount) selectedCount.textContent = selectedNodes.size;
       if (!inspector) return;
       if (selectedNodes.size === 0) {
-        inspectorSingle.style.display = 'none'; inspectorMulti.style.display = 'none';
+        if (inspectorSingle) inspectorSingle.style.display = 'none';
+        if (inspectorMulti) inspectorMulti.style.display = 'none';
       } else if (selectedNodes.size === 1) {
-        inspectorMulti.style.display = 'none'; inspectorSingle.style.display = 'block';
+        if (inspectorMulti) inspectorMulti.style.display = 'none';
+        if (inspectorSingle) inspectorSingle.style.display = 'block';
         const id = Array.from(selectedNodes)[0];
         const node = model.nodes.find(n=>n.id===id);
-        if (node) {
+        if (node && inspectorId && inspectorType && inspectorTitle && inspectorBody && inspectorW && inspectorH) {
           inspectorId.textContent = node.id;
           inspectorType.value = node.type;
           inspectorTitle.value = node.title;
@@ -438,7 +486,8 @@
           inspectorH.value = parseInt(node.h||100);
         }
       } else {
-        inspectorSingle.style.display = 'none'; inspectorMulti.style.display = 'block';
+        if (inspectorSingle) inspectorSingle.style.display = 'none';
+        if (inspectorMulti) inspectorMulti.style.display = 'block';
       }
     }
 
@@ -447,25 +496,27 @@
       const id = Array.from(selectedNodes)[0];
       const node = model.nodes.find(n=>n.id===id);
       if (!node) return;
-      node.type = inspectorType.value;
-      node.title = inspectorTitle.value;
-      node.body = inspectorBody.value;
-      node.w = parseInt(inspectorW.value) || node.w;
-      node.h = parseInt(inspectorH.value) || node.h;
+      if (inspectorType) node.type = inspectorType.value;
+      if (inspectorTitle) node.title = inspectorTitle.value;
+      if (inspectorBody) node.body = inspectorBody.value;
+      if (inspectorW) node.w = parseInt(inspectorW.value) || node.w;
+      if (inspectorH) node.h = parseInt(inspectorH.value) || node.h;
       markDirty(); renderNodes();
     }
 
-    inspectorSave && inspectorSave.addEventListener('click', applyInspectorToNode);
-    inspectorDelete && inspectorDelete.addEventListener('click', ()=> { if (selectedNodes.size === 1) deleteSelectedNode(Array.from(selectedNodes)[0]); });
+    if (inspectorSave) inspectorSave.addEventListener('click', applyInspectorToNode);
+    if (inspectorDelete) inspectorDelete.addEventListener('click', ()=> { if (selectedNodes.size === 1) deleteSelectedNode(Array.from(selectedNodes)[0]); });
 
-    document.getElementById('alignLeft').addEventListener('click', ()=> {
+    const elAlignLeft = $('alignLeft');
+    if (elAlignLeft) elAlignLeft.addEventListener('click', ()=> {
       if (selectedNodes.size<2) return;
       const arr = Array.from(selectedNodes).map(id=>model.nodes.find(n=>n.id===id));
       const left = Math.min(...arr.map(n=>n.x));
       arr.forEach(n=> n.x = left);
       markDirty(); renderNodes();
     });
-    document.getElementById('alignTop').addEventListener('click', ()=> {
+    const elAlignTop = $('alignTop');
+    if (elAlignTop) elAlignTop.addEventListener('click', ()=> {
       if (selectedNodes.size<2) return;
       const arr = Array.from(selectedNodes).map(id=>model.nodes.find(n=>n.id===id));
       const top = Math.min(...arr.map(n=>n.y));
@@ -473,19 +524,22 @@
       markDirty(); renderNodes();
     });
 
-    // link drawing: start
+    // link drawing start
     function startLinkDraw(e, sourceId) {
+      if (!board) return;
       e.stopPropagation();
       const src = model.nodes.find(n=>n.id===sourceId);
       if (!src) return;
       const anchor = getAnchor(src,false);
       linkDraw = { sourceId, x: anchor.x, y: anchor.y, currentX: anchor.x, currentY: anchor.y };
-      canvas.style.cursor = 'crosshair';
+      if (canvas) canvas.style.cursor = 'crosshair';
+      // ensure svg accepts pointer events while previewing
+      if (svg) svg.style.pointerEvents = 'auto';
     }
 
-    // finalize: create link first, then label prompt, cancel removes link
+    // finalize: create link then prompt label
     async function finalizeLinkIfPossible(evt) {
-      if (!linkDraw) { linkDraw = null; canvas.style.cursor = 'default'; renderLinks(); return; }
+      if (!linkDraw) { linkDraw = null; if (canvas) canvas.style.cursor = 'default'; if (svg) svg.style.pointerEvents = 'none'; renderLinks(); return; }
 
       const clientX = (evt && evt.clientX) || (window._lastMouse && window._lastMouse.clientX) || 0;
       const clientY = (evt && evt.clientY) || (window._lastMouse && window._lastMouse.clientY) || 0;
@@ -503,13 +557,11 @@
           const h = targetEl.offsetHeight;
           const inside = boardPt.x >= left && boardPt.x <= (left + w) && boardPt.y >= top && boardPt.y <= (top + h);
           if (inside) {
-            // create link immediately (empty label)
             const newLink = { id: uid('l'), source: linkDraw.sourceId, target: targetId, label: '' };
             model.links.push(newLink);
             markDirty();
             renderLinks();
 
-            // then ask for label — if canceled, remove
             try {
               const label = (window.requestTransitionLabel && typeof window.requestTransitionLabel === 'function')
                               ? await window.requestTransitionLabel('Next')
@@ -531,27 +583,31 @@
       }
 
       linkDraw = null;
-      canvas.style.cursor = 'default';
+      if (canvas) canvas.style.cursor = 'default';
+      if (svg) svg.style.pointerEvents = 'none';
       renderLinks();
     }
 
     // mouse up
     function onUp(e) {
-      if (linkDraw) finalizeLinkIfPossible(e);
-
-      if (dragInfo) {
-        if (dragInfo.mode === 'node') {
-          const s = gridSize();
-          for (let id of Object.keys(dragInfo.startPositions)) {
-            const n = model.nodes.find(x=>x.id===id);
-            if (!n) continue;
-            n.x = Math.round(n.x / s) * s;
-            n.y = Math.round(n.y / s) * s;
+      try {
+        if (linkDraw) finalizeLinkIfPossible(e);
+        if (dragInfo) {
+          if (dragInfo.mode === 'node') {
+            const s = gridSize();
+            for (let id of Object.keys(dragInfo.startPositions)) {
+              const n = model.nodes.find(x=>x.id===id);
+              if (!n) continue;
+              n.x = Math.round(n.x / s) * s;
+              n.y = Math.round(n.y / s) * s;
+            }
+            markDirty(); renderNodes();
           }
-          markDirty(); renderNodes();
+          dragInfo = null;
+          if (canvas) canvas.style.cursor = 'default';
         }
-        dragInfo = null;
-        canvas.style.cursor = 'default';
+      } catch(ex) {
+        console.error('onUp error', ex);
       }
     }
 
@@ -562,15 +618,17 @@
       contextMenuAt(e.clientX, e.clientY, nodeId);
     }
     function contextMenuAt(x,y,nodeId) {
-      const cm = document.getElementById('contextMenu');
+      const cm = $('contextMenu');
+      if (!cm) return;
       cm.style.left = `${x}px`;
       cm.style.top = `${y}px`;
       cm.style.display = 'block';
-      document.getElementById('contextEdit').onclick = ()=> { cm.style.display='none'; openNodeInspector(model.nodes.find(n=>n.id===nodeId)); };
-      document.getElementById('contextDelete').onclick = ()=> { cm.style.display='none'; deleteSelectedNode(nodeId); };
+      const ce = $('contextEdit'); if (ce) ce.onclick = ()=> { cm.style.display='none'; openNodeInspector(model.nodes.find(n=>n.id===nodeId)); };
+      const cd = $('contextDelete'); if (cd) cd.onclick = ()=> { cm.style.display='none'; deleteSelectedNode(nodeId); };
     }
 
     function openNodeInspector(node) {
+      if (!node) return;
       selectedNodes.clear();
       selectedNodes.add(node.id);
       updateInspector();
@@ -583,7 +641,7 @@
     function handleNodeDown(e, nodeId) {
       if (e.button !== 0) return;
       e.stopPropagation();
-      document.getElementById('contextMenu').style.display = 'none';
+      const cm = $('contextMenu'); if (cm) cm.style.display = 'none';
       if (!selectedNodes.has(nodeId)) setSelectedNodesFromClick(nodeId, e);
       selectedLinkId = null;
       const startPositions = {};
@@ -597,50 +655,56 @@
     }
 
     function onCanvasDown(e) {
-      if (e.target.closest('.node') || e.target.closest('#contextMenu')) return;
+      if (!e || !e.target) return;
+      if (e.target.closest && e.target.closest('.node')) return;
+      const cm = $('contextMenu'); if (cm && e.target.closest && e.target.closest('#contextMenu')) return;
       selectedNodes.clear(); selectedLinkId = null;
-      toolDeleteNode.disabled = true; toolDeleteLink.disabled = true;
+      if (toolDeleteNode) toolDeleteNode.disabled = true; if (toolDeleteLink) toolDeleteLink.disabled = true;
       renderNodes(); renderLinks(); updateInspector();
       dragInfo = { mode:'pan', startX: e.clientX, startY: e.clientY, startTransformX: transform.x, startTransformY: transform.y };
-      canvas.style.cursor = 'grabbing';
+      if (canvas) canvas.style.cursor = 'grabbing';
     }
 
     // store last mouse
     window._lastMouse = { clientX: 0, clientY: 0 };
 
     function onMove(e) {
-      window._lastMouse.clientX = e.clientX;
-      window._lastMouse.clientY = e.clientY;
+      try {
+        window._lastMouse.clientX = e.clientX;
+        window._lastMouse.clientY = e.clientY;
 
-      if (!dragInfo && !linkDraw) return;
+        if (!dragInfo && !linkDraw) return;
 
-      if (dragInfo && dragInfo.mode === 'pan') {
-        const dx = e.clientX - dragInfo.startX;
-        const dy = e.clientY - dragInfo.startY;
-        transform.x = dragInfo.startTransformX + dx;
-        transform.y = dragInfo.startTransformY + dy;
-        applyTransform();
-      } else if (dragInfo && dragInfo.mode === 'node') {
-        const deltaX = (e.clientX - dragInfo.startX) / transform.scale;
-        const deltaY = (e.clientY - dragInfo.startY) / transform.scale;
-        for (let id of Object.keys(dragInfo.startPositions)) {
-          const n = model.nodes.find(x=>x.id===id);
-          if (!n) continue;
-          n.x = dragInfo.startPositions[id].x + deltaX;
-          n.y = dragInfo.startPositions[id].y + deltaY;
-          const el = document.getElementById(`node-${n.id}`);
-          if (el) { el.style.left = `${n.x}px`; el.style.top = `${n.y}px`; }
+        if (dragInfo && dragInfo.mode === 'pan') {
+          const dx = e.clientX - dragInfo.startX;
+          const dy = e.clientY - dragInfo.startY;
+          transform.x = dragInfo.startTransformX + dx;
+          transform.y = dragInfo.startTransformY + dy;
+          applyTransform();
+        } else if (dragInfo && dragInfo.mode === 'node') {
+          const deltaX = (e.clientX - dragInfo.startX) / transform.scale;
+          const deltaY = (e.clientY - dragInfo.startY) / transform.scale;
+          for (let id of Object.keys(dragInfo.startPositions)) {
+            const n = model.nodes.find(x=>x.id===id);
+            if (!n) continue;
+            n.x = dragInfo.startPositions[id].x + deltaX;
+            n.y = dragInfo.startPositions[id].y + deltaY;
+            const el = document.getElementById(`node-${n.id}`);
+            if (el) { el.style.left = `${n.x}px`; el.style.top = `${n.y}px`; }
+          }
+          renderLinks();
+        } else if (linkDraw) {
+          const b = screenToBoard(e.clientX, e.clientY);
+          linkDraw.currentX = b.x;
+          linkDraw.currentY = b.y;
+          renderLinks();
         }
-        renderLinks();
-      } else if (linkDraw) {
-        const b = screenToBoard(e.clientX, e.clientY);
-        linkDraw.currentX = b.x;
-        linkDraw.currentY = b.y;
-        renderLinks();
+      } catch(ex) {
+        console.error('onMove error', ex);
       }
     }
 
-    // keyboard handling
+    // keyboard
     function onKey(e) {
       if (isTyping()) return;
       if ((e.key === 'Delete' || e.key === 'Backspace')) {
@@ -652,7 +716,7 @@
         }
       } else if (e.key === 'Escape') {
         linkDraw = null; dragInfo = null;
-        document.getElementById('contextMenu').style.display = 'none';
+        const cm = $('contextMenu'); if (cm) cm.style.display = 'none';
         renderLinks();
       }
     }
@@ -662,7 +726,7 @@
       model.nodes = model.nodes.filter(n=>n.id !== nodeId);
       model.links = model.links.filter(l => l.source !== nodeId && l.target !== nodeId);
       selectedNodes.delete(nodeId);
-      toolDeleteNode.disabled = true;
+      if (toolDeleteNode) toolDeleteNode.disabled = true;
       renderNodes();
       markDirty();
     }
@@ -670,37 +734,40 @@
       if (!selectedLinkId) return;
       model.links = model.links.filter(l => l.id !== selectedLinkId);
       selectedLinkId = null;
-      toolDeleteLink.disabled = true;
+      if (toolDeleteLink) toolDeleteLink.disabled = true;
       renderLinks();
       markDirty();
     }
 
-    // UI bindings
-    toolAddPage && toolAddPage.addEventListener('click', ()=> addNodeAt(220,220,'page'));
-    toolAddAction && toolAddAction.addEventListener('click', ()=> addNodeAt(420,220,'action'));
-    toolAddDecision && toolAddDecision.addEventListener('click', ()=> addNodeAt(640,220,'decision'));
-    toolDeleteNode && toolDeleteNode.addEventListener('click', ()=> { Array.from(selectedNodes).forEach(id=>deleteSelectedNode(id)); selectedNodes.clear(); renderNodes(); });
-    toolDeleteLink && toolDeleteLink.addEventListener('click', deleteSelectedLink);
+    // UI bindings (guard existence)
+    if (toolAddPage) toolAddPage.addEventListener('click', ()=> addNodeAt(220,220,'page'));
+    if (toolAddAction) toolAddAction.addEventListener('click', ()=> addNodeAt(420,220,'action'));
+    if (toolAddDecision) toolAddDecision.addEventListener('click', ()=> addNodeAt(640,220,'decision'));
+    if (toolDeleteNode) toolDeleteNode.addEventListener('click', ()=> { Array.from(selectedNodes).forEach(id=>deleteSelectedNode(id)); selectedNodes.clear(); renderNodes(); });
+    if (toolDeleteLink) toolDeleteLink.addEventListener('click', deleteSelectedLink);
 
-    canvas.addEventListener('mousedown', onCanvasDown);
+    if (canvas) canvas.addEventListener('mousedown', onCanvasDown);
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
-    canvas.addEventListener('touchstart', (ev)=> { const t = ev.touches[0]; onCanvasDown({ clientX: t.clientX, clientY: t.clientY, target: ev.target }); ev.preventDefault(); }, { passive:false});
-    canvas.addEventListener('touchmove', (ev)=> { const t = ev.touches[0]; onMove({ clientX: t.clientX, clientY: t.clientY }); ev.preventDefault(); }, { passive:false});
-    canvas.addEventListener('touchend', (ev)=> { onUp({ clientX:0, clientY:0 }); }, { passive:false});
+
+    if (canvas) {
+      canvas.addEventListener('touchstart', (ev)=> { const t = ev.touches[0]; onCanvasDown({ clientX: t.clientX, clientY: t.clientY, target: ev.target }); ev.preventDefault(); }, { passive:false});
+      canvas.addEventListener('touchmove', (ev)=> { const t = ev.touches[0]; onMove({ clientX: t.clientX, clientY: t.clientY }); ev.preventDefault(); }, { passive:false});
+      canvas.addEventListener('touchend', (ev)=> { onUp({ clientX:0, clientY:0 }); }, { passive:false});
+    }
 
     const zoomFactor = 1.2;
-    zoomInCorner && zoomInCorner.addEventListener('click', ()=> { transform.scale = clamp(transform.scale * zoomFactor, 0.25, 2); applyTransform(); });
-    zoomOutCorner && zoomOutCorner.addEventListener('click', ()=> { transform.scale = clamp(transform.scale / zoomFactor, 0.25, 2); applyTransform(); });
-    centerBtn && centerBtn.addEventListener('click', ()=> { transform = { x: 0, y: 0, scale: 1 }; applyTransform(); });
-    zoomFitBtn && zoomFitBtn.addEventListener('click', zoomToFit);
+    if (zoomInCorner) zoomInCorner.addEventListener('click', ()=> { transform.scale = clamp(transform.scale * zoomFactor, 0.25, 2); applyTransform(); });
+    if (zoomOutCorner) zoomOutCorner.addEventListener('click', ()=> { transform.scale = clamp(transform.scale / zoomFactor, 0.25, 2); applyTransform(); });
+    if (centerBtn) centerBtn.addEventListener('click', ()=> { transform = { x: 0, y: 0, scale: 1 }; applyTransform(); });
+    if (zoomFitBtn) zoomFitBtn.addEventListener('click', zoomToFit);
 
-    showGrid && showGrid.addEventListener('change', applyTransform);
-    gridSizeInput && gridSizeInput.addEventListener('change', applyTransform);
+    if (showGrid) showGrid.addEventListener('change', applyTransform);
+    if (gridSizeInput) gridSizeInput.addEventListener('change', applyTransform);
 
     // import/export handling
     document.addEventListener('workspace:importJson', (ev) => {
-      const payload = ev.detail;
+      const payload = ev && ev.detail;
       if (!payload) return;
       model.nodes = (payload.nodes || []).map(n => ({ ...n }));
       model.links = (payload.links || []).map(l => ({ ...l }));
@@ -709,12 +776,12 @@
       markDirty(); applyTransform(); renderNodes();
     });
 
-    exportBtn && exportBtn.addEventListener('click', ()=> downloadJSON());
-    exportJsonBtn && exportJsonBtn.addEventListener('click', ()=> downloadJSON());
-    importJsonBtn && importJsonBtn.addEventListener('click', ()=> document.getElementById('importFile').click());
+    if (exportBtn) exportBtn.addEventListener('click', ()=> downloadJSON());
+    if (exportJsonBtn) exportJsonBtn.addEventListener('click', ()=> downloadJSON());
+    if (importJsonBtn) importJsonBtn.addEventListener('click', ()=> { const input = $('importFile'); if (input) input.click(); });
 
-    autosizeBtn && autosizeBtn.addEventListener('click', autoResizeBoard);
-    clearAllBtn && clearAllBtn.addEventListener('click', ()=> { if (confirm('Clear entire board?')) { model.nodes=[]; model.links=[]; selectedNodes.clear(); markDirty(); renderNodes(); }});
+    if (autosizeBtn) autosizeBtn.addEventListener('click', autoResizeBoard);
+    if (clearAllBtn) clearAllBtn.addEventListener('click', ()=> { if (confirm('Clear entire board?')) { model.nodes=[]; model.links=[]; selectedNodes.clear(); markDirty(); renderNodes(); }});
 
     function downloadJSON() {
       const payload = { nodes: model.nodes, links: model.links, exportedAt: new Date().toISOString(), projectId };
@@ -729,6 +796,7 @@
     }
 
     function autoResizeBoard() {
+      if (!board) return;
       if (model.nodes.length === 0) { board.style.width = '1200px'; board.style.height = '900px'; return; }
       const pad = 140;
       const maxX = Math.max(...model.nodes.map(n => n.x + (n.w||220)));
@@ -745,6 +813,7 @@
     }
 
     function zoomToFit() {
+      if (!canvas || !board) { transform = { x:0, y:0, scale:1 }; applyTransform(); return; }
       if (model.nodes.length === 0) { transform = { x:0, y:0, scale:1 }; applyTransform(); return; }
       const minX = Math.min(...model.nodes.map(n=>n.x));
       const minY = Math.min(...model.nodes.map(n=>n.y));
@@ -766,28 +835,29 @@
       applyTransform();
     }
 
-    // prevent clicks inside UI panels from clearing selection
+    // prevent clicks inside UI panels clearing selection
     document.addEventListener('click', (e)=> {
       const target = e.target;
-      if (target.closest('.node') || target.closest('.link-path')) return;
-      if (target.closest('#inspector')
+      if (target && target.closest && (target.closest('.node') || target.closest('.link-path'))) return;
+      if (target && target.closest && (target.closest('#inspector')
           || target.closest('.topbar')
           || target.closest('.header-actions')
           || target.closest('#floatingTools')
           || target.closest('.controls-panel')
           || target.closest('#contextMenu')
           || target.closest('.modal-backdrop')
-          || target.closest('.modal-card')) {
+          || target.closest('.modal-card'))) {
         return;
       }
       selectedNodes.clear(); selectedLinkId = null;
-      toolDeleteNode.disabled = true; toolDeleteLink.disabled = true;
-      document.getElementById('contextMenu').style.display = 'none';
+      if (toolDeleteNode) toolDeleteNode.disabled = true;
+      if (toolDeleteLink) toolDeleteLink.disabled = true;
+      const cm = $('contextMenu'); if (cm) cm.style.display = 'none';
       renderNodes(); renderLinks(); updateInspector();
     });
 
-    // save
-    saveBoardBtn && saveBoardBtn.addEventListener('click', saveModel);
+    // save binding
+    if (saveBoardBtn) saveBoardBtn.addEventListener('click', saveModel);
 
     // initial load
     loadModel();
@@ -795,9 +865,34 @@
     // keyboard
     document.addEventListener('keydown', onKey);
 
-    // debug API
+    // small API for debugging
     window._wf = { model, renderNodes, saveModel, zoomToFit, autoResizeBoard };
-  }
+
+    // expose simple UI to add nodes if toolbar missing (non-intrusive)
+    if (!toolAddPage && !toolAddAction && !toolAddDecision) {
+      const t = document.createElement('div');
+      t.id = 'floatingTools';
+      t.style.position = 'fixed';
+      t.style.left = '12px';
+      t.style.bottom = '12px';
+      t.style.zIndex = 9999;
+      t.style.background = 'rgba(255,255,255,0.96)';
+      t.style.border = '1px solid rgba(0,0,0,0.06)';
+      t.style.padding = '8px';
+      t.style.borderRadius = '10px';
+      ['Page','Action','Decision'].forEach((label, i) => {
+        const b = document.createElement('button');
+        b.textContent = label;
+        b.style.margin = '4px';
+        b.addEventListener('click', ()=> {
+          const offsetX = 120 + i*180;
+          addNodeAt(120 + offsetX, 120 + i*40, label.toLowerCase() === 'page' ? 'page' : (label.toLowerCase() === 'action' ? 'action' : 'decision'));
+        });
+        t.appendChild(b);
+      });
+      document.body.appendChild(t);
+    }
+  } // end ready
 
   document.addEventListener('DOMContentLoaded', ready);
 })();
